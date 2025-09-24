@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# 虚拟环境
+venv/
+.env/
+.env.*
+.env
+
+# 构建产物
+build/
+dist/
+*.egg-info/
+projects/**/**/
+projects/
+
+# 编辑器/系统文件
+.DS_Store
+.idea/
+.vscode/

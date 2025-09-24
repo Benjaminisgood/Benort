@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "benort"
+version = "0.1.0"
+description = "Beamer AI 演讲稿编辑平台"
+requires-python = ">=3.11"
+dependencies = [
+    "flask==3.0.2",
+    "openai==1.35.0",
+    "python-dotenv==1.0.1",
+    "werkzeug==3.0.1",
+    "gunicorn==21.2.0",
+    "requests==2.31.0",
+    "pyyaml==6.0.1",
+    "ruamel.yaml==0.18.15",
+]

@@ -1,0 +1,1740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Benort</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+  <style>
+    #editor-preview-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    @media (min-width: 992px) {
+      #editor-preview-wrapper {
+        flex-direction: row;
+      }
+    }
+    .editor-pane,
+    .preview-pane {
+      flex: 1 1 0;
+      min-height: 70vh;
+      display: flex;
+      flex-direction: column;
+    }
+    #editor-container,
+    #pdf-container,
+    #markdown-preview {
+      height: 70vh;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      overflow: auto;
+    }
+    #editor-container {
+      background: #f8f9fa;
+      padding: 0;
+    }
+    .CodeMirror {
+      height: 100% !important;
+    }
+    .CodeMirror-scroll {
+      max-height: 100% !important;
+    }
+    #pdf-container {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 1rem;
+    }
+    #markdown-preview {
+      padding: 1rem;
+    }
+    #pdf-canvas {
+      max-width: 100%;
+      height: auto;
+    }
+    .navbar .btn-outline-primary {
+      border-width: 2px;
+    }
+    @media (max-width: 767.98px) {
+      .editor-pane,
+      .preview-pane {
+        min-height: 60vh;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="status-area" class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index:2000;"></div>
+ 
+<nav class="navbar navbar-expand-lg navbar-light bg-light mb-3">
+  <div class="container-fluid">
+    <div class="d-flex align-items-center gap-3">
+      <div class="dropdown">
+        <button class="btn btn-outline-primary fw-semibold px-3" id="project-dropdown" data-bs-toggle="dropdown" aria-expanded="false">Benort</button>
+        <ul class="dropdown-menu" id="project-menu" aria-labelledby="project-dropdown">
+          <li><span class="dropdown-item-text text-muted">加载项目...</span></li>
+        </ul>
+      </div>
+    </div>
+  <div class="navbar-collapse show ms-3">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+
+        <li class="nav-item d-flex align-items-center">
+          <button class="btn btn-outline-primary btn-sm me-2" id="prev-page" title="上一页">上</button>
+          <button type="button" class="btn btn-outline-primary btn-sm me-2" id="page-status" >
+            <span id="page-num">1</span> / <span id="page-count">1</span>
+          </button>
+          <button class="btn btn-outline-primary btn-sm me-2" id="next-page" title="下一页">下</button>
+        </li>
+        <li class="nav-item"><button class="btn btn-outline-primary me-2" id="mode-switch-btn" title="切换LaTeX/Markdown">切换</button></li>
+        <li class="nav-item"><button class="btn btn-outline-secondary me-2" id="add-page" title="添加新页">加页</button></li>
+        <li class="nav-item"><button class="btn btn-outline-warning me-2" id="insert-component" title="插入常用组件">插入</button></li>
+        <li class="nav-item"><button class="btn btn-outline-info me-2" id="edit-template" title="编辑LaTeX样式模板">样式</button></li>
+        <li><hr class="dropdown-divider m-1"></li>
+
+  <li class="nav-item"><button class="btn btn-outline-success me-2" id="export-btn" title="导出">导出</button></li>
+        <li><hr class="dropdown-divider m-1"></li>
+
+        <li class="nav-item"><button class="btn btn-outline-danger me-2" id="ai-optimize" title="AI代码优化">代码优化</button></li>
+  <li class="nav-item"><button class="btn btn-outline-secondary me-2" id="ai-note-optimize" title="AI笔记优化">笔记优化</button></li>
+  <li class="nav-item"><button class="btn btn-outline-secondary me-2" id="ai-script-optimize" title="AI讲稿优化">讲稿优化</button></li>
+        <li><hr class="dropdown-divider m-1"></li>
+  <li class="nav-item"><button class="btn btn-outline-dark me-2" id="play-note" title="播放当前页讲稿">播放讲稿</button></li>
+        <li><hr class="dropdown-divider m-1"></li>
+
+        <li class="nav-item"><button class="btn btn-outline-primary me-2" id="edit-bib" title="管理文献">管理文献</button></li>
+        <li class="nav-item"><button class="btn btn-outline-primary me-2" id="manage-resources" title="管理资源">管理资源</button></li>
+        <li class="nav-item"><button class="btn btn-outline-primary me-2" id="manage-attachments" title="管理附件">管理附件</button></li>
+
+      <div class="modal fade" id="bibModal" tabindex="-1" aria-labelledby="bibModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="bibModalLabel">参考文献管理</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-2 d-flex">
+                <input id="bib-input" class="form-control me-2" placeholder="输入DOI或文献链接">
+                <select id="bib-scope" class="form-select me-2" style="width:auto;">
+                  <option value="global">全局</option>
+                  <option value="page">本页</option>
+                </select>
+                <button class="btn btn-success me-2" id="add-bib-btn">AI生成并添加</button>
+                <button class="btn btn-outline-primary" id="add-url-bib-btn">直接添加URL</button>
+              </div>
+              <div id="bib-list" class="list-group"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+          <!-- Resources Modal -->
+          <div class="modal fade" id="resourcesModal" tabindex="-1" aria-labelledby="resourcesModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="resourcesModalLabel">资源管理</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="mb-3 d-flex align-items-center">
+                    <select id="resources-scope" class="form-select me-2" style="width:auto;">
+                      <option value="page">本页</option>
+                      <option value="global">全局</option>
+                    </select>
+                    <button id="refresh-resources" class="btn btn-outline-secondary me-2">刷新</button>
+                    <div class="ms-auto text-muted">当前页: <span id="resources-current-page">1</span></div>
+                  </div>
+
+                  <div class="input-group mb-3">
+                    <input id="modal-resource-upload-input" type="file" class="form-control" />
+                    <button id="modal-resource-upload-btn" class="btn btn-primary">上传到本页</button>
+                    <button id="modal-resource-upload-global-btn" class="btn btn-secondary">上传为全局</button>
+                  </div>
+
+                  <h6 class="mt-2">资源</h6>
+                  <div id="resources-list-modal" class="list-group mb-3"></div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+      <!-- Attachments Modal -->
+      <div class="modal fade" id="attachmentsModal" tabindex="-1" aria-labelledby="attachmentsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="attachmentsModalLabel">附件管理</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="input-group mb-3">
+                <input id="modal-attachment-upload-input" type="file" class="form-control" />
+                <button id="modal-attachment-upload-btn" class="btn btn-primary">上传附件</button>
+              </div>
+              <div id="attachments-list-modal" class="list-group"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      
+          <div class="modal fade" id="aiNoteModal" tabindex="-1" aria-labelledby="aiNoteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="aiNoteModalLabel">笔记AI优化结果</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <textarea id="ai-note-result" class="form-control" rows="8"></textarea>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+              <button type="button" class="btn btn-primary" id="apply-ai-note-result">应用到当前笔记</button>
+            </div>
+          </div>
+        </div>
+      </div>  
+
+      <div class="modal fade" id="aiModal" tabindex="-1" aria-labelledby="aiModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="aiModalLabel">AI优化结果</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <textarea id="ai-result" class="form-control" rows="8"></textarea>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+              <button type="button" class="btn btn-primary" id="apply-ai-result">应用到当前页</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    
+      <!-- AI Script Modal (optimized speaking script) -->
+      <div class="modal fade" id="aiScriptModal" tabindex="-1" aria-labelledby="aiScriptModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="aiScriptModalLabel">讲稿 AI 优化结果</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <textarea id="ai-script-result" class="form-control" rows="8"></textarea>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+              <button type="button" class="btn btn-primary" id="apply-ai-script-result">应用到当前讲稿</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      </ul>
+    </div>
+  </div>
+</nav>
+<div class="container-fluid">
+  <div id="editor-preview-wrapper" class="mb-3">
+    <div class="editor-pane">
+      
+      <form id="tex-form" class="flex-grow-1 d-flex flex-column">
+        <div id="editor-container">
+          <div id="pages-list"></div>
+        </div>
+      </form>
+
+      <div class="modal fade" id="tabsModal" tabindex="-1" aria-labelledby="tabsModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="tabsModalLabel">页面拖拽排序</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div id="page-tabs" class="d-flex flex-wrap"></div>
+              <div class="text-muted mt-2">拖动页码标签可调整顺序，点击页码可跳转</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal fade" id="componentModal" tabindex="-1" aria-labelledby="componentModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="componentModalLabel">插入常用页面组件</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="list-group" id="component-list">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal fade" id="templateModal" tabindex="-1" aria-labelledby="templateModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="templateModalLabel">编辑样式模板</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label class="form-label">选择基础模板</label>
+                <select id="template-select" class="form-select mb-2">
+                  <option value="">自定义（当前模板）</option>
+                </select>
+                <div class="form-text">选择后仍可在下方文本框中补充或修改内容。</div>
+              </div>
+              <label class="form-label">文档头部（第一页前）</label>
+              <textarea id="template-header" class="form-control mb-2" rows="4"></textarea>
+              <label class="form-label">文档主体（每页前）</label>
+              <textarea id="template-before-pages" class="form-control mb-2" rows="2"></textarea>
+              <label class="form-label">文档结尾（最后一页后）</label>
+              <textarea id="template-footer" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+              <button type="button" class="btn btn-primary" id="save-template">保存模板</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="preview-pane">
+      
+      <div id="pdf-container">
+        <canvas id="pdf-canvas"></canvas>
+      </div>
+      <div id="markdown-preview" class="d-none"></div>
+    </div>
+  </div>
+
+  <div class="mb-4">
+    <label for="page-script" class="form-label">本页讲稿（用于导出语音）</label>
+    <textarea id="page-script" class="form-control" rows="4" placeholder="这里是本页的讲稿，支持导出语音。"></textarea>
+  </div>
+  
+  <!-- Export Modal -->
+  <div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="exportModalLabel">导出选项</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="exportOption" id="exportTexOption" value="tex" checked>
+            <label class="form-check-label" for="exportTexOption">导出 TeX</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="exportOption" id="exportAttachmentsOption" value="attachments">
+            <label class="form-check-label" for="exportAttachmentsOption">导出 资料和附件 (zip)</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="exportOption" id="exportAudioOption" value="audio">
+            <label class="form-check-label" for="exportAudioOption">导出 讲稿为语音 (MP3)</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="exportOption" id="exportNotesOption" value="notes">
+            <label class="form-check-label" for="exportNotesOption">导出 笔记 (Markdown)</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+          <button type="button" class="btn btn-primary" id="doExportBtn">开始导出</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/stex/stex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/markdown/markdown.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script>
+  
+  function updatePageNumLabel() {
+    document.getElementById('page-num').textContent = currentPageIdx+1;
+    document.getElementById('page-count').textContent = pagesData.length;
+  }
+  
+  
+  const COMPONENTS = [
+
+    { group: '结构', items: [
+      { name: '章节（Section）', code: '\\section{章节标题}' },
+      { name: '小节（Subsection）', code: '\\subsection{小节标题}' },
+      { name: '幻灯片标题', code: '\\frametitle{幻灯片标题}' },
+      { name: '摘要（Abstract）', code: '\\begin{abstract}\n这里是摘要内容。\n  \\end{abstract}' },
+      { name: '目录（Table of Contents）', code: '\\tableofcontents' }
+    ]},
+
+    { group: '排版', items: [
+      { name: '两栏排版', code: '\\begin{columns}\n  \\column{0.5\\textwidth}\n  左侧内容\n  \\column{0.5\\textwidth}\n  右侧内容\n\\end{columns}' },
+      { name: '左右两列上下分块', code: '\\begin{columns}[T,onlytextwidth]\n  \\column{0.48\\textwidth}\n  % 左侧内容\n  这里是左侧一整块内容\n  \\column{0.48\\textwidth}\n  % 右侧上块\n  \\textbf{右上块标题}\n  右上块内容\\\\[1em]\n  % 右侧下块\n  \\textbf{右下块标题}\n  右下块内容\n\\end{columns}' },
+      { name: '田字格（2x2分栏）', code: '\\begin{columns}\n  \\column{0.5\\textwidth}\n    \\begin{block}{左上}\n    内容1\n    \\end{block}\n    \\begin{block}{左下}\n    内容2\n    \\end{block}\n  \\column{0.5\\textwidth}\n    \\begin{block}{右上}\n    内容3\n    \\end{block}\n    \\begin{block}{右下}\n    内容4\n    \\end{block}\n\\end{columns}' },
+      { name: '分段（Paragraph）', code: '\\paragraph{段落标题} 这里是段落内容。' },
+      { name: '引用块（Quote）', code: '\\begin{quote}\n引用内容。\n\\end{quote}' }
+    ]},
+
+    { group: '组件', items: [
+      { name: '项目符号列表', code: '\\begin{itemize}\n  \\item 第一项\n  \\item 第二项\n\\end{itemize}' },
+      { name: '编号列表', code: '\\begin{enumerate}\n  \\item 第一项\n  \\item 第二项\n\\end{enumerate}' },
+      { name: '表格', code: '\\begin{tabular}{|c|c|c|}\n  \\hline\nA & B & C \\\\ \\hline\n1 & 2 & 3 \\\\ \\hline\n\\end{tabular}' },
+      { name: '浮动表格（table）', code: '\\begin{table}[htbp]\n  \\centering\n  \\begin{tabular}{ccc}\n    A & B & C \\\\ \n    1 & 2 & 3 \\\\ \n  \\end{tabular}\n  \\caption{表格标题}\n  \\label{tab:label}\n\\end{table}' },
+      { name: '代码块（verbatim）', code: '\\begin{verbatim}\n这里是代码内容\n\\end{verbatim}' },
+      { name: '交叉引用', code: '见图\\ref{fig:label}，表\\ref{tab:label}，公式\\eqref{eq:label}' }
+    ]},
+
+    { group: '数学/定理', items: [
+      { name: '公式（有编号）', code: '\\begin{equation}\n  E=mc^2\n  \\end{equation}' },
+      { name: '公式（无编号）', code: '\\[ E^2 = p^2c^2 + m^2c^4 \]' },
+      { name: '定理（theorem）', code: '\\begin{theorem}\n  定理内容。\n  \\end{theorem}' },
+      { name: '证明（proof）', code: '\\begin{proof}\n  证明过程。\n  \\end{proof}' }
+    ]},
+
+    { group: '卡片', items: [
+      { name: '普通卡片（block）', code: '\\begin{block}{卡片标题}\n  这里是卡片内容，可用于强调信息。\n  \\end{block}' },
+      { name: '警告卡片（alertblock）', code: '\\begin{alertblock}{警告/高亮}\n  这里是高亮警告内容。\n  \\end{alertblock}' },
+      { name: '示例卡片（exampleblock）', code: '\\begin{exampleblock}{示例}\n  这里是示例内容。\n  \\end{exampleblock}' }
+    ]},
+
+    { group: '图片', items: [
+      { name: '插入图片', code: '\\begin{center}\n  \\includegraphics[width=0.7\\textwidth]{example-image}\n  \\end{center}' },
+      { name: '浮动图片（figure）', code: '\\begin{figure}[htbp]\n  \\centering\n  \\includegraphics[width=0.6\\textwidth]{example-image}\n  \\caption{图片标题}\n  \\label{fig:label}\n  \\end{figure}' }
+    ]}
+  ];
+  
+  
+  document.getElementById('insert-component').onclick = function() {
+    const list = document.getElementById('component-list');
+    list.innerHTML = '';
+    const container = document.createElement('div');
+    container.className = 'd-flex';
+    const nav = document.createElement('div');
+    nav.className = 'list-group me-3';
+    nav.style.minWidth = '120px';
+    const compArea = document.createElement('div');
+    compArea.style.flex = '1';
+    let currentGroupIdx = 0;
+    function renderCompList(idx) {
+      compArea.innerHTML = '';
+      COMPONENTS[idx].items.forEach(comp => {
+        const btn = document.createElement('button');
+        btn.className = 'list-group-item list-group-item-action mb-1';
+        btn.textContent = comp.name;
+        btn.onclick = function() {
+          if(singleEditor) {
+            const doc = singleEditor.getDoc();
+            const cursor = doc.getCursor();
+            doc.replaceRange(comp.code + '\n', cursor);
+          }
+          var modal = bootstrap.Modal.getInstance(document.getElementById('componentModal'));
+          modal.hide();
+        };
+        compArea.appendChild(btn);
+      });
+    }
+    COMPONENTS.forEach((group, idx) => {
+      const navBtn = document.createElement('button');
+      navBtn.className = 'list-group-item list-group-item-action' + (idx === 0 ? ' active' : '');
+      navBtn.textContent = group.group;
+      navBtn.onclick = function() {
+        currentGroupIdx = idx;
+        Array.from(nav.children).forEach(btn => btn.classList.remove('active'));
+        navBtn.classList.add('active');
+        renderCompList(idx);
+      };
+      nav.appendChild(navBtn);
+    });
+    renderCompList(0);
+    container.appendChild(nav);
+    container.appendChild(compArea);
+    list.appendChild(container);
+    var modal = new bootstrap.Modal(document.getElementById('componentModal'));
+    modal.show();
+  };
+  let pagesData = [];
+  let globalResources = [];
+  let latexTemplate = {
+    header: '\\documentclass{beamer}\n\\usepackage[utf8]{inputenc}\n\\usetheme{Madrid}',
+    beforePages: '\\begin{document}',
+    footer: '\\end{document}'
+  };
+
+  
+  let currentPageIdx = 0;
+  let singleEditor = null;
+  let currentEditMode = 'latex';
+  let currentProject = '';
+  let compileTimer = null;
+  let isCompiling = false;
+  let compilePending = false;
+  let availableTemplates = [];
+  let templatesLoaded = false;
+  let selectedTemplateName = '';
+
+  function updateModeToggleUI() {
+    const switchBtn = document.getElementById('mode-switch-btn');
+    if (switchBtn) {
+      switchBtn.textContent = currentEditMode === 'latex' ? '切换 Markdown' : '切换 LaTeX';
+    }
+  }
+
+  function showStatus(message, type = 'info', timeout = 4000) {
+    const area = document.getElementById('status-area');
+    if (!area) return;
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show shadow`;
+    alertDiv.setAttribute('role', 'alert');
+    alertDiv.textContent = message;
+    area.appendChild(alertDiv);
+    setTimeout(() => {
+      alertDiv.classList.remove('show');
+      alertDiv.classList.add('fade');
+      setTimeout(() => alertDiv.remove(), 200);
+    }, timeout);
+  }
+
+  function updateProjectButtonLabel() {
+    const btn = document.getElementById('project-dropdown');
+    if (!btn) return;
+    btn.textContent = currentProject ? `Benort · ${currentProject}` : 'Benort';
+  }
+
+  function normalizeTemplateText(text) {
+    return (text || '').replace(/\r\n/g, '\n').trim();
+  }
+
+  function detectCurrentTemplate() {
+    if (!templatesLoaded) return;
+    const header = normalizeTemplateText(latexTemplate.header);
+    const before = normalizeTemplateText(latexTemplate.beforePages);
+    const footer = normalizeTemplateText(latexTemplate.footer);
+    const match = availableTemplates.find(t =>
+      normalizeTemplateText(t.header) === header &&
+      normalizeTemplateText(t.beforePages) === before &&
+      normalizeTemplateText(t.footer) === footer
+    );
+    selectedTemplateName = match ? match.name : '';
+  }
+
+  function ensureTemplatesLoaded() {
+    if (templatesLoaded) return Promise.resolve(availableTemplates);
+    return fetch('/templates/list')
+      .then(res => res.json())
+      .then(data => {
+        availableTemplates = Array.isArray(data.templates) ? data.templates : [];
+        templatesLoaded = true;
+        detectCurrentTemplate();
+        return availableTemplates;
+      })
+      .catch(err => {
+        showStatus('加载模板列表失败：' + (err?.message || '未知错误'), 'danger', 6000);
+        throw err;
+      });
+  }
+
+  function populateTemplateSelect() {
+    const select = document.getElementById('template-select');
+    if (!select) return;
+    const currentValue = selectedTemplateName || '';
+    select.innerHTML = '';
+    const customOption = document.createElement('option');
+    customOption.value = '';
+    customOption.textContent = '自定义（当前模板）';
+    select.appendChild(customOption);
+    availableTemplates.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.name;
+      opt.textContent = t.name;
+      select.appendChild(opt);
+    });
+    select.value = currentValue;
+  }
+
+  function applyTemplateByName(name) {
+    const tmpl = availableTemplates.find(t => t.name === name);
+    if (!tmpl) return;
+    document.getElementById('template-header').value = tmpl.header || '';
+    document.getElementById('template-before-pages').value = tmpl.beforePages || '';
+    document.getElementById('template-footer').value = tmpl.footer || '';
+    selectedTemplateName = name;
+  }
+
+  function renderMarkdownPreview() {
+    const preview = document.getElementById('markdown-preview');
+    if (!preview) return;
+    const md = pagesData[currentPageIdx]?.notes || '';
+    preview.innerHTML = md ? marked.parse(md) : '<p class="text-muted mb-0">暂无 Markdown 内容</p>';
+  }
+
+  function syncPaneHeights() {
+    if (singleEditor) {
+      setTimeout(() => singleEditor.refresh(), 0);
+    }
+  }
+
+  function queueCompile(delay = 600) {
+    if (compileTimer) clearTimeout(compileTimer);
+    compileTimer = setTimeout(runCompile, delay);
+  }
+
+  function runCompile() {
+    if (isCompiling) {
+      compilePending = true;
+      return;
+    }
+    isCompiling = true;
+    compilePending = false;
+    fetch('/compile_page', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({page: currentPageIdx})
+    }).then(res => res.json()).then(data => {
+      if (data.success) {
+        loadCurrentPagePDF();
+      } else {
+        showStatus('编译失败：' + (data.error || '未知错误'), 'danger', 6000);
+      }
+    }).catch(err => {
+      showStatus('编译失败：' + (err?.message || '网络错误'), 'danger', 6000);
+    }).finally(() => {
+      isCompiling = false;
+      if (compilePending) {
+        compilePending = false;
+        runCompile();
+      }
+    });
+  }
+
+  function refreshPreview() {
+    const pdfContainer = document.getElementById('pdf-container');
+    const markdownContainer = document.getElementById('markdown-preview');
+    if (currentEditMode === 'latex') {
+      pdfContainer?.classList.remove('d-none');
+      markdownContainer?.classList.add('d-none');
+      loadCurrentPagePDF();
+    } else {
+      pdfContainer?.classList.add('d-none');
+      markdownContainer?.classList.remove('d-none');
+      renderMarkdownPreview();
+    }
+    updateModeToggleUI();
+    syncPaneHeights();
+  }
+
+  function setEditMode(mode) {
+    if (currentEditMode === mode) return;
+    currentEditMode = mode;
+    renderSingleEditor();
+  }
+
+  updateModeToggleUI();
+  window.addEventListener('resize', syncPaneHeights);
+  
+  function renderTabsModal() {
+    const tabs = document.getElementById('page-tabs');
+    tabs.innerHTML = '';
+    pagesData.forEach((_, idx) => {
+      const tab = document.createElement('div');
+      tab.className = 'badge rounded-pill bg-' + (idx === currentPageIdx ? 'primary' : 'secondary') + ' me-1 mb-1';
+      tab.textContent = idx + 1;
+      tab.setAttribute('draggable', 'true');
+      tab.style.cursor = 'grab';
+      tab.ondragstart = e => {
+        e.dataTransfer.setData('text/plain', idx);
+        tab.classList.add('opacity-50');
+      };
+      tab.ondragend = e => tab.classList.remove('opacity-50');
+      tab.ondragover = e => e.preventDefault();
+      tab.ondrop = e => {
+        e.preventDefault();
+        const from = parseInt(e.dataTransfer.getData('text/plain'));
+        const to = idx;
+        if (from !== to) {
+          const moved = pagesData.splice(from, 1)[0];
+          pagesData.splice(to, 0, moved);
+          if (currentPageIdx === from) currentPageIdx = to;
+          else if (from < currentPageIdx && to >= currentPageIdx) currentPageIdx--;
+          else if (from > currentPageIdx && to <= currentPageIdx) currentPageIdx++;
+          saveProject();
+          renderTabsModal();
+          renderSingleEditor();
+          updatePageNumLabel();
+          refreshPreview();
+        }
+      };
+      tab.onclick = () => {
+        currentPageIdx = idx;
+        renderSingleEditor();
+        refreshPreview();
+        updatePageNumLabel();
+        var modal = bootstrap.Modal.getInstance(document.getElementById('tabsModal'));
+        modal.hide();
+      };
+      tabs.appendChild(tab);
+    });
+  }
+  
+  function renderSingleEditor() {
+    const list = document.getElementById('pages-list');
+    list.innerHTML = '';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mb-3';
+    wrapper.innerHTML = `<textarea id="page-single" class="form-control"></textarea>`;
+    list.appendChild(wrapper);
+    if (!pagesData[currentPageIdx]) {
+      pagesData[currentPageIdx] = {content: '', script: '', notes: '', bib: [], resources: []};
+    }
+    const page = pagesData[currentPageIdx];
+    singleEditor = CodeMirror.fromTextArea(wrapper.querySelector('textarea'), {
+      mode: currentEditMode === 'markdown' ? 'markdown' : 'stex',
+      lineNumbers: true,
+      theme: 'default',
+      viewportMargin: Infinity,
+      lineWrapping: true
+    });
+    const initialValue = currentEditMode === 'markdown' ? (page.notes || '') : (page.content || '');
+    singleEditor.setValue(initialValue);
+    singleEditor.setSize('100%', '100%');
+    singleEditor.on('change', function() {
+      const value = singleEditor.getValue();
+      if (currentEditMode === 'markdown') {
+        pagesData[currentPageIdx].notes = value;
+        renderMarkdownPreview();
+      } else {
+        pagesData[currentPageIdx].content = value;
+      }
+      saveProject();
+      queueCompile();
+    });
+    const scriptInput = document.getElementById('page-script');
+    scriptInput.value = page.script || '';
+    updateModeToggleUI();
+    refreshPreview();
+    // refresh resources list for this page
+    setTimeout(()=>{ if(window.refreshResourceLists) refreshResourceLists(); }, 50);
+    queueCompile();
+  }
+  
+  document.getElementById('page-num').parentElement.onclick = function() {
+    renderTabsModal();
+    var modal = new bootstrap.Modal(document.getElementById('tabsModal'));
+    modal.show();
+  };
+
+  function removeCurrentPage() {
+    if(pagesData.length <= 1) return;
+    pagesData.splice(currentPageIdx, 1);
+    if(currentPageIdx >= pagesData.length) currentPageIdx = pagesData.length - 1;
+    saveProject();
+    renderSingleEditor();
+    updatePageNumLabel();
+  }
+
+
+  
+  document.getElementById('add-page').onclick = function() {
+    fetch('/add_page', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({idx: currentPageIdx+1})
+    }).then(res => res.json()).then(data => {
+      pagesData = data.pages;
+      currentPageIdx++;
+      renderSingleEditor();
+      updatePageNumLabel();
+      refreshPreview();
+    });
+  };
+  const modeSwitchBtn = document.getElementById('mode-switch-btn');
+  if (modeSwitchBtn) {
+    modeSwitchBtn.addEventListener('click', () => {
+      const nextMode = currentEditMode === 'latex' ? 'markdown' : 'latex';
+      setEditMode(nextMode);
+    });
+  }
+  updateModeToggleUI();
+  
+  document.getElementById('edit-template').onclick = function() {
+    document.getElementById('template-header').value = latexTemplate.header || '';
+    document.getElementById('template-before-pages').value = latexTemplate.beforePages || '';
+    document.getElementById('template-footer').value = latexTemplate.footer || '';
+    ensureTemplatesLoaded().finally(() => {
+      detectCurrentTemplate();
+      populateTemplateSelect();
+    });
+    var modal = new bootstrap.Modal(document.getElementById('templateModal'));
+    modal.show();
+  };
+  document.getElementById('save-template').onclick = function() {
+    const headerVal = document.getElementById('template-header').value;
+    const beforeVal = document.getElementById('template-before-pages').value;
+    const footerVal = document.getElementById('template-footer').value;
+    latexTemplate.header = headerVal;
+    latexTemplate.beforePages = beforeVal;
+    latexTemplate.footer = footerVal;
+    const selectEl = document.getElementById('template-select');
+    const chosen = selectEl ? selectEl.value : '';
+    if (chosen) {
+      const tmpl = availableTemplates.find(t => t.name === chosen);
+      if (
+        tmpl &&
+        normalizeTemplateText(tmpl.header) === normalizeTemplateText(headerVal) &&
+        normalizeTemplateText(tmpl.beforePages) === normalizeTemplateText(beforeVal) &&
+        normalizeTemplateText(tmpl.footer) === normalizeTemplateText(footerVal)
+      ) {
+        selectedTemplateName = chosen;
+      } else {
+        selectedTemplateName = '';
+        if (selectEl) selectEl.value = '';
+      }
+    } else {
+      selectedTemplateName = '';
+    }
+    detectCurrentTemplate();
+    saveProject();
+    queueCompile();
+    var modal = bootstrap.Modal.getInstance(document.getElementById('templateModal'));
+    modal.hide();
+  };
+
+  
+  document.getElementById('tex-form').onsubmit = function(e) {
+    e.preventDefault();
+    saveProject();
+  };
+
+  
+  // export-tex button removed; unified export flow handled by export modal
+
+  // New unified export flow
+  const exportBtn = document.getElementById('export-btn');
+  if(exportBtn) exportBtn.addEventListener('click', function(){
+    var modal = new bootstrap.Modal(document.getElementById('exportModal'));
+    modal.show();
+  });
+
+  const templateSelectEl = document.getElementById('template-select');
+  if (templateSelectEl) templateSelectEl.addEventListener('change', function(){
+    const name = this.value;
+    if (name) {
+      applyTemplateByName(name);
+    } else {
+      selectedTemplateName = '';
+    }
+  });
+
+  document.getElementById('doExportBtn').addEventListener('click', function(){
+    const opt = document.querySelector('input[name="exportOption"]:checked').value;
+    var modalEl = document.getElementById('exportModal');
+    var modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+    if(opt === 'tex') return exportTex();
+    if(opt === 'attachments') {
+      fetch('/export_attachments').then(res => {
+        if(res.ok) return res.blob();
+        return res.json().then(data=>{throw new Error(data.error||'导出失败')});
+      }).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'attachments.zip'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      }).catch(e=>alert('导出失败：'+e.message));
+      return;
+    }
+    if(opt === 'audio'){
+      // request the server to produce audio from 'script' (讲稿)
+      fetch('/export_audio').then(res => {
+        if(res.ok) return res.blob();
+        return res.json().then(data=>{throw new Error(data.error||'导出失败')});
+      }).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'script.mp3'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      }).catch(e=>alert('导出失败：'+e.message));
+      return;
+    }
+    if(opt === 'notes'){
+      fetch('/export_notes').then(res => {
+        if(res.ok) return res.blob();
+        return res.json().then(data=>{throw new Error(data.error||'导出失败')});
+      }).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'notes.md'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      }).catch(e=>alert('导出失败：'+e.message));
+      return;
+    }
+  });
+  
+  function saveProject(cb) {
+    fetch('/project', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({template: latexTemplate, pages: pagesData, resources: globalResources})
+    }).then(() => { if(cb) cb(); });
+  }
+
+  
+  function loadProject(cb) {
+    return fetch('/project').then(res => res.json()).then(data => {
+      latexTemplate = typeof data.template === 'string' ? {
+        header: data.template,
+        beforePages: '\\begin{document}',
+        footer: '\\end{document}'
+      } : (data.template || latexTemplate);
+
+      pagesData = (data.pages || []).map(p => {
+        if(typeof p === 'string') return {content: p, script: '', notes: '', bib: [], resources: []};
+        p.script = p.script || '';
+        p.notes = p.notes || '';
+        p.bib = Array.isArray(p.bib) ? p.bib : [];
+        p.resources = Array.isArray(p.resources) ? p.resources : [];
+        return p;
+      });
+      if(pagesData.length === 0) pagesData = [{content: '', script: '', notes: '', bib: [], resources: []}];
+      globalResources = Array.isArray(data.resources) ? data.resources.slice() : [];
+      currentPageIdx = Math.min(currentPageIdx, pagesData.length - 1);
+      updateProjectButtonLabel();
+      renderSingleEditor();
+      updatePageNumLabel();
+      ensureTemplatesLoaded().then(() => detectCurrentTemplate()).catch(() => {});
+      if(cb) cb();
+    }).catch(err => {
+      console.error(err);
+      showStatus('加载项目失败：' + (err?.message || '未知错误'), 'danger', 6000);
+    });
+  }
+  
+  document.addEventListener('input', function(e) {
+    if(!e.target) return;
+    if(e.target.id === 'page-script') {
+      pagesData[currentPageIdx].script = e.target.value;
+      saveProject();
+      queueCompile();
+    }
+  });
+
+
+
+  
+  const canvas = document.getElementById('pdf-canvas');
+  const ctx = canvas.getContext('2d');
+function loadCurrentPagePDF(retry=0) {
+    const project = currentProject || '';
+    const pdfUrl = `/page_pdf/${currentPageIdx+1}?project=${encodeURIComponent(project)}&t=${Date.now()}`;
+    fetch(pdfUrl, {method: 'HEAD'}).then(res => {
+      if(res.ok) {
+        canvas.style.background = '#fff';
+        canvas.width = 800;
+        canvas.height = 600;
+        pdfjsLib.getDocument(pdfUrl).promise.then(function(pdf) {
+          pdf.getPage(1).then(function(page) {
+            const viewport = page.getViewport({scale: 1.5});
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const renderContext = {
+              canvasContext: ctx,
+              viewport: viewport
+            };
+            page.render(renderContext);
+          });
+        });
+      } else {
+        if(retry < 3) {
+          setTimeout(() => loadCurrentPagePDF(retry+1), 800);
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.font = '20px sans-serif';
+          ctx.fillStyle = '#888';
+          ctx.fillText('本页未编译', 30, 60);
+        }
+      }
+    });
+    document.getElementById('page-num').textContent = currentPageIdx+1;
+    document.getElementById('page-count').textContent = pagesData.length;
+  }
+
+  document.getElementById('prev-page').addEventListener('click', function() {
+    if(currentPageIdx > 0) {
+      currentPageIdx--;
+      renderSingleEditor();
+      refreshPreview();
+      document.getElementById('page-num').textContent = currentPageIdx+1;
+    }
+  });
+  document.getElementById('next-page').addEventListener('click', function() {
+    if(currentPageIdx < pagesData.length-1) {
+      currentPageIdx++;
+      renderSingleEditor();
+      refreshPreview();
+      document.getElementById('page-num').textContent = currentPageIdx+1;
+    }
+  });
+
+    document.getElementById('exportAttachmentsOption').onclick = function() {
+    this.disabled = true;
+    this.textContent = '导出中...';
+    fetch('/export_attachments').then(res => {
+      if(res.ok) return res.blob();
+      return res.json().then(data=>{throw new Error(data.error||'导出失败')});
+    }).then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'attachments.zip';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }).catch(e=>alert('导出失败：'+e.message)).finally(()=>{
+      this.disabled = false;
+      this.textContent = '导出附件';
+    });
+  };
+
+// --- multi-project client helpers ---
+(function(){
+  function getSelectedProject() {
+    return currentProject || '';
+  }
+
+  // monkey-patch fetch for same-origin API routes so existing code works
+  const _origFetch = window.fetch.bind(window);
+  window.fetch = function(input, init){
+    try {
+      const project = getSelectedProject();
+      // only modify same-origin app routes and when project is set
+      if(project && typeof input === 'string' && input.startsWith('/')){
+        // if body is FormData, append project as query param to URL (safer for multipart)
+        if(init && init.body && (init.body instanceof FormData)){
+          const sep = input.indexOf('?')>-1 ? '&' : '?';
+          input = input + sep + 'project=' + encodeURIComponent(project);
+          return _origFetch(input, init);
+        }
+        // if JSON body, embed project into JSON payload
+        if(init && init.headers && init.headers['Content-Type'] && init.headers['Content-Type'].indexOf('application/json') > -1 && init.body){
+          try{
+            const obj = JSON.parse(init.body);
+            obj.project = project;
+            init.body = JSON.stringify(obj);
+          }catch(e){}
+          return _origFetch(input, init);
+        }
+        // otherwise append project as query param
+        const sep = input.indexOf('?')>-1 ? '&' : '?';
+        input = input + sep + 'project=' + encodeURIComponent(project);
+        return _origFetch(input, init);
+      }
+    } catch(e) {
+      // fallthrough to default fetch
+    }
+    return _origFetch(input, init);
+  };
+
+  // load projects into dropdown
+  window.loadProjects = async function(){
+    try{
+      const res = await _origFetch('/projects');
+      if(!res.ok) return;
+      const data = await res.json();
+      const projects = Array.isArray(data.projects) ? data.projects : [];
+      if(!currentProject){
+        if(data.default && projects.includes(data.default)) currentProject = data.default;
+        else if(projects.length) currentProject = projects[0];
+      }
+      const menu = document.getElementById('project-menu');
+      if(menu){
+        menu.innerHTML = '';
+        if(projects.length === 0){
+          const empty = document.createElement('li');
+          empty.innerHTML = '<span class="dropdown-item-text text-muted">无项目</span>';
+          menu.appendChild(empty);
+        } else {
+          projects.forEach(name => {
+            const li = document.createElement('li');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'dropdown-item' + (name === currentProject ? ' active' : '');
+            btn.textContent = name;
+            btn.onclick = () => {
+              if (currentProject !== name) {
+                currentProject = name;
+                currentPageIdx = 0;
+                updateProjectButtonLabel();
+                menu.querySelectorAll('.dropdown-item').forEach(item => item.classList.remove('active'));
+                btn.classList.add('active');
+                loadProject();
+              }
+              const dropdownToggle = document.getElementById('project-dropdown');
+              if (dropdownToggle) {
+                const dropdown = bootstrap.Dropdown.getInstance(dropdownToggle);
+                if (dropdown) dropdown.hide();
+              }
+            };
+            li.appendChild(btn);
+            menu.appendChild(li);
+          });
+        }
+      }
+      updateProjectButtonLabel();
+      return data;
+    }catch(e){ console.warn('loadProjects failed', e); }
+  };
+})();
+
+// load projects then project data
+loadProjects().then(()=>{
+  loadProject();
+});
+
+  
+  document.getElementById('ai-optimize').onclick = function() {
+    const content = pagesData[currentPageIdx]?.content || '';
+    this.disabled = true;
+    this.textContent = '优化中...';
+    fetch('/ai_optimize', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({content: content, type: 'latex'})
+    }).then(res => res.json()).then(data => {
+      if(data.success && data.result) {
+        document.getElementById('ai-result').value = data.result;
+        var modal = new bootstrap.Modal(document.getElementById('aiModal'));
+        modal.show();
+      } else {
+        alert('AI优化失败：' + (data.error || '未知错误'));
+      }
+    }).catch(()=>alert('AI请求失败')).finally(()=>{
+      this.disabled = false;
+      this.textContent = '代码优化';
+    });
+  };
+  document.getElementById('apply-ai-result').onclick = function() {
+    const val = document.getElementById('ai-result').value;
+    if(val) {
+      pagesData[currentPageIdx].content = val;
+      renderSingleEditor();
+      saveProject();
+      queueCompile();
+    }
+    var modal = bootstrap.Modal.getInstance(document.getElementById('aiModal'));
+    modal.hide();
+  };
+
+  // AI script optimization (讲稿)
+  const aiScriptBtn = document.getElementById('ai-script-optimize');
+  if(aiScriptBtn) aiScriptBtn.addEventListener('click', function(){
+    const content = pagesData[currentPageIdx]?.script || '';
+    const page_tex = pagesData[currentPageIdx]?.content || '';
+    this.disabled = true;
+    this.textContent = '优化中...';
+    fetch('/ai_optimize', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({content: content, type: 'script', page_tex: page_tex})
+    }).then(res => res.json()).then(data => {
+      if(data.success && data.result) {
+        document.getElementById('ai-script-result').value = data.result;
+        var modal = new bootstrap.Modal(document.getElementById('aiScriptModal'));
+        modal.show();
+      } else {
+        alert('AI讲稿优化失败：' + (data.error || '未知错误'));
+      }
+    }).catch(()=>alert('AI请求失败')).finally(()=>{
+      this.disabled = false;
+      this.textContent = '优化讲稿';
+    });
+  });
+
+  document.getElementById('apply-ai-script-result').onclick = function(){
+    const val = document.getElementById('ai-script-result').value;
+    if(val){
+      pagesData[currentPageIdx].script = val;
+      document.getElementById('page-script').value = val;
+      saveProject();
+      queueCompile();
+    }
+    var modal = bootstrap.Modal.getInstance(document.getElementById('aiScriptModal'));
+    modal.hide();
+  };
+  
+  document.getElementById('ai-note-optimize').onclick = function() {
+    const note = pagesData[currentPageIdx]?.notes || '';
+    const page_tex = pagesData[currentPageIdx]?.content || '';
+    this.disabled = true;
+    this.textContent = '优化中...';
+    fetch('/ai_optimize', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({content: note, type: 'note', page_tex: page_tex})
+  }).then(res => res.json()).then(data => {
+      if(data.success && data.result) {
+        document.getElementById('ai-note-result').value = data.result;
+        var modal = new bootstrap.Modal(document.getElementById('aiNoteModal'));
+        modal.show();
+      } else {
+        alert('AI优化失败：' + (data.error || '未知错误'));
+      }
+    }).catch(()=>alert('AI请求失败')).finally(()=>{
+      this.disabled = false;
+      this.textContent = '笔记优化';
+    });
+  };
+  document.getElementById('apply-ai-note-result').onclick = function() {
+    const val = document.getElementById('ai-note-result').value;
+    if(val) {
+      pagesData[currentPageIdx].notes = val;
+      if(currentEditMode === 'markdown' && singleEditor) {
+        singleEditor.setValue(val);
+      }
+      renderMarkdownPreview();
+      saveProject();
+      queueCompile();
+    }
+    var modal = bootstrap.Modal.getInstance(document.getElementById('aiNoteModal'));
+    modal.hide();
+  };
+  
+  document.getElementById('play-note').onclick = function() {
+    const script = pagesData[currentPageIdx]?.script || '';
+    if(!script.trim()) return alert('当前页讲稿为空');
+    this.disabled = true;
+    this.textContent = '生成中...';
+    fetch('/tts', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: script})
+    }).then(res=>res.json()).then(data=>{
+      if(data.success && data.audio) {
+        const audio = new Audio('data:audio/mp3;base64,' + data.audio);
+        audio.play();
+      } else {
+        alert('TTS失败：'+(data.error||'未知错误'));
+      }
+    }).catch(()=>alert('TTS请求失败')).finally(()=>{
+      this.disabled = false;
+      this.textContent = '播放笔记';
+    });
+  };
+  
+  // legacy export-audio removed (use unified export modal)
+  
+  
+  let bibData = [];
+  document.getElementById('edit-bib').onclick = function() {
+    fetch('/project').then(res=>res.json()).then(data=>{
+      bibData = data.bib || [];
+      renderBibList();
+      var modal = new bootstrap.Modal(document.getElementById('bibModal'));
+      modal.show();
+    });
+  };
+
+  function renderBibList() {
+    const list = document.getElementById('bib-list');
+    list.innerHTML = '';
+
+    (pagesData[currentPageIdx]?.bib || []).forEach((bib, idx) => {
+      let doi = '';
+      let url = '';
+      const doiMatch = bib.match(/doi\s*=\s*[{"]([^}\"]+)/i);
+      if(doiMatch) doi = doiMatch[1];
+      const urlMatch = bib.match(/url\s*=\s*[{"]([^}\"]+)/i);
+      if(urlMatch) url = urlMatch[1];
+      let link = url || (doi ? ('https://doi.org/' + doi) : '');
+      const item = document.createElement('div');
+      item.className = 'list-group-item';
+      item.innerHTML = `<pre style="white-space:pre-wrap;word-break:break-all;">[本页] ${bib}</pre>`;
+      if(link) {
+        item.style.cursor = 'pointer';
+        item.title = '点击跳转到文献';
+        item.onclick = ()=>window.open(link, '_blank');
+      }
+      list.appendChild(item);
+    });
+
+    bibData.forEach((bib, idx) => {
+      let doi = '';
+      let url = '';
+      const doiMatch = bib.match(/doi\s*=\s*[{"]([^}\"]+)/i);
+      if(doiMatch) doi = doiMatch[1];
+      const urlMatch = bib.match(/url\s*=\s*[{"]([^}\"]+)/i);
+      if(urlMatch) url = urlMatch[1];
+      let link = url || (doi ? ('https://doi.org/' + doi) : '');
+      const item = document.createElement('div');
+      item.className = 'list-group-item';
+      item.innerHTML = `<pre style="white-space:pre-wrap;word-break:break-all;">[全局] ${bib}</pre>`;
+      if(link) {
+        item.style.cursor = 'pointer';
+        item.title = '点击跳转到文献';
+        item.onclick = ()=>window.open(link, '_blank');
+      }
+      list.appendChild(item);
+    });
+  }
+
+  document.getElementById('add-bib-btn').onclick = function() {
+    const val = document.getElementById('bib-input').value.trim();
+    if(!val) return;
+    this.disabled = true;
+    this.textContent = '生成中...';
+    const scope = document.getElementById('bib-scope').value;
+    fetch('/ai_bib', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ref: val})
+    }).then(res=>res.json()).then(data=>{
+      if(data.success && data.bib) {
+        if(scope === 'page') {
+          pagesData[currentPageIdx].bib = pagesData[currentPageIdx].bib || [];
+          pagesData[currentPageIdx].bib.push(data.bib);
+          saveProject();
+        } else {
+          bibData.push(data.bib);
+          fetch('/project', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({bib: bibData})
+          });
+        }
+        renderBibList();
+        document.getElementById('bib-input').value = '';
+      } else {
+        alert('AI生成失败：'+(data.error||'未知错误'));
+      }
+    }).catch(()=>alert('AI请求失败')).finally(()=>{
+      this.disabled = false;
+      this.textContent = 'AI生成并添加';
+    });
+  };
+
+  document.getElementById('add-url-bib-btn').onclick = function() {
+    let val = document.getElementById('bib-input').value.trim();
+    if(!val) return;
+    const scope = document.getElementById('bib-scope').value;
+    let cleanVal = val;
+    try {
+      const parsed = new URL(cleanVal);
+      parsed.search = '';
+      parsed.hash = '';
+      cleanVal = parsed.toString();
+    } catch(e) {
+      const noQuery = cleanVal.split('?')[0];
+      cleanVal = noQuery.split('#')[0];
+    }
+    const bib = `@misc{url${Date.now()},\n  url={${cleanVal}}\n}`;
+    if(scope === 'page') {
+      pagesData[currentPageIdx].bib = pagesData[currentPageIdx].bib || [];
+      pagesData[currentPageIdx].bib.push(bib);
+      saveProject();
+    } else {
+      bibData.push(bib);
+      fetch('/project', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({bib: bibData})
+      });
+    }
+    renderBibList();
+    document.getElementById('bib-input').value = '';
+  };
+
+  // Resource upload & listing
+  function getCurrentPageIndex() {
+    return currentPageIdx; // zero-based
+  }
+
+  async function parseJsonSafe(input) {
+    if (input instanceof Response) {
+      try {
+        const json = await input.clone().json();
+        return { json };
+      } catch (e) {
+        try {
+          const text = await input.clone().text();
+          return { text };
+        } catch (_) {
+          return { text: '' };
+        }
+      }
+    }
+    if (typeof input === 'string') {
+      try {
+        return { json: JSON.parse(input) };
+      } catch (e) {
+        return { text: input };
+      }
+    }
+    return { text: String(input || '') };
+  }
+
+  function urlToLatexPath(url){
+    if(!url) return '';
+    const withoutQuery = url.split('?')[0];
+    const normalized = withoutQuery.replace(/\\/g, '/');
+    const parts = normalized.split('/').filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : normalized;
+  }
+
+  async function refreshResourceLists() {
+    // If resources modal is open, refresh its content. Otherwise no-op.
+    const modalEl = document.getElementById('resourcesModal');
+    if(modalEl && bootstrap.Modal.getInstance(modalEl)){
+      await loadResourcesModal();
+    }
+  }
+
+  // Manage Resources Modal handlers
+  document.getElementById('manage-resources').addEventListener('click', async function(){
+    await loadResourcesModal();
+    var modal = new bootstrap.Modal(document.getElementById('resourcesModal'));
+    modal.show();
+  });
+
+  async function loadResourcesModal(){
+    const scope = document.getElementById('resources-scope').value;
+    const modalList = document.getElementById('resources-list-modal');
+    modalList.innerHTML = '<div class="text-muted p-2">加载中...</div>';
+    // show current page
+    const cp = getCurrentPageIndex()+1;
+    const cpEl = document.getElementById('resources-current-page');
+    if(cpEl) cpEl.textContent = cp;
+    try{
+      const pageIdx = getCurrentPageIndex();
+      let url = '/resources/list';
+      if(scope === 'page') url += `?page=${pageIdx}`;
+      const res = await fetch(url);
+      const data = res.ok ? await res.json() : {files: []};
+      // resources list
+      const resList = document.getElementById('resources-list-modal');
+      const files = Array.isArray(data.files) ? data.files : [];
+      const names = files.map(f => f && f.name).filter(Boolean);
+      if(scope === 'page' && pagesData[pageIdx]) {
+        pagesData[pageIdx].resources = names.slice();
+      }
+      if(scope !== 'page') {
+        globalResources = names.slice();
+      }
+      resList.innerHTML = '';
+      files.forEach(f => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item d-flex justify-content-between align-items-center';
+        const left = document.createElement('div');
+        const name = document.createElement('a');
+        name.href = f.url; name.target = '_blank'; name.textContent = f.name;
+        if(f.exists === false){
+          name.classList.add('text-muted');
+          name.title = '文件缺失';
+        }
+        left.appendChild(name);
+        if(f.exists === false){
+          const badge = document.createElement('span');
+          badge.className = 'badge bg-warning text-dark ms-2';
+          badge.textContent = '缺失';
+          left.appendChild(badge);
+        }
+        const actions = document.createElement('div');
+        const openBtn = document.createElement('button');
+        openBtn.className = 'btn btn-sm btn-outline-secondary me-2';
+        openBtn.textContent = '打开';
+        openBtn.onclick = function(){ window.open(f.url, '_blank'); };
+        if(f.exists === false){
+          openBtn.disabled = true;
+          openBtn.title = '文件缺失';
+        }
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn btn-sm btn-outline-primary me-2';
+        copyBtn.textContent = '复制链接';
+        copyBtn.onclick = function(){
+          navigator.clipboard.writeText(f.url).then(()=>{
+            copyBtn.textContent = '已复制';
+            setTimeout(()=>{ copyBtn.textContent = '复制链接'; }, 2000);
+          }).catch(()=>alert('复制失败，请手动复制链接'));
+        };
+        if(f.exists === false){
+          copyBtn.title = '文件缺失';
+        }
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-sm btn-outline-danger';
+        deleteBtn.textContent = '删除';
+        deleteBtn.onclick = async function(){
+          if(!confirm('确认删除此资源吗？')) return;
+          try{
+            const res = await fetch('/resources/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: f.name})});
+            const parsed = await parseJsonSafe(res);
+            if(res.ok){
+              if(parsed.json && parsed.json.success === false){
+                alert('删除失败：' + (parsed.json.error || (parsed.text ? parsed.text : '未知错误')));
+              } else {
+                globalResources = globalResources.filter(name => name !== f.name);
+                pagesData.forEach(p => {
+                  if(Array.isArray(p.resources)) {
+                    p.resources = p.resources.filter(name => name !== f.name);
+                  }
+                });
+                await loadResourcesModal();
+                await refreshResourceLists();
+                queueCompile();
+              }
+            } else {
+              const message = parsed.json && parsed.json.error ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
+              alert('删除失败：' + message);
+            }
+          }catch(e){ console.error(e); alert('删除失败：' + e.message); }
+        };
+      actions.appendChild(openBtn);
+      actions.appendChild(copyBtn);
+      actions.appendChild(deleteBtn);
+        item.appendChild(left);
+        item.appendChild(actions);
+        resList.appendChild(item);
+      });
+      if((data.files||[]).length === 0) resList.innerHTML = '<div class="text-muted p-2">没有资源</div>';
+
+    }catch(e){ modalList.innerHTML = '<div class="text-danger p-2">加载失败</div>'; }
+  }
+
+  const refreshResourcesBtn = document.getElementById('refresh-resources');
+  if(refreshResourcesBtn) refreshResourcesBtn.addEventListener('click', loadResourcesModal);
+  const resourcesScopeEl = document.getElementById('resources-scope');
+  if(resourcesScopeEl) resourcesScopeEl.addEventListener('change', loadResourcesModal);
+
+  // modal upload handlers
+  const modalUploadBtn = document.getElementById('modal-resource-upload-btn');
+  if(modalUploadBtn) modalUploadBtn.addEventListener('click', async function(){
+    const input = document.getElementById('modal-resource-upload-input');
+    if(!input.files || input.files.length === 0) return alert('请选择文件');
+    const file = input.files[0];
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('page', getCurrentPageIndex());
+    this.disabled = true;
+    this.textContent = '上传中...';
+    try{
+      const res = await fetch('/upload_resource', {method: 'POST', body: fd});
+      const parsed = await parseJsonSafe(res);
+      if(res.ok){
+        if(parsed.json && parsed.json.success === false){
+          alert('上传失败：' + (parsed.json.error || parsed.text || '未知错误'));
+        } else {
+          input.value = '';
+          const payload = parsed.json || {};
+          if(payload.scope === 'page' && typeof payload.page === 'number' && payload.name){
+            const idx = payload.page;
+            if(pagesData[idx]){
+              const list = Array.isArray(pagesData[idx].resources) ? pagesData[idx].resources : (pagesData[idx].resources = []);
+              if(!list.includes(payload.name)) list.push(payload.name);
+            }
+          }
+          await loadResourcesModal();
+          await refreshResourceLists();
+          queueCompile();
+        }
+      } else {
+        alert('上传失败：' + (parsed.json && parsed.json.error ? parsed.json.error : parsed.text || ('HTTP ' + res.status)));
+      }
+    }catch(e){ console.error(e); alert('上传失败：' + e.message); }
+    this.disabled = false;
+    this.textContent = '上传到本页';
+  });
+
+  const modalUploadGlobalBtn = document.getElementById('modal-resource-upload-global-btn');
+  if(modalUploadGlobalBtn) modalUploadGlobalBtn.addEventListener('click', async function(){
+    const input = document.getElementById('modal-resource-upload-input');
+    if(!input.files || input.files.length === 0) return alert('请选择文件');
+    const file = input.files[0];
+    const fd = new FormData();
+    fd.append('file', file);
+    this.disabled = true;
+    this.textContent = '上传中...';
+    try{
+      const res = await fetch('/upload_resource', {method: 'POST', body: fd});
+      const parsed = await parseJsonSafe(res);
+      if(res.ok){
+        if(parsed.json && parsed.json.success === false){
+          alert('上传失败：' + (parsed.json.error || parsed.text || '未知错误'));
+        } else {
+          input.value = '';
+          const payload = parsed.json || {};
+          if(payload.scope === 'global' && payload.name){
+            if(!globalResources.includes(payload.name)) globalResources.push(payload.name);
+          } else if(payload.scope === 'page' && typeof payload.page === 'number' && payload.name){
+            const idx = payload.page;
+            if(pagesData[idx]){
+              const list = Array.isArray(pagesData[idx].resources) ? pagesData[idx].resources : (pagesData[idx].resources = []);
+              if(!list.includes(payload.name)) list.push(payload.name);
+            }
+          }
+          await loadResourcesModal();
+          await refreshResourceLists();
+          queueCompile();
+        }
+      } else {
+        const message = parsed.json && parsed.json.error ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
+        alert('上传失败：' + message);
+      }
+    }catch(e){ console.error(e); alert('上传失败：' + e.message); }
+    this.disabled = false;
+    this.textContent = '上传为全局';
+  });
+
+  async function loadAttachmentsModal(){
+    const listEl = document.getElementById('attachments-list-modal');
+    if(!listEl) return;
+    listEl.innerHTML = '<div class="text-muted p-2">加载中...</div>';
+    try{
+      const res = await fetch('/attachments/list');
+      const data = res.ok ? await res.json() : {files: []};
+      listEl.innerHTML = '';
+      (data.files || []).forEach(f => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item d-flex justify-content-between align-items-center';
+        const left = document.createElement('div');
+        const name = document.createElement('a');
+        name.href = f.url;
+        name.target = '_blank';
+        name.textContent = f.name;
+        left.appendChild(name);
+        const actions = document.createElement('div');
+        const insertBtn = document.createElement('button');
+        insertBtn.className = 'btn btn-sm btn-outline-primary me-2';
+        insertBtn.textContent = '插入到当前页';
+        insertBtn.onclick = function(){
+          if(!singleEditor) return;
+          const doc = singleEditor.getDoc();
+          const cursor = doc.getCursor();
+          if(/\.(png|jpe?g|gif|svg)$/i.test(f.name)){
+            const path = urlToLatexPath(f.url);
+            doc.replaceRange(`\\begin{center}\n  \\includegraphics[width=0.7\\textwidth]{${path}}\n\\end{center}\n`, cursor);
+          } else {
+            doc.replaceRange(`\\textbf{附件:} \\href{${f.url}}{${f.name}}\n`, cursor);
+          }
+        };
+        const openBtn = document.createElement('button');
+        openBtn.className = 'btn btn-sm btn-outline-secondary me-2';
+        openBtn.textContent = '打开';
+        openBtn.onclick = function(){ window.open(f.url, '_blank'); };
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn btn-sm btn-outline-primary me-2';
+        copyBtn.textContent = '复制链接';
+        copyBtn.onclick = function(){
+          navigator.clipboard.writeText(f.url).then(()=>{
+            copyBtn.textContent = '已复制';
+            setTimeout(()=>{ copyBtn.textContent = '复制链接'; }, 2000);
+          }).catch(()=>alert('复制失败，请手动复制链接'));
+        };
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-sm btn-outline-danger';
+        deleteBtn.textContent = '删除';
+        deleteBtn.onclick = async function(){
+          if(!confirm('确认删除此附件吗？')) return;
+          try{
+            const u = new URL(f.url, window.location.origin);
+            let rel = u.pathname || f.url;
+            rel = rel.replace(/^\/?uploads\//, '');
+            const res = await fetch('/attachments/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({path: rel})});
+            const parsed = await parseJsonSafe(res);
+            if(res.ok){
+              if(parsed.json && parsed.json.success === false){
+                alert('删除失败：' + (parsed.json.error || (parsed.text ? parsed.text : '未知错误')));
+              } else {
+                await loadAttachmentsModal();
+              }
+            } else {
+              const message = parsed.json && parsed.json.error ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
+              alert('删除失败：' + message);
+            }
+          }catch(e){ console.error(e); alert('删除失败：' + e.message); }
+        };
+        actions.appendChild(insertBtn);
+        actions.appendChild(openBtn);
+        actions.appendChild(copyBtn);
+        actions.appendChild(deleteBtn);
+        item.appendChild(left);
+        item.appendChild(actions);
+        listEl.appendChild(item);
+      });
+      if((data.files || []).length === 0){
+        listEl.innerHTML = '<div class="text-muted p-2">没有附件</div>';
+      }
+    }catch(e){
+      console.warn('加载附件失败', e);
+      listEl.innerHTML = '<div class="text-danger p-2">加载失败</div>';
+    }
+  }
+
+  const manageAttachmentsBtn = document.getElementById('manage-attachments');
+  if(manageAttachmentsBtn) manageAttachmentsBtn.addEventListener('click', async function(){
+    await loadAttachmentsModal();
+    var modal = new bootstrap.Modal(document.getElementById('attachmentsModal'));
+    modal.show();
+  });
+
+  const attachmentUploadBtn = document.getElementById('modal-attachment-upload-btn');
+  if(attachmentUploadBtn) attachmentUploadBtn.addEventListener('click', async function(){
+    const input = document.getElementById('modal-attachment-upload-input');
+    if(!input.files || input.files.length === 0) return alert('请选择文件');
+    const file = input.files[0];
+    const fd = new FormData();
+    fd.append('file', file);
+    this.disabled = true;
+    this.textContent = '上传中...';
+    try{
+      const res = await fetch('/attachments/upload', {method: 'POST', body: fd});
+      const text = await res.text();
+      const parsed = await parseJsonSafe(text);
+      if(res.ok){
+        const payload = parsed.json || {};
+        if(payload.success === false){
+          alert('上传失败：' + (payload.error || parsed.text || '未知错误'));
+        } else {
+          input.value = '';
+          await loadAttachmentsModal();
+        }
+      } else {
+        const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
+        alert('上传失败：' + message);
+      }
+    }catch(e){ console.error(e); alert('上传失败：' + e.message); }
+    this.disabled = false;
+    this.textContent = '上传附件';
+  });
+
+  // Side-panel upload handlers removed — resource management is modal-only
+
+  // ensure modal content refreshes when page changes
+  const origRenderSingleEditor = renderSingleEditor;
+  renderSingleEditor = function(){ origRenderSingleEditor(); if(document.getElementById('resourcesModal') && bootstrap.Modal.getInstance(document.getElementById('resourcesModal'))) loadResourcesModal(); };
+
+</script>
+</body>
+</html>

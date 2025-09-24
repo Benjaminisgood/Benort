@@ -1,0 +1,32 @@
+header: |
+  \documentclass{beamer}
+  \usetheme{Madrid}
+  \usecolortheme{seahorse}
+  \usepackage{graphicx}
+  \usepackage{hyperref}
+  \usepackage{booktabs}
+  \usepackage{amsmath, amssymb}
+  \usepackage{fontspec}
+  \usepackage{mwe}
+  \usepackage{xeCJK}
+  \setCJKmainfont{PingFang SC}
+  \setsansfont{PingFang SC}
+  \setmainfont{PingFang SC}
+  \graphicspath{{.}{images/}{../images/}{../attachments/}{../}}
+  \makeatletter
+  \newcommand{\img}[2][]{
+    \IfFileExists{#2}{\includegraphics[#1]{#2}}{
+      \typeout{[warn] Missing image #2, using placeholder}
+      \includegraphics[#1]{example-image}
+    }
+  }
+  \makeatother
+  \usepackage[backend=bibtex,style=chem-acs,maxnames=6,giveninits=true,articletitle=true]{biblatex}
+  \addbibresource{refs.bib}
+  \setbeameroption{show notes}
+  \title{report}
+  \author{Ben}
+beforePages: |-
+  \begin{document}
+footer: |-
+  \end{document}

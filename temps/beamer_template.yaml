@@ -24,8 +24,7 @@ header: |
   \usepackage[backend=bibtex,style=chem-acs,maxnames=6,giveninits=true,articletitle=true]{biblatex}
   \addbibresource{refs.bib}
   \setbeameroption{show notes}
-  \title{report}
-  \author{Ben}
+
 beforePages: |-
   \begin{document}
 footer: |-

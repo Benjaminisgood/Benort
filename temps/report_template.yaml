@@ -1,11 +1,12 @@
 header: |
-  \documentclass{beamer}
-  \usetheme{Madrid}
-  \usecolortheme{seahorse}
+  \documentclass[12pt]{report}
+  \usepackage{geometry}
+  \geometry{a4paper,margin=1in}
   \usepackage{graphicx}
   \usepackage{hyperref}
   \usepackage{booktabs}
   \usepackage{amsmath, amssymb}
+  \usepackage{setspace}
   \usepackage{fontspec}
   \usepackage{mwe}
   \usepackage{xeCJK}
@@ -23,10 +24,15 @@ header: |
   \makeatother
   \usepackage[backend=bibtex,style=chem-acs,maxnames=6,giveninits=true,articletitle=true]{biblatex}
   \addbibresource{refs.bib}
-  \setbeameroption{show notes}
-  \title{report}
+  \onehalfspacing
+  \title{Report Title}
   \author{Ben}
+  \date{\today}
 beforePages: |-
   \begin{document}
+  \maketitle
+  \tableofcontents
+  
 footer: |-
+  \printbibliography
   \end{document}

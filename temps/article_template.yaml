@@ -25,7 +25,7 @@ header: |
   \addbibresource{refs.bib}
   \setbeameroption{show notes}
   \title{report}
-  \author{Ben}
+
 beforePages: |-
   \begin{document}
 footer: |-

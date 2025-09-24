@@ -1,79 +1,74 @@
-# Beamer AI 演讲稿编辑与语音生成平台
+# Benort
 
-本项目是一个基于 Flask + Bootstrap + OpenAI API 的可视化 Beamer 幻灯片编辑与英文演讲辅助平台。支持在线编辑 LaTeX Beamer、AI 优化演讲稿、自动生成美式英语语音、参考文献管理、PDF 导出等一站式功能。
+Benort 是一套面向演讲与教学场景的 **LaTeX Beamer 幻灯片编辑与语音生成平台**。后端基于 Flask，前端整合 CodeMirror、PDF.js 与 Markdown 渲染，配合 OpenAI 提供的 ChatCompletion/TTS 能力，实现从内容创作、排版优化到语音输出的一体化体验。
 
-## 主要功能
+## 功能亮点
 
-- **可视化编辑**：左侧 CodeMirror 编辑器实时编辑每页 LaTeX Beamer 代码，右侧 PDF.js 预览编译结果。
-- **笔记/讲稿管理**：每页可单独输入演讲笔记，支持 AI 优化（GPT-4）生成更流畅的英文讲稿。
-- **AI 语音合成**：一键将当前页或全部笔记合并，通过 OpenAI TTS API 生成高质量美式英语 mp3 音频，支持在线播放和批量导出。
-- **参考文献管理**：菜单栏“参考文献”按钮，输入 DOI 或链接，AI 自动补全并生成标准 bibtex 条目，支持点击跳转原文。
-- **AI 优化 LaTeX**：对每页 LaTeX 代码可调用 GPT-4 优化，提升排版与表达。
-- **页面拖拽排序**：支持页面顺序拖拽调整，操作直观。
-- **模板自定义**：支持编辑全局 LaTeX 模板头部、主体、结尾。
-- **文件导入导出**：支持上传/下载 .tex 文件，导出 PDF、全部音频（mp3）。
-- **数据持久化**：所有内容（页面、笔记、模板、参考文献）均存储于 YAML 文件，支持断点续编。
+- **双模式编辑器**：左侧编辑区可在 LaTeX 与 Markdown 之间无缝切换，右侧自动同步 PDF 或 Markdown 预览，支持内部滚动，切换时界面保持稳定。
+- **自动编译与即时提示**：任何编辑、页面切换或模板变动都会自动触发编译；失败时在页面顶部闪现错误，无需额外弹窗。
+- **讲稿与笔记管理**：每页独立维护讲稿与备注，可调用 AI 优化；讲稿可用于 TTS 输出，笔记则可导出 Markdown。
+- **音频缓存**：合并讲稿或单页文本生成的 MP3 自动缓存在项目 `build/audio/` 下，重复播放无需再次调用 OpenAI TTS API。
+- **智能模板系统**：支持从 `temps/` 目录选择现有模板，并在对话框中额外补充自定义宏包/片段；保存后立即生效并参与后续编译。
+- **多项目隔离**：`projects/` 目录下的每个子目录即一个独立项目（含 `attachments/`、`resources/`、`build/` 等），可在界面上快速切换。
+- **资源与附件管理**：内置管理界面支持上传、引用、删除资源/附件；同时可将引用路径自动规范化到 LaTeX 代码中。
 
-## 技术栈
+## 安装与运行
 
-- 后端：Flask, PyYAML, requests, openai, python-dotenv, werkzeug, gunicorn
-- 前端：Bootstrap 5, CodeMirror, PDF.js
-- AI能力：OpenAI GPT-4 (ChatCompletion), OpenAI TTS (audio.speech)
-- 依赖管理：requirements.txt（见下）
+> 推荐使用 Python 3.11 及以上版本。
 
-## 快速开始
-
-1. 安装依赖
-
-```sh
-source venv/bin/activate
-. venv/bin/activate
-pip install -r requirements.txt
+```bash
+python -m venv venv
+source venv/bin/activate  # Windows 使用 venv\Scripts\activate
+pip install --upgrade pip
+pip install .              # 根据 pyproject.toml 安装依赖
 ```
 
-1. 配置 OpenAI API 密钥
+配置 OpenAI API 密钥：在项目根目录创建 `.env`，写入：
 
-在根目录新建 `.env` 文件，内容如下：
-
-```markdown
+```
 OPENAI_API_KEY=你的OpenAI密钥
 ```
 
-1. 启动服务
+启动开发服务器：
 
-```sh
-flask --app benort run
-# 或生产环境
-gunicorn benort:app
-gunicorn -w 4 -b 0.0.0.0:5005 benort:app
+```bash
+flask --app benort run  # 默认监听 http://localhost:5000
 ```
 
-1. 浏览器访问 `http://localhost:5000`，即可使用全部功能。
+生产部署示例：
 
-## 特色说明
+```bash
+gunicorn benort:app
+gunicorn -w 4 -b 0.0.0.0:5555 benort:app
+```
 
-- 支持多轮 AI 优化，风格可定制。
-- 语音合成采用 OpenAI 最新 TTS，音质媲美真人。
-- 参考文献管理智能化，自动补全 bibtex 并可跳转原文。
-- 所有数据本地 YAML 存储，安全可控。
-- 支持自定义 Beamer 模板，适合学术/会议/教学等多场景。
+## 项目目录结构
 
----
+```
+Benort/
+├─ benort/              # 应用源码（蓝图、模板、配置等）
+├─ projects/            # 多项目存储根目录
+│  ├─ default/
+│  │  ├─ attachments/
+│  │  ├─ resources/
+│  │  ├─ build/
+│  │  └─ project.yaml
+│  └─ ...               # 其他项目同样结构
+├─ temps/               # 可选的默认模板（YAML）
+├─ pyproject.toml       # 项目配置与依赖声明
+├─ README.md
+└─ ...
+```
 
-如需进一步定制或扩展功能，请在 issues 留言或自行修改本项目代码。
-现在优化后端路径结构，支持多个不同的项目，每个项目是独立的，有自己的static和uploads，一个项目对应一个路径，保证结构的规范性和可迁移性，后端可以自动检测有多少个项目（文件夹名即项目名），可以来回切换和查看。
+首次启动时若 `projects/` 为空，系统会自动创建 `default` 项目。模板选择对话框会列出 `temps/` 中的所有 `.yaml` 文件，并允许在文本框内进一步补充自定义内容。
 
-项目目录：在项目根目录下新增 `projects/` 文件夹，每个子文件夹为一个独立项目，示例结构：
+## 常用命令
 
-git add .
-git status
-git commit -m "first commit"
-git branch -M main
-git remote add origin https://github.com/Benjaminisgood/Benort.git
-git push -u origin main
+- `pip install .`：依据 `pyproject.toml` 安装依赖。
+- `flask --app benort run`：开发模式启动服务。
+- `gunicorn benort:app`：生产模式启动。
+- `python -m compileall benort`：快速检查语法。
 
+## 许可协议
 
-## 模板库
-
-- 基础 Beamer 模版存放在 `temps/base_template.yaml`，包含 `header`、`beforePages` 与 `footer` 字段，可直接编辑用于自定义默认样式。
-- 修改该文件后，无需重启即可生效，如需强制刷新可在运行中调用 `benort.template_store.refresh_template_cache()`。
+自由修改与扩展。如在使用过程中遇到问题，欢迎提交 Issue 或 Pull Request。

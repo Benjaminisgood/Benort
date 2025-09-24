@@ -54,9 +54,13 @@
     #markdown-preview {
       padding: 1rem;
     }
-    #pdf-canvas {
+    #pdf-pages {
+      width: 100%;
+    }
+    .pdf-page-canvas {
       max-width: 100%;
       height: auto;
+      background: #fff;
     }
     .navbar .btn-outline-primary {
       border-width: 2px;
@@ -330,7 +334,7 @@
     <div class="preview-pane">
       
       <div id="pdf-container">
-        <canvas id="pdf-canvas"></canvas>
+        <div id="pdf-pages" class="w-100 d-flex flex-column align-items-center gap-3"></div>
       </div>
       <div id="markdown-preview" class="d-none"></div>
     </div>
@@ -945,41 +949,93 @@
 
 
   
-  const canvas = document.getElementById('pdf-canvas');
-  const ctx = canvas.getContext('2d');
-function loadCurrentPagePDF(retry=0) {
+  const pdfPagesContainer = document.getElementById('pdf-pages');
+  let currentPdfRequestId = 0;
+
+  function resetPdfViewer() {
+    if (pdfPagesContainer) {
+      pdfPagesContainer.innerHTML = '';
+    }
+  }
+
+  function renderMessage(message, requestId) {
+    if (!pdfPagesContainer || requestId !== currentPdfRequestId) return;
+    resetPdfViewer();
+    const holder = document.createElement('div');
+    holder.className = 'text-muted small';
+    holder.style.padding = '2rem';
+    holder.textContent = message;
+    pdfPagesContainer.appendChild(holder);
+  }
+
+  async function renderPdfDocument(pdf, requestId) {
+    if (!pdfPagesContainer || requestId !== currentPdfRequestId) return;
+    resetPdfViewer();
+    const total = pdf.numPages;
+    if (!total) {
+      renderMessage('PDF 没有页面', requestId);
+      return;
+    }
+    for (let i = 1; i <= total; i += 1) {
+      if (requestId !== currentPdfRequestId) {
+        return;
+      }
+      try {
+        const page = await pdf.getPage(i);
+        if (requestId !== currentPdfRequestId) {
+          return;
+        }
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas = document.createElement('canvas');
+        canvas.className = 'pdf-page-canvas shadow-sm';
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        pdfPagesContainer.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          await page.render({ canvasContext: ctx, viewport }).promise;
+        }
+      } catch (err) {
+        console.error(`渲染 PDF 第 ${i} 页失败:`, err);
+        renderMessage('PDF 渲染失败', requestId);
+        return;
+      }
+    }
+  }
+
+  function loadCurrentPagePDF(retry = 0) {
+    if (!pdfPagesContainer) return;
+    const requestId = ++currentPdfRequestId;
+    renderMessage('加载中...', requestId);
     const project = currentProject || '';
-    const pdfUrl = `/page_pdf/${currentPageIdx+1}?project=${encodeURIComponent(project)}&t=${Date.now()}`;
-    fetch(pdfUrl, {method: 'HEAD'}).then(res => {
-      if(res.ok) {
-        canvas.style.background = '#fff';
-        canvas.width = 800;
-        canvas.height = 600;
-        pdfjsLib.getDocument(pdfUrl).promise.then(function(pdf) {
-          pdf.getPage(1).then(function(page) {
-            const viewport = page.getViewport({scale: 1.5});
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const renderContext = {
-              canvasContext: ctx,
-              viewport: viewport
-            };
-            page.render(renderContext);
+    const pdfUrl = `/page_pdf/${currentPageIdx + 1}?project=${encodeURIComponent(project)}&t=${Date.now()}`;
+    fetch(pdfUrl, { method: 'HEAD' }).then(res => {
+      if (requestId !== currentPdfRequestId) {
+        return;
+      }
+      if (res.ok) {
+        pdfjsLib.getDocument(pdfUrl).promise
+          .then(pdf => renderPdfDocument(pdf, requestId))
+          .catch(err => {
+            console.error('加载 PDF 失败:', err);
+            renderMessage('PDF 加载失败', requestId);
           });
-        });
       } else {
-        if(retry < 3) {
-          setTimeout(() => loadCurrentPagePDF(retry+1), 800);
+        if (retry < 3) {
+          setTimeout(() => loadCurrentPagePDF(retry + 1), 800);
         } else {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.font = '20px sans-serif';
-          ctx.fillStyle = '#888';
-          ctx.fillText('本页未编译', 30, 60);
+          renderMessage('本页未编译', requestId);
         }
       }
+    }).catch(err => {
+      console.error('请求 PDF 失败:', err);
+      if (retry < 3) {
+        setTimeout(() => loadCurrentPagePDF(retry + 1), 800);
+      } else if (requestId === currentPdfRequestId) {
+        renderMessage('无法加载预览', requestId);
+      }
     });
-    document.getElementById('page-num').textContent = currentPageIdx+1;
+    document.getElementById('page-num').textContent = currentPageIdx + 1;
     document.getElementById('page-count').textContent = pagesData.length;
   }
 

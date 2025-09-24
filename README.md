@@ -1,6 +1,6 @@
 # Benort
 
-Benort 是一套面向演讲与教学场景的 **LaTeX Beamer 幻灯片编辑与语音生成平台**。后端基于 Flask，前端整合 CodeMirror、PDF.js 与 Markdown 渲染，配合 OpenAI 提供的 ChatCompletion/TTS 能力，实现从内容创作、排版优化到语音输出的一体化体验。
+Benort 是一套面向演讲与教学场景的 **LaTeX Beamer 幻灯片编辑与语音生成平台**。后端基于 Flask，前端整合 CodeMirror、PDF.js 与 Markdown 渲染，配合 OpenAI 提供的 ChatCompletion/TTS 能力，实现从内容创作、排版优化到语音输出的一体化体验。虽说初衷是为了写ppt，其实你还可以用各种模版写论文嗷，可以试一试。
 
 ## 功能亮点
 

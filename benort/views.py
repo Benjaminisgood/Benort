@@ -1,6 +1,7 @@
 """封装 Flask 路由的蓝图，提供前端交互所需的全部接口。"""
 
 import base64
+import hashlib
 import io
 import os
 import re
@@ -56,6 +57,27 @@ def export_audio():
     if not merged:
         return jsonify({"success": False, "error": "没有可用的笔记内容"}), 400
 
+    project_name = get_project_from_request()
+    _, _, _, _, build_folder = get_project_paths(project_name)
+    audio_folder = os.path.join(build_folder, 'audio')
+    os.makedirs(audio_folder, exist_ok=True)
+    content_hash = hashlib.sha256(merged.encode('utf-8')).hexdigest()
+    audio_path = os.path.join(audio_folder, 'all_notes.mp3')
+    hash_path = os.path.join(audio_folder, 'all_notes.hash')
+
+    if os.path.exists(audio_path) and os.path.exists(hash_path):
+        try:
+            with open(hash_path, 'r', encoding='utf-8') as hf:
+                if hf.read().strip() == content_hash:
+                    return send_file(
+                        audio_path,
+                        mimetype='audio/mpeg',
+                        as_attachment=True,
+                        download_name='all_notes.mp3',
+                    )
+        except Exception:
+            pass
+
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         return jsonify({"success": False, "error": "未设置OPENAI_API_KEY环境变量"}), 500
@@ -78,8 +100,15 @@ def export_audio():
         )
         if resp.status_code == 200:
             audio_bytes = resp.content
+            try:
+                with open(audio_path, 'wb') as af:
+                    af.write(audio_bytes)
+                with open(hash_path, 'w', encoding='utf-8') as hf:
+                    hf.write(content_hash)
+            except Exception as exc:
+                print(f'写入音频失败: {exc}')
             return send_file(
-                io.BytesIO(audio_bytes),
+                audio_path,
                 mimetype="audio/mpeg",
                 as_attachment=True,
                 download_name="all_notes.mp3",
@@ -351,6 +380,18 @@ def tts_api():
     if not str(text).strip():
         return jsonify({"success": False, "error": "文本为空"}), 400
 
+    project_name = get_project_from_request()
+    _, _, _, _, build_folder = get_project_paths(project_name)
+    audio_folder = os.path.join(build_folder, 'audio')
+    os.makedirs(audio_folder, exist_ok=True)
+    text_hash = hashlib.sha256(text.encode('utf-8')).hexdigest()
+    audio_path = os.path.join(audio_folder, f'tts_{text_hash}.mp3')
+
+    if os.path.exists(audio_path):
+        with open(audio_path, 'rb') as af:
+            encoded = base64.b64encode(af.read()).decode('utf-8')
+        return jsonify({"success": True, "audio": encoded, "cached": True})
+
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         return jsonify({"success": False, "error": "未设置OPENAI_API_KEY环境变量"}), 500
@@ -373,6 +414,11 @@ def tts_api():
         )
         if resp.status_code == 200:
             audio_bytes = resp.content
+            try:
+                with open(audio_path, 'wb') as af:
+                    af.write(audio_bytes)
+            except Exception as exc:  # pragma: no cover
+                print(f'写入单段音频失败: {exc}')
             encoded = base64.b64encode(audio_bytes).decode("utf-8")
             return jsonify({"success": True, "audio": encoded})
         return jsonify({"success": False, "error": f"OpenAI TTS错误: {resp.text}"}), 500

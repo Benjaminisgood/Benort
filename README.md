@@ -1,5 +1,3 @@
-# Benort # 如果已有 README.md，替换为想要的介绍
-
 # Beamer AI 演讲稿编辑与语音生成平台
 
 本项目是一个基于 Flask + Bootstrap + OpenAI API 的可视化 Beamer 幻灯片编辑与英文演讲辅助平台。支持在线编辑 LaTeX Beamer、AI 优化演讲稿、自动生成美式英语语音、参考文献管理、PDF 导出等一站式功能。
@@ -65,31 +63,15 @@ gunicorn -w 4 -b 0.0.0.0:5005 benort:app
 如需进一步定制或扩展功能，请在 issues 留言或自行修改本项目代码。
 现在优化后端路径结构，支持多个不同的项目，每个项目是独立的，有自己的static和uploads，一个项目对应一个路径，保证结构的规范性和可迁移性，后端可以自动检测有多少个项目（文件夹名即项目名），可以来回切换和查看。
 
-多项目支持说明：
+项目目录：在项目根目录下新增 `projects/` 文件夹，每个子文件夹为一个独立项目，示例结构：
 
-- 项目目录：在项目根目录下新增 `projects/` 文件夹，每个子文件夹为一个独立项目，示例结构：
+git add .
+git status
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/Benjaminisgood/Benort.git
+git push -u origin main
 
-```
-projects/
-	default/
-		static/
-		uploads/
-		project.yaml
-	mytalk/
-		static/
-		uploads/
-		project.yaml
-```
-
-- 后端行为：启动时会自动扫描 `projects/` 下的子目录作为可用项目，若无项目则创建 `default`。
-- 访问方式：可在请求中通过 query 参数 `?project=项目名` 指定项目；也可以使用专门的路由访问：
-	- 列表：`GET /projects` 返回可用项目列表
-	- 指定项目静态资源：`/projects/<project>/static/<filename>`
-	- 指定项目上传文件：`/projects/<project>/uploads/<filename>`
-
-- 兼容性：若不传 project 参数，后端会使用环境变量 `DEFAULT_PROJECT`（若设置）或第一个检测到的项目作为默认项目。
-
-这样每个项目拥有独立的 `static` 与 `uploads`，便于迁移、备份和隔离数据。
 
 ## 模板库
 

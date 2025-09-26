@@ -96,7 +96,7 @@
           </button>
           <button class="btn btn-outline-primary btn-sm me-2" id="next-page" title="下一页">下</button>
         </li>
-        <li class="nav-item"><button class="btn btn-outline-primary me-2" id="mode-switch-btn" title="切换LaTeX/Markdown">切换</button></li>
+        <li class="nav-item"><button class="btn btn-outline-primary me-2" id="mode-switch-btn" title="切换LaTeX/Markdown">模式</button></li>
         <li class="nav-item"><button class="btn btn-outline-secondary me-2" id="add-page" title="添加新页">加页</button></li>
         <li class="nav-item"><button class="btn btn-outline-warning me-2" id="insert-component" title="插入常用组件">插入</button></li>
         <li class="nav-item"><button class="btn btn-outline-info me-2" id="edit-template" title="编辑LaTeX样式模板">样式</button></li>
@@ -115,6 +115,7 @@
         <li class="nav-item"><button class="btn btn-outline-primary me-2" id="edit-bib" title="管理文献">管理文献</button></li>
         <li class="nav-item"><button class="btn btn-outline-primary me-2" id="manage-resources" title="管理资源">管理资源</button></li>
         <li class="nav-item"><button class="btn btn-outline-primary me-2" id="manage-attachments" title="管理附件">管理附件</button></li>
+        <li class="nav-item"><button class="btn btn-outline-primary me-2" id="manage-sync" title="OSS 同步设置">同步设置</button></li>
 
       <div class="modal fade" id="bibModal" tabindex="-1" aria-labelledby="bibModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -185,6 +186,14 @@
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
+              <div class="d-flex align-items-center mb-3 gap-2">
+                <label class="form-label small mb-0" for="attachment-insert-format">插入格式</label>
+                <select id="attachment-insert-format" class="form-select form-select-sm" style="width:auto;">
+                  <option value="auto">自动（根据当前编辑模式）</option>
+                  <option value="latex">LaTeX</option>
+                  <option value="markdown">Markdown</option>
+                </select>
+              </div>
               <div class="input-group mb-3">
                 <input id="modal-attachment-upload-input" type="file" class="form-control" />
                 <button id="modal-attachment-upload-btn" class="btn btn-primary">上传附件</button>
@@ -235,6 +244,78 @@
         </div>
       </div>
     
+      <!-- Attachment Preview Modal -->
+      <div class="modal fade" id="attachmentPreviewModal" tabindex="-1" aria-labelledby="attachmentPreviewModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="attachmentPreviewModalLabel">附件预览</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+              <img id="attachment-preview-image" src="" alt="preview" class="img-fluid" style="max-height:70vh;" />
+              <div class="text-muted small mt-2" id="attachment-preview-meta"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+              <a id="attachment-preview-open" href="#" target="_blank" class="btn btn-primary">新标签页打开</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attachment Rename Modal -->
+      <div class="modal fade" id="attachmentRenameModal" tabindex="-1" aria-labelledby="attachmentRenameModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="attachmentRenameModalLabel">重命名附件</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label for="attachment-rename-input" class="form-label">新文件名</label>
+                <input type="text" class="form-control" id="attachment-rename-input" />
+                <div class="form-text">名称会自动清理非法字符，请保留正确的扩展名。</div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-primary" id="attachment-rename-confirm">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OSS Sync Modal -->
+      <div class="modal fade" id="ossSyncModal" tabindex="-1" aria-labelledby="ossSyncModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="ossSyncModalLabel">OSS 同步设置</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="oss-sync-toggle-main" />
+                <label class="form-check-label" for="oss-sync-toggle-main">启用 OSS 同步</label>
+              </div>
+              <div class="alert alert-warning d-none" id="oss-sync-warning-main"></div>
+              <dl class="row small mb-3" id="oss-sync-paths">
+                <dt class="col-sm-4">附件目录</dt><dd class="col-sm-8 text-break" id="oss-sync-attachments"></dd>
+                <dt class="col-sm-4">资源目录</dt><dd class="col-sm-8 text-break" id="oss-sync-resources"></dd>
+                <dt class="col-sm-4">项目 YAML</dt><dd class="col-sm-8 text-break" id="oss-sync-yaml"></dd>
+              </dl>
+              <div class="border rounded p-2 bg-light text-break" id="oss-sync-status" style="min-height:3rem"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" id="oss-sync-run">立即同步</button>
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- AI Script Modal (optimized speaking script) -->
       <div class="modal fade" id="aiScriptModal" tabindex="-1" aria-labelledby="aiScriptModalLabel" aria-hidden="true">
         <div class="modal-dialog">
@@ -340,8 +421,7 @@
     </div>
   </div>
 
-  <div class="mb-4">
-    <label for="page-script" class="form-label">本页讲稿（用于导出语音）</label>
+  <div class="mb-4 mt-2">
     <textarea id="page-script" class="form-control" rows="4" placeholder="这里是本页的讲稿，支持导出语音。"></textarea>
   </div>
   
@@ -360,7 +440,7 @@
           </div>
           <div class="form-check">
             <input class="form-check-input" type="radio" name="exportOption" id="exportAttachmentsOption" value="attachments">
-            <label class="form-check-label" for="exportAttachmentsOption">导出 资料和附件 (zip)</label>
+            <label class="form-check-label" for="exportAttachmentsOption">导出 资料、附件和 yaml 为 zip</label>
           </div>
           <div class="form-check">
             <input class="form-check-input" type="radio" name="exportOption" id="exportAudioOption" value="audio">
@@ -510,10 +590,128 @@
   let saveRequestQueue = Promise.resolve();
   let pendingSaveCallbacks = [];
 
+  let attachmentRenameTarget = null;
+  const attachmentRenameModalEl = document.getElementById('attachmentRenameModal');
+  const attachmentRenameInput = document.getElementById('attachment-rename-input');
+  const attachmentRenameConfirm = document.getElementById('attachment-rename-confirm');
+  const attachmentPreviewModalEl = document.getElementById('attachmentPreviewModal');
+  const attachmentPreviewImage = document.getElementById('attachment-preview-image');
+  const attachmentPreviewMeta = document.getElementById('attachment-preview-meta');
+  const attachmentPreviewOpen = document.getElementById('attachment-preview-open');
+  const ossSyncModalEl = document.getElementById('ossSyncModal');
+  const ossSyncToggleMain = document.getElementById('oss-sync-toggle-main');
+  const ossSyncWarningMain = document.getElementById('oss-sync-warning-main');
+  const ossSyncAttachments = document.getElementById('oss-sync-attachments');
+  const ossSyncResources = document.getElementById('oss-sync-resources');
+  const ossSyncYaml = document.getElementById('oss-sync-yaml');
+  const ossSyncStatusBox = document.getElementById('oss-sync-status');
+  const ossSyncRunBtn = document.getElementById('oss-sync-run');
+
+  if(attachmentRenameModalEl){
+    attachmentRenameModalEl.addEventListener('hidden.bs.modal', () => {
+      attachmentRenameTarget = null;
+      if(attachmentRenameInput) attachmentRenameInput.value = '';
+    });
+  }
+
+  if(attachmentPreviewModalEl){
+    attachmentPreviewModalEl.addEventListener('hidden.bs.modal', () => {
+      if(attachmentPreviewImage) attachmentPreviewImage.removeAttribute('src');
+      if(attachmentPreviewMeta) attachmentPreviewMeta.textContent = '';
+    });
+  }
+
+  function renderSyncEntry(entry){
+    if(!entry) return '无数据';
+    if(entry.error) return `失败：${entry.error}`;
+    if(Object.prototype.hasOwnProperty.call(entry, 'uploaded') && Object.prototype.hasOwnProperty.call(entry, 'removed')){
+      const uploaded = Array.isArray(entry.uploaded) ? entry.uploaded.length : 0;
+      const removed = Array.isArray(entry.removed) ? entry.removed.length : 0;
+      const failed = Array.isArray(entry.failed) ? entry.failed.length : 0;
+      return `上传 ${uploaded}，删除 ${removed}，失败 ${failed}`;
+    }
+    if(Object.prototype.hasOwnProperty.call(entry, 'uploaded') && Object.prototype.hasOwnProperty.call(entry, 'url')){
+      if(entry.error) return `失败：${entry.error}`;
+      if(entry.uploaded) return entry.url ? `已上传 (${entry.url})` : '已上传';
+      return '未上传';
+    }
+    return JSON.stringify(entry);
+  }
+
+  async function refreshOssSyncModal(){
+    if(!ossSyncModalEl) return;
+    if(ossSyncStatusBox) ossSyncStatusBox.textContent = '加载中...';
+    try{
+      const res = await fetch('/oss/status');
+      const parsed = await parseJsonSafe(res);
+      const payload = parsed.json || {};
+      if(!(res.ok && payload.success !== false)){
+        const errorMsg = (payload.error) ? payload.error : (parsed.text || `HTTP ${res.status}`);
+        if(ossSyncStatusBox) ossSyncStatusBox.textContent = `获取状态失败：${errorMsg}`;
+        if(ossSyncToggleMain){
+          ossSyncToggleMain.disabled = true;
+          ossSyncToggleMain.checked = false;
+        }
+        if(ossSyncWarningMain){
+          ossSyncWarningMain.classList.remove('d-none');
+          ossSyncWarningMain.textContent = '无法读取 OSS 状态';
+        }
+        if(ossSyncRunBtn) ossSyncRunBtn.disabled = true;
+        return;
+      }
+
+      const configured = !!payload.ossConfigured;
+      const enabled = !!payload.syncEnabled && configured;
+
+      if(ossSyncToggleMain){
+        ossSyncToggleMain.dataset.configured = configured ? 'true' : 'false';
+        ossSyncToggleMain.disabled = !configured;
+        ossSyncToggleMain.checked = enabled;
+      }
+      if(ossSyncRunBtn){
+        ossSyncRunBtn.disabled = !configured;
+      }
+
+      if(ossSyncWarningMain){
+        if(!configured){
+          ossSyncWarningMain.classList.remove('d-none');
+          ossSyncWarningMain.textContent = '未检测到 OSS 配置，所有文件仅保存在本地。';
+        } else {
+          ossSyncWarningMain.classList.add('d-none');
+          ossSyncWarningMain.textContent = '';
+        }
+      }
+
+      if(ossSyncAttachments) ossSyncAttachments.textContent = payload.attachmentsPath || '未知';
+      if(ossSyncResources) ossSyncResources.textContent = payload.resourcesPath || '未知';
+      if(ossSyncYaml) ossSyncYaml.textContent = payload.yamlPath || '未生成';
+
+      if(ossSyncStatusBox){
+        const statusParts = [];
+        statusParts.push(configured ? (enabled ? '同步已开启' : '同步已关闭') : 'OSS 未配置');
+        if(payload.project) statusParts.push(`项目：${payload.project}`);
+        if(payload.message) statusParts.push(payload.message);
+        ossSyncStatusBox.textContent = statusParts.join('；') || '状态未知';
+      }
+    }catch(e){
+      if(ossSyncStatusBox) ossSyncStatusBox.textContent = `获取状态失败：${e.message}`;
+      if(ossSyncToggleMain){
+        ossSyncToggleMain.disabled = true;
+        ossSyncToggleMain.checked = false;
+      }
+      if(ossSyncRunBtn) ossSyncRunBtn.disabled = true;
+      if(ossSyncWarningMain){
+        ossSyncWarningMain.classList.remove('d-none');
+        ossSyncWarningMain.textContent = '无法连接服务器获取同步状态';
+      }
+    }
+  }
+
+
   function updateModeToggleUI() {
     const switchBtn = document.getElementById('mode-switch-btn');
     if (switchBtn) {
-      switchBtn.textContent = currentEditMode === 'latex' ? '切换 Markdown' : '切换 LaTeX';
+      switchBtn.textContent = currentEditMode === 'latex' ? 'LaTeX' : 'Markdown';
     }
   }
 
@@ -1531,6 +1729,9 @@ loadProjects().then(()=>{
       if(scope === 'page') url += `?page=${pageIdx}`;
       const res = await fetch(url);
       const data = res.ok ? await res.json() : {files: []};
+      if(data.ossError){
+        console.warn('资源 OSS 状态:', data.ossError);
+      }
       // resources list
       const resList = document.getElementById('resources-list-modal');
       const files = Array.isArray(data.files) ? data.files : [];
@@ -1547,39 +1748,59 @@ loadProjects().then(()=>{
         item.className = 'list-group-item d-flex justify-content-between align-items-center';
         const left = document.createElement('div');
         const name = document.createElement('a');
-        name.href = f.url; name.target = '_blank'; name.textContent = f.name;
-        if(f.exists === false){
+        const localUrl = f.localUrl || '';
+        const ossUrl = f.ossUrl || '';
+        const preferredUrl = f.url || localUrl || ossUrl || '';
+        const hasLocal = !!localUrl && f.exists !== false ? true : !!localUrl;
+        const hasRemote = !!ossUrl;
+        name.href = preferredUrl || '#';
+        name.textContent = f.name;
+        if(preferredUrl){
+          name.target = '_blank';
+        } else {
+          name.classList.add('disabled');
+        }
+        if(!hasLocal){
           name.classList.add('text-muted');
-          name.title = '文件缺失';
+          name.title = hasRemote ? '本地缺失，仅 OSS 可用' : '文件缺失';
         }
         left.appendChild(name);
-        if(f.exists === false){
+        if(!hasLocal){
           const badge = document.createElement('span');
           badge.className = 'badge bg-warning text-dark ms-2';
           badge.textContent = '缺失';
           left.appendChild(badge);
         }
+        if(hasRemote && !hasLocal){
+          const ossBadge = document.createElement('span');
+          ossBadge.className = 'badge bg-info text-dark ms-2';
+          ossBadge.textContent = 'OSS';
+          left.appendChild(ossBadge);
+        }
         const actions = document.createElement('div');
         const openBtn = document.createElement('button');
         openBtn.className = 'btn btn-sm btn-outline-secondary me-2';
         openBtn.textContent = '打开';
-        openBtn.onclick = function(){ window.open(f.url, '_blank'); };
-        if(f.exists === false){
+        openBtn.onclick = function(){
+          if(preferredUrl){
+            window.open(preferredUrl, '_blank');
+          } else {
+            alert('当前资源没有可用的链接');
+          }
+        };
+        if(!preferredUrl){
           openBtn.disabled = true;
-          openBtn.title = '文件缺失';
         }
         const copyBtn = document.createElement('button');
         copyBtn.className = 'btn btn-sm btn-outline-primary me-2';
         copyBtn.textContent = '复制链接';
         copyBtn.onclick = function(){
-          navigator.clipboard.writeText(f.url).then(()=>{
+          if(!preferredUrl){ alert('当前资源没有可用的链接'); return; }
+          navigator.clipboard.writeText(preferredUrl).then(()=>{
             copyBtn.textContent = '已复制';
             setTimeout(()=>{ copyBtn.textContent = '复制链接'; }, 2000);
           }).catch(()=>alert('复制失败，请手动复制链接'));
         };
-        if(f.exists === false){
-          copyBtn.title = '文件缺失';
-        }
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'btn btn-sm btn-outline-danger';
         deleteBtn.textContent = '删除';
@@ -1712,74 +1933,215 @@ loadProjects().then(()=>{
       const res = await fetch('/attachments/list');
       const data = res.ok ? await res.json() : {files: []};
       listEl.innerHTML = '';
+
       (data.files || []).forEach(f => {
+        const preferredUrl = f.preferredUrl || f.localUrl || f.ossUrl || '';
         const item = document.createElement('div');
-        item.className = 'list-group-item d-flex justify-content-between align-items-center';
+        item.className = 'list-group-item';
+        const wrapper = document.createElement('div');
+        wrapper.className = 'd-flex flex-column flex-md-row justify-content-between align-items-start gap-2';
         const left = document.createElement('div');
+        left.className = 'me-md-3 flex-grow-1';
         const name = document.createElement('a');
-        name.href = f.url;
-        name.target = '_blank';
         name.textContent = f.name;
+        if(preferredUrl){
+          name.href = preferredUrl;
+          name.target = '_blank';
+        } else {
+          name.href = '#';
+          name.classList.add('disabled');
+        }
         left.appendChild(name);
+
+        if(f.location){
+          const badge = document.createElement('span');
+          badge.className = 'badge rounded-pill ms-2';
+          if(f.location === 'synced'){
+            badge.classList.add('bg-success');
+            badge.textContent = '已同步';
+          } else if(f.location === 'local'){
+            badge.classList.add('bg-secondary');
+            badge.textContent = '仅本地';
+          } else if(f.location === 'oss'){
+            badge.classList.add('bg-info');
+            badge.textContent = '仅 OSS';
+          } else {
+            badge.classList.add('bg-warning');
+            badge.textContent = '未知';
+          }
+          left.appendChild(badge);
+        }
+
+        if(f.ossUrl && f.localUrl && f.ossUrl !== f.localUrl){
+          const remoteLink = document.createElement('div');
+          remoteLink.className = 'small text-muted';
+          remoteLink.innerHTML = `远程：<a href="${f.ossUrl}" target="_blank">${f.ossUrl}</a>`;
+          left.appendChild(remoteLink);
+        }
+
         const actions = document.createElement('div');
+        actions.className = 'd-flex flex-wrap gap-1';
+
         const insertBtn = document.createElement('button');
-        insertBtn.className = 'btn btn-sm btn-outline-primary me-2';
-        insertBtn.textContent = '插入到当前页';
+        insertBtn.type = 'button';
+        insertBtn.className = 'btn btn-sm btn-primary';
+        insertBtn.textContent = '插入';
         insertBtn.onclick = function(){
           if(!singleEditor) return;
+          const formatSelect = document.getElementById('attachment-insert-format');
+          const choice = formatSelect ? formatSelect.value : 'auto';
+          let mode = choice === 'auto' ? (typeof currentEditMode === 'string' ? currentEditMode : 'latex') : choice;
+          if(mode !== 'markdown' && mode !== 'latex') mode = 'latex';
+          const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test(f.name || '');
           const doc = singleEditor.getDoc();
           const cursor = doc.getCursor();
-          if(/\.(png|jpe?g|gif|svg)$/i.test(f.name)){
-            const path = urlToLatexPath(f.url);
-            doc.replaceRange(`\\begin{center}\n  \\includegraphics[width=0.7\\textwidth]{${path}}\n\\end{center}\n`, cursor);
+          let snippet = '';
+          if(mode === 'latex'){
+            if(isImage){
+              if(!f.localUrl){
+                alert('该图片仅存在于 OSS，请先同步到本地再在 LaTeX 中引用。');
+                return;
+              }
+              const path = urlToLatexPath(f.localUrl);
+              snippet = `\\begin{center}\n  \\includegraphics[width=0.7\\textwidth]{${path}}\n\\end{center}\n`;
+            } else {
+              if(!preferredUrl){
+                alert('当前附件没有可用的访问链接');
+                return;
+              }
+              snippet = `\\textbf{附件:} \\href{${preferredUrl}}{${f.name}}\n`;
+            }
           } else {
-            doc.replaceRange(`\\textbf{附件:} \\href{${f.url}}{${f.name}}\n`, cursor);
+            if(!preferredUrl){
+              alert('当前附件没有可用的访问链接');
+              return;
+            }
+            snippet = isImage ? `![${f.name}](${preferredUrl})\n` : `[${f.name}](${preferredUrl})\n`;
+          }
+          doc.replaceRange(snippet, cursor);
+        };
+
+        const previewBtn = document.createElement('button');
+        previewBtn.type = 'button';
+        previewBtn.className = 'btn btn-sm btn-outline-secondary';
+        previewBtn.textContent = '预览';
+        previewBtn.onclick = function(){
+          const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test(f.name || '');
+          const targetUrl = f.localUrl || f.ossUrl || preferredUrl;
+          if(isImage && attachmentPreviewModalEl && attachmentPreviewImage){
+            if(!targetUrl){
+              alert('当前附件没有可用的访问链接');
+              return;
+            }
+            attachmentPreviewImage.src = targetUrl;
+            if(attachmentPreviewMeta){
+              const parts = [];
+              parts.push(f.location === 'oss' ? '来源：OSS' : '来源：本地');
+              if(f.ossUrl && f.localUrl && f.ossUrl !== f.localUrl){
+                parts.push('已同步');
+              }
+              attachmentPreviewMeta.textContent = `${f.name}${parts.length ? '（' + parts.join('，') + '）' : ''}`;
+            }
+            if(attachmentPreviewOpen){
+              attachmentPreviewOpen.href = targetUrl || '#';
+              attachmentPreviewOpen.classList.toggle('disabled', !targetUrl);
+            }
+            const modal = bootstrap.Modal.getOrCreateInstance(attachmentPreviewModalEl);
+            modal.show();
+          } else {
+            if(targetUrl){
+              window.open(targetUrl, '_blank');
+            } else {
+              alert('当前附件没有可用的访问链接');
+            }
           }
         };
+
         const openBtn = document.createElement('button');
-        openBtn.className = 'btn btn-sm btn-outline-secondary me-2';
+        openBtn.type = 'button';
+        openBtn.className = 'btn btn-sm btn-outline-secondary';
         openBtn.textContent = '打开';
-        openBtn.onclick = function(){ window.open(f.url, '_blank'); };
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'btn btn-sm btn-outline-primary me-2';
-        copyBtn.textContent = '复制链接';
-        copyBtn.onclick = function(){
-          navigator.clipboard.writeText(f.url).then(()=>{
-            copyBtn.textContent = '已复制';
-            setTimeout(()=>{ copyBtn.textContent = '复制链接'; }, 2000);
+        openBtn.onclick = function(){
+          if(preferredUrl){
+            window.open(preferredUrl, '_blank');
+          } else {
+            alert('当前附件没有可用的访问链接');
+          }
+        };
+
+        const copyNameBtn = document.createElement('button');
+        copyNameBtn.type = 'button';
+        copyNameBtn.className = 'btn btn-sm btn-outline-primary';
+        copyNameBtn.textContent = '复制名称';
+        copyNameBtn.onclick = function(){
+          navigator.clipboard.writeText(f.name || '').then(()=>{
+            copyNameBtn.textContent = '已复制';
+            setTimeout(()=>{ copyNameBtn.textContent = '复制名称'; }, 2000);
+          }).catch(()=>alert('复制失败，请手动复制'));
+        };
+
+        const copyLinkBtn = document.createElement('button');
+        copyLinkBtn.type = 'button';
+        copyLinkBtn.className = 'btn btn-sm btn-outline-primary';
+        copyLinkBtn.textContent = '复制链接';
+        copyLinkBtn.onclick = function(){
+          if(!preferredUrl){
+            alert('当前附件没有可用的链接');
+            return;
+          }
+          navigator.clipboard.writeText(preferredUrl).then(()=>{
+            copyLinkBtn.textContent = '已复制';
+            setTimeout(()=>{ copyLinkBtn.textContent = '复制链接'; }, 2000);
           }).catch(()=>alert('复制失败，请手动复制链接'));
         };
+
+        const renameBtn = document.createElement('button');
+        renameBtn.type = 'button';
+        renameBtn.className = 'btn btn-sm btn-outline-secondary';
+        renameBtn.textContent = '重命名';
+        renameBtn.onclick = function(){
+          if(!attachmentRenameModalEl || !attachmentRenameInput){
+            alert('当前界面不支持重命名');
+            return;
+          }
+          attachmentRenameTarget = f.name;
+          attachmentRenameInput.value = f.name;
+          const modal = bootstrap.Modal.getOrCreateInstance(attachmentRenameModalEl);
+          modal.show();
+        };
+
         const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
         deleteBtn.className = 'btn btn-sm btn-outline-danger';
         deleteBtn.textContent = '删除';
         deleteBtn.onclick = async function(){
           if(!confirm('确认删除此附件吗？')) return;
           try{
-            const u = new URL(f.url, window.location.origin);
-            let rel = u.pathname || f.url;
-            rel = rel.replace(/^\/?uploads\//, '');
-            const res = await fetch('/attachments/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({path: rel})});
+            const res = await fetch('/attachments/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({path: f.path})});
             const parsed = await parseJsonSafe(res);
-            if(res.ok){
-              if(parsed.json && parsed.json.success === false){
-                alert('删除失败：' + (parsed.json.error || (parsed.text ? parsed.text : '未知错误')));
-              } else {
-                await loadAttachmentsModal();
-              }
+            if(res.ok && (!parsed.json || parsed.json.success !== false)){
+              await loadAttachmentsModal();
             } else {
-              const message = parsed.json && parsed.json.error ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
+              const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
               alert('删除失败：' + message);
             }
           }catch(e){ console.error(e); alert('删除失败：' + e.message); }
         };
+
         actions.appendChild(insertBtn);
+        actions.appendChild(previewBtn);
         actions.appendChild(openBtn);
-        actions.appendChild(copyBtn);
+        actions.appendChild(copyNameBtn);
+        actions.appendChild(copyLinkBtn);
+        actions.appendChild(renameBtn);
         actions.appendChild(deleteBtn);
-        item.appendChild(left);
-        item.appendChild(actions);
+
+        wrapper.appendChild(left);
+        wrapper.appendChild(actions);
+        item.appendChild(wrapper);
         listEl.appendChild(item);
       });
+
       if((data.files || []).length === 0){
         listEl.innerHTML = '<div class="text-muted p-2">没有附件</div>';
       }
@@ -1795,6 +2157,87 @@ loadProjects().then(()=>{
     var modal = new bootstrap.Modal(document.getElementById('attachmentsModal'));
     modal.show();
   });
+
+  const manageSyncBtn = document.getElementById('manage-sync');
+  if(manageSyncBtn && ossSyncModalEl){
+    manageSyncBtn.addEventListener('click', async function(){
+      await refreshOssSyncModal();
+      const modal = bootstrap.Modal.getOrCreateInstance(ossSyncModalEl);
+      modal.show();
+    });
+  }
+
+  if(ossSyncToggleMain && !ossSyncToggleMain.dataset.bound){
+    ossSyncToggleMain.dataset.bound = 'true';
+    ossSyncToggleMain.addEventListener('change', async function(){
+      if(this.dataset.configured !== 'true'){
+        this.checked = false;
+        alert('当前未配置 OSS，同步不可用');
+        return;
+      }
+      const desired = this.checked;
+      this.disabled = true;
+      const prevLabel = this.nextElementSibling ? this.nextElementSibling.textContent : '';
+      if(this.nextElementSibling) this.nextElementSibling.textContent = desired ? '开启中...' : '关闭中...';
+      try{
+        const res = await fetch('/attachments/sync', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({enabled: desired})
+        });
+        const parsed = await parseJsonSafe(res);
+        if(!(res.ok && (!parsed.json || parsed.json.success !== false))){
+          const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || (`HTTP ${res.status}`));
+          alert('同步开关更新失败：' + message);
+          this.checked = !desired;
+        } else {
+          await refreshOssSyncModal();
+          await loadAttachmentsModal();
+          await loadResourcesModal();
+        }
+      }catch(e){
+        alert('同步开关更新失败：' + e.message);
+        this.checked = !desired;
+      }
+      if(this.nextElementSibling) this.nextElementSibling.textContent = prevLabel || '启用 OSS 同步';
+      this.disabled = false;
+    });
+  }
+
+  if(ossSyncRunBtn && !ossSyncRunBtn.dataset.bound){
+    ossSyncRunBtn.dataset.bound = 'true';
+    ossSyncRunBtn.addEventListener('click', async function(){
+      this.disabled = true;
+      const original = this.textContent;
+      this.textContent = '同步中...';
+      if(ossSyncStatusBox) ossSyncStatusBox.textContent = '正在与 OSS 同步...';
+      try{
+        const res = await fetch('/oss/sync_now', {method: 'POST'});
+        const parsed = await parseJsonSafe(res);
+        if(res.ok && (!parsed.json || parsed.json.success !== false)){
+          const payload = parsed.json || {};
+          const summary = payload.synced || {};
+          const messageLines = [];
+          messageLines.push(`附件：${renderSyncEntry(summary.attachments)}`);
+          messageLines.push(`资源：${renderSyncEntry(summary.resources)}`);
+          messageLines.push(`项目 YAML：${renderSyncEntry(summary.yaml)}`);
+          await loadAttachmentsModal();
+          await loadResourcesModal();
+          await refreshOssSyncModal();
+          if(ossSyncStatusBox) ossSyncStatusBox.innerHTML = messageLines.join('<br>');
+        } else {
+          const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || (`HTTP ${res.status}`));
+          if(ossSyncStatusBox) ossSyncStatusBox.textContent = '同步失败：' + message;
+          alert('同步失败：' + message);
+        }
+      }catch(e){
+        if(ossSyncStatusBox) ossSyncStatusBox.textContent = '同步失败：' + e.message;
+        alert('同步失败：' + e.message);
+      }
+      this.textContent = original || '立即同步';
+      this.disabled = false;
+    });
+  }
 
   const attachmentUploadBtn = document.getElementById('modal-attachment-upload-btn');
   if(attachmentUploadBtn) attachmentUploadBtn.addEventListener('click', async function(){
@@ -1825,6 +2268,56 @@ loadProjects().then(()=>{
     this.disabled = false;
     this.textContent = '上传附件';
   });
+
+  if(attachmentRenameConfirm && !attachmentRenameConfirm.dataset.bound){
+    attachmentRenameConfirm.dataset.bound = 'true';
+    attachmentRenameConfirm.addEventListener('click', async function(){
+      if(!attachmentRenameTarget){
+        alert('请先选择要重命名的附件');
+        return;
+      }
+      if(!attachmentRenameInput){
+        alert('无法读取新文件名');
+        return;
+      }
+      const newName = attachmentRenameInput.value.trim();
+      if(!newName){
+        alert('文件名不能为空');
+        return;
+      }
+      const originalText = this.textContent;
+      this.disabled = true;
+      this.textContent = '保存中...';
+      try{
+        const res = await fetch('/attachments/rename', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({oldName: attachmentRenameTarget, newName})});
+        const parsed = await parseJsonSafe(res);
+        if(res.ok && (!parsed.json || parsed.json.success !== false)){
+          if(parsed.json){
+            const payload = parsed.json;
+            if(payload.name && payload.name !== newName){
+              alert(`文件名已更新为：${payload.name}`);
+            }
+            const status = payload.ossStatus;
+            if(status && (status.error || status.delete_error)){
+              const msg = status.error || status.delete_error;
+              alert('OSS 同步出现问题：' + msg);
+            }
+          }
+          const modal = attachmentRenameModalEl ? bootstrap.Modal.getInstance(attachmentRenameModalEl) : null;
+          if(modal) modal.hide();
+          attachmentRenameTarget = null;
+          await loadAttachmentsModal();
+        } else {
+          const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
+          alert('重命名失败：' + message);
+        }
+      }catch(e){
+        alert('重命名失败：' + e.message);
+      }
+      this.disabled = false;
+      this.textContent = originalText || '保存';
+    });
+  }
 
   // Side-panel upload handlers removed — resource management is modal-only
 

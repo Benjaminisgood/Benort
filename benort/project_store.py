@@ -3,7 +3,10 @@
 import io
 import os
 import re
+import shutil
 import tempfile
+from dataclasses import dataclass
+from typing import Optional
 
 import yaml
 from flask import current_app, request
@@ -14,6 +17,7 @@ from werkzeug.utils import secure_filename
 from .config import DEFAULT_PROJECT_NAME
 from .latex import normalize_latex_content
 from .template_store import get_default_header, get_default_template
+from .oss_client import is_configured as oss_is_configured, upload_file as oss_upload_file
 
 
 load_yaml = yaml.safe_load
@@ -28,6 +32,14 @@ _yaml_writer.width = 4096
 _BIB_URL_RE = re.compile(r'(url\s*=\s*[{\"])\s*([^}\"]+)([}\"])', re.IGNORECASE)
 
 
+@dataclass(slots=True)
+class StoredFileResult:
+    filename: str
+    preferred_url: str
+    local_url: str
+    oss_url: Optional[str]
+
+
 def get_projects_root() -> str:
     """返回项目根目录并确保存在。"""
 
@@ -36,6 +48,64 @@ def get_projects_root() -> str:
         raise RuntimeError("PROJECTS_ROOT 未在应用配置中设置")
     os.makedirs(root, exist_ok=True)
     return root
+
+
+def get_local_attachments_root() -> str:
+    """返回本地附件根目录。"""
+
+    root = current_app.config.get("LOCAL_ATTACHMENTS_ROOT")
+    if not root:
+        raise RuntimeError("LOCAL_ATTACHMENTS_ROOT 未配置")
+    os.makedirs(root, exist_ok=True)
+    return root
+
+
+def get_local_resources_root() -> str:
+    """返回本地资源根目录。"""
+
+    root = current_app.config.get("LOCAL_RESOURCES_ROOT")
+    if not root:
+        raise RuntimeError("LOCAL_RESOURCES_ROOT 未配置")
+    os.makedirs(root, exist_ok=True)
+    return root
+
+
+def _migrate_legacy_attachments(legacy_dir: str, target_dir: str) -> None:
+    """迁移旧版项目目录中的附件文件。"""
+
+    if not os.path.isdir(legacy_dir):
+        return
+    for fname in os.listdir(legacy_dir):
+        src = os.path.join(legacy_dir, fname)
+        dst = os.path.join(target_dir, fname)
+        if not os.path.isfile(src) or os.path.exists(dst):
+            continue
+        try:
+            shutil.copy2(src, dst)
+        except Exception:
+            pass
+
+
+def _migrate_legacy_resources(legacy_dir: str, target_dir: str) -> None:
+    """迁移旧版项目目录中的资源文件夹。"""
+
+    if not os.path.isdir(legacy_dir):
+        return
+    for root, dirs, files in os.walk(legacy_dir):
+        rel = os.path.relpath(root, legacy_dir)
+        dest_root = target_dir if rel in (".", "") else os.path.join(target_dir, rel)
+        os.makedirs(dest_root, exist_ok=True)
+        for d in dirs:
+            os.makedirs(os.path.join(dest_root, d), exist_ok=True)
+        for fname in files:
+            src = os.path.join(root, fname)
+            dst = os.path.join(dest_root, fname)
+            if os.path.exists(dst) or not os.path.isfile(src):
+                continue
+            try:
+                shutil.copy2(src, dst)
+            except Exception:
+                pass
 
 
 def _prepare_yaml_for_dump(value):
@@ -247,6 +317,11 @@ def _canonicalize_project_structure(data):
         except RuntimeError:
             data['project'] = DEFAULT_PROJECT_NAME
 
+    if 'ossSyncEnabled' in data:
+        data['ossSyncEnabled'] = bool(data['ossSyncEnabled'])
+    else:
+        data['ossSyncEnabled'] = False
+
     return data
 
 
@@ -286,14 +361,23 @@ def ensure_project(name: str):
 
     projects_root = get_projects_root()
     proj_path = os.path.join(projects_root, name)
-    attachments = os.path.join(proj_path, 'attachments')
     static = os.path.join(proj_path, 'static')
-    resources = os.path.join(proj_path, 'resources')
     build = os.path.join(proj_path, 'build')
-    os.makedirs(attachments, exist_ok=True)
     os.makedirs(static, exist_ok=True)
-    os.makedirs(resources, exist_ok=True)
     os.makedirs(build, exist_ok=True)
+
+    attachments_root = get_local_attachments_root()
+    attachments = os.path.join(attachments_root, name)
+    os.makedirs(attachments, exist_ok=True)
+    legacy_attachments = os.path.join(proj_path, 'attachments')
+    _migrate_legacy_attachments(legacy_attachments, attachments)
+
+    resources_root = get_local_resources_root()
+    resources = os.path.join(resources_root, name)
+    os.makedirs(resources, exist_ok=True)
+    legacy_resources = os.path.join(proj_path, 'resources')
+    _migrate_legacy_resources(legacy_resources, resources)
+
     yaml_path = os.path.join(proj_path, 'project.yaml')
     if not os.path.exists(yaml_path):
         with open(yaml_path, 'w', encoding='utf-8') as f:
@@ -306,15 +390,24 @@ def get_project_paths(project_name: str):
 
     projects_root = get_projects_root()
     proj_path = os.path.join(projects_root, project_name)
-    attachments = os.path.join(proj_path, 'attachments')
     static = os.path.join(proj_path, 'static')
-    resources = os.path.join(proj_path, 'resources')
     build = os.path.join(proj_path, 'build')
     yaml_path = os.path.join(proj_path, 'project.yaml')
-    os.makedirs(attachments, exist_ok=True)
     os.makedirs(static, exist_ok=True)
-    os.makedirs(resources, exist_ok=True)
     os.makedirs(build, exist_ok=True)
+
+    attachments_root = get_local_attachments_root()
+    attachments = os.path.join(attachments_root, project_name)
+    os.makedirs(attachments, exist_ok=True)
+    legacy_attachments = os.path.join(proj_path, 'attachments')
+    _migrate_legacy_attachments(legacy_attachments, attachments)
+
+    resources_root = get_local_resources_root()
+    resources = os.path.join(resources_root, project_name)
+    os.makedirs(resources, exist_ok=True)
+    legacy_resources = os.path.join(proj_path, 'resources')
+    _migrate_legacy_resources(legacy_resources, resources)
+
     return attachments, static, yaml_path, resources, build
 
 
@@ -344,8 +437,8 @@ def get_project_from_request():
     return name
 
 
-def _store_attachment_file(file_storage, project_name: str):
-    """保存上传的附件文件并返回文件名与 URL。"""
+def _store_attachment_file(file_storage, project_name: str) -> StoredFileResult:
+    """保存上传的附件文件并返回访问信息。"""
 
     if not file_storage or not file_storage.filename:
         raise ValueError('No selected file')
@@ -355,8 +448,36 @@ def _store_attachment_file(file_storage, project_name: str):
     attachments_folder, _, _, _, _ = get_project_paths(project_name)
     save_path = os.path.join(attachments_folder, filename)
     file_storage.save(save_path)
-    url = f'/attachments/{filename}?project={project_name}'
-    return filename, url
+
+    local_url = f'/projects/{project_name}/uploads/{filename}'
+    preferred_url = local_url
+    oss_url: Optional[str] = None
+
+    project_data: dict | None = None
+    try:
+        project_data = load_project()
+    except Exception:
+        project_data = None
+
+    sync_enabled = bool(project_data.get('ossSyncEnabled')) if isinstance(project_data, dict) else False
+
+    if sync_enabled and oss_is_configured():
+        try:
+            oss_url = oss_upload_file(project_name, filename, save_path)
+            if oss_url:
+                preferred_url = oss_url
+        except Exception as exc:
+            try:
+                current_app.logger.warning('OSS 上传失败 %s: %s', filename, exc)
+            except Exception:
+                print(f'OSS 上传失败 {filename}: {exc}')
+
+    return StoredFileResult(
+        filename=filename,
+        preferred_url=preferred_url,
+        local_url=local_url,
+        oss_url=oss_url,
+    )
 
 
 def load_project():
@@ -377,6 +498,7 @@ def load_project():
             'template': dict(get_default_template()),
             'resources': [],
             'project': project_name,
+            'ossSyncEnabled': False,
         })
 
     with open(yaml_path, 'r', encoding='utf-8') as f:
@@ -515,13 +637,25 @@ def save_project(data):
         except OSError:
             pass
 
+    if bool(data.get('ossSyncEnabled')) and oss_is_configured():
+        try:
+            oss_upload_file(project_name, 'project.yaml', yaml_path, category='yaml')
+        except Exception as exc:
+            try:
+                current_app.logger.warning('OSS 上传项目 YAML 失败: %s', exc)
+            except Exception:
+                print(f'OSS 上传项目 YAML 失败: {exc}')
+
 
 __all__ = [
     'DEFAULT_PROJECT_NAME',
+    'StoredFileResult',
     'list_projects',
     'is_safe_project_name',
     'ensure_project',
     'get_project_paths',
+    'get_local_attachments_root',
+    'get_local_resources_root',
     'get_project_from_request',
     'load_project',
     'save_project',

@@ -45,6 +45,10 @@ FALLBACK_TEMPLATE: dict[str, str] = {
     "footer": "\\end{document}",
 }
 
+# OSS / 附件存储相关默认配置
+DEFAULT_LOCAL_ATTACHMENTS_DIRNAME = "attachments_store"
+DEFAULT_LOCAL_RESOURCES_DIRNAME = "resources_store"
+
 # OpenAI ChatCompletion 相关配置
 OPENAI_CHAT_COMPLETIONS_MODEL = "gpt-3.5-turbo"
 
@@ -111,6 +115,22 @@ def init_app_config(app) -> None:
     app.config.setdefault("PROJECTS_ROOT", projects_root)
     os.makedirs(projects_root, exist_ok=True)
 
+    attachments_root = os.path.join(app.root_path, DEFAULT_LOCAL_ATTACHMENTS_DIRNAME)
+    app.config.setdefault("LOCAL_ATTACHMENTS_ROOT", os.environ.get("LOCAL_ATTACHMENTS_ROOT", attachments_root))
+    os.makedirs(app.config["LOCAL_ATTACHMENTS_ROOT"], exist_ok=True)
+
+    resources_root = os.path.join(app.root_path, DEFAULT_LOCAL_RESOURCES_DIRNAME)
+    app.config.setdefault("LOCAL_RESOURCES_ROOT", os.environ.get("LOCAL_RESOURCES_ROOT", resources_root))
+    os.makedirs(app.config["LOCAL_RESOURCES_ROOT"], exist_ok=True)
+
+    # 预先加载 OSS 配置，允许通过环境变量覆盖
+    app.config.setdefault("ALIYUN_OSS_ENDPOINT", os.environ.get("ALIYUN_OSS_ENDPOINT"))
+    app.config.setdefault("ALIYUN_OSS_ACCESS_KEY_ID", os.environ.get("ALIYUN_OSS_ACCESS_KEY_ID"))
+    app.config.setdefault("ALIYUN_OSS_ACCESS_KEY_SECRET", os.environ.get("ALIYUN_OSS_ACCESS_KEY_SECRET"))
+    app.config.setdefault("ALIYUN_OSS_BUCKET", os.environ.get("ALIYUN_OSS_BUCKET"))
+    app.config.setdefault("ALIYUN_OSS_PREFIX", os.environ.get("ALIYUN_OSS_PREFIX"))
+    app.config.setdefault("ALIYUN_OSS_PUBLIC_BASE_URL", os.environ.get("ALIYUN_OSS_PUBLIC_BASE_URL"))
+
     template_root = template_library_root(app)
     app.config.setdefault("TEMPLATE_LIBRARY", template_root)
     os.makedirs(template_root, exist_ok=True)
@@ -120,6 +140,8 @@ __all__ = [
     "DEFAULT_PROJECT_NAME",
     "DEFAULT_TEMPLATE_FILENAME",
     "FALLBACK_TEMPLATE",
+    "DEFAULT_LOCAL_ATTACHMENTS_DIRNAME",
+    "DEFAULT_LOCAL_RESOURCES_DIRNAME",
     "OPENAI_CHAT_COMPLETIONS_MODEL",
     "OPENAI_TTS_MODEL",
     "OPENAI_TTS_VOICE",

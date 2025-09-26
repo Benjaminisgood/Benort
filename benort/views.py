@@ -9,7 +9,7 @@ import subprocess
 import zipfile
 
 import requests
-from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory
+from flask import Blueprint, current_app, jsonify, render_template, request, send_file, send_from_directory
 from werkzeug.utils import secure_filename
 
 from .latex import normalize_latex_content, prepare_latex_assets, _find_resource_file
@@ -21,6 +21,13 @@ from .project_store import (
     list_projects,
     load_project,
     save_project,
+)
+from .oss_client import (
+    delete_file as oss_delete_file,
+    is_configured as oss_is_configured,
+    list_files as oss_list_files,
+    sync_directory as oss_sync_directory,
+    upload_file as oss_upload_file,
 )
 from .config import (
     AI_PROMPTS,
@@ -283,10 +290,18 @@ def upload_image():
     file_storage = request.files["file"]
     project_name = get_project_from_request()
     try:
-        filename, url = _store_attachment_file(file_storage, project_name)
+        result = _store_attachment_file(file_storage, project_name)
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)})
-    return jsonify({"success": True, "url": url, "filename": filename})
+    return jsonify(
+        {
+            "success": True,
+            "url": result.preferred_url,
+            "filename": result.filename,
+            "localUrl": result.local_url,
+            "ossUrl": result.oss_url,
+        }
+    )
 
 
 @bp.route("/attachments/upload", methods=["POST"])
@@ -298,10 +313,18 @@ def upload_attachment():
     file_storage = request.files["file"]
     project_name = get_project_from_request()
     try:
-        filename, url = _store_attachment_file(file_storage, project_name)
+        result = _store_attachment_file(file_storage, project_name)
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)})
-    return jsonify({"success": True, "filename": filename, "url": url})
+    return jsonify(
+        {
+            "success": True,
+            "filename": result.filename,
+            "url": result.preferred_url,
+            "localUrl": result.local_url,
+            "ossUrl": result.oss_url,
+        }
+    )
 
 
 @bp.route("/project", methods=["POST"])
@@ -567,10 +590,10 @@ def uploaded_file(filename: str):
 
 @bp.route("/export_attachments", methods=["GET"])
 def export_attachments():
-    """将附件与资源目录打包成 ZIP 供下载。"""
+    """将附件、资源及 YAML 打包成 ZIP 供下载。"""
 
     project_name = get_project_from_request()
-    attachments_folder, _, _, resources_folder, _ = get_project_paths(project_name)
+    attachments_folder, _, yaml_path, resources_folder, _ = get_project_paths(project_name)
     mem_zip = io.BytesIO()
     added_any = False
 
@@ -591,16 +614,20 @@ def export_attachments():
                     rel = os.path.relpath(file_path, resources_folder)
                     archive.write(file_path, arcname=os.path.join("resources", rel))
                     added_any = True
+        if os.path.exists(yaml_path):
+            archive.write(yaml_path, arcname="project.yaml")
+            added_any = True
 
     if not added_any:
-        return jsonify({"success": False, "error": "无附件或资源可导出"}), 400
+        return jsonify({"success": False, "error": "无附件、资源或项目配置可导出"}), 400
 
     mem_zip.seek(0)
+    archive_name = secure_filename(project_name) or "project"
     return send_file(
         mem_zip,
         mimetype="application/zip",
         as_attachment=True,
-        download_name="attachments_and_resources.zip",
+        download_name=f"{archive_name}.zip",
     )
 
 
@@ -639,21 +666,105 @@ def ensure_safe_project(project_name: str) -> bool:
     return project_name in list_projects()
 
 
+def _run_full_oss_sync(project_name: str, attachments_folder: str, resources_folder: str, yaml_path: str) -> dict[str, object]:
+    summary: dict[str, object] = {}
+    try:
+        summary["attachments"] = oss_sync_directory(project_name, attachments_folder)
+    except Exception as exc:
+        summary["attachments"] = {"error": str(exc)}
+        try:
+            current_app.logger.warning('OSS 同步附件失败: %s', exc)
+        except Exception:
+            pass
+
+    try:
+        summary["resources"] = oss_sync_directory(project_name, resources_folder, category='resources')
+    except Exception as exc:
+        summary["resources"] = {"error": str(exc)}
+        try:
+            current_app.logger.warning('OSS 同步资源失败: %s', exc)
+        except Exception:
+            pass
+
+    if os.path.exists(yaml_path):
+        try:
+            url = oss_upload_file(project_name, 'project.yaml', yaml_path, category='yaml')
+            summary["yaml"] = {"uploaded": bool(url), "url": url}
+        except Exception as exc:
+            summary["yaml"] = {"error": str(exc)}
+            try:
+                current_app.logger.warning('OSS 上传项目 YAML 失败: %s', exc)
+            except Exception:
+                pass
+    else:
+        summary["yaml"] = {"uploaded": False, "url": None, "error": '项目 YAML 不存在'}
+    return summary
+
+
 @bp.route("/attachments/list")
 def list_attachments():
     """返回项目附件清单及访问链接。"""
 
     project_name = get_project_from_request()
+    project_data = load_project() or {}
     attachments_folder, _, _, _, _ = get_project_paths(project_name)
-    if not os.path.exists(attachments_folder):
-        return api_success({"files": []})
+    os.makedirs(attachments_folder, exist_ok=True)
 
-    files = []
+    local_files: dict[str, str] = {}
     for fname in os.listdir(attachments_folder):
-        if fname.lower().endswith('.tex'):
+        full_path = os.path.join(attachments_folder, fname)
+        if not os.path.isfile(full_path) or fname.lower().endswith('.tex'):
             continue
-        files.append({"name": fname, "url": f"/uploads/{fname}?project={project_name}"})
-    return api_success({"files": files})
+        local_files[fname] = f"/projects/{project_name}/uploads/{fname}"
+
+    remote_files: dict[str, str] = {}
+    oss_error: str | None = None
+    configured = oss_is_configured()
+    if configured:
+        try:
+            remote_files = oss_list_files(project_name)
+        except Exception as exc:
+            oss_error = str(exc)
+            try:
+                current_app.logger.warning('OSS 列出附件失败: %s', exc)
+            except Exception:
+                pass
+
+    all_names = sorted(set(local_files) | set(remote_files))
+    files = []
+    for name in all_names:
+        local_url = local_files.get(name)
+        oss_url = remote_files.get(name)
+        preferred = local_url or oss_url or ''
+        location = 'synced'
+        if local_url and not oss_url:
+            location = 'local'
+        elif oss_url and not local_url:
+            location = 'oss'
+        elif not local_url and not oss_url:
+            location = 'missing'
+        files.append(
+            {
+                "name": name,
+                "path": name,
+                "preferredUrl": preferred,
+                "localUrl": local_url,
+                "ossUrl": oss_url,
+                "local": bool(local_url),
+                "remote": bool(oss_url),
+                "location": location,
+            }
+        )
+
+    payload = {
+        "files": files,
+        "syncEnabled": bool(project_data.get("ossSyncEnabled")),
+        "ossConfigured": configured,
+        "localPath": attachments_folder,
+    }
+    if oss_error:
+        payload["ossError"] = oss_error
+    return api_success(payload)
 
 
 @bp.route("/attachments/delete", methods=["POST"])
@@ -668,18 +779,171 @@ def delete_attachment():
         return api_error('invalid path', 400)
 
     project_name = get_project_from_request()
+    project_data = load_project() or {}
     attachments_folder, _, _, _, _ = get_project_paths(project_name)
     target = os.path.normpath(os.path.join(attachments_folder, rel))
     if not target.startswith(os.path.normpath(attachments_folder)):
         return api_error('invalid path', 400)
-    if not os.path.exists(target):
+
+    local_removed = False
+    if os.path.exists(target):
+        try:
+            os.remove(target)
+            local_removed = True
+        except Exception as exc:
+            return api_error(str(exc), 500)
+
+    remote_removed = False
+    remote_error: str | None = None
+    if bool(project_data.get('ossSyncEnabled')) and oss_is_configured():
+        try:
+            oss_delete_file(project_name, rel)
+            remote_removed = True
+        except Exception as exc:
+            remote_error = str(exc)
+            try:
+                current_app.logger.warning('OSS 删除附件失败 %s: %s', rel, exc)
+            except Exception:
+                pass
+
+    if not local_removed and not remote_removed:
         return api_error('file not found', 404)
 
+    payload = {"localRemoved": local_removed, "remoteRemoved": remote_removed}
+    if remote_error:
+        payload["remoteError"] = remote_error
+    return api_success(payload)
+
+
+@bp.route("/attachments/rename", methods=["POST"])
+def rename_attachment():
+    """Rename an attachment locally and propagate to OSS if enabled."""
+
+    data = request.get_json(silent=True) or request.form or {}
+    old_name = data.get('oldName') or data.get('from') or data.get('old')
+    new_name = data.get('newName') or data.get('to') or data.get('name')
+    if not old_name or not new_name:
+        return api_error('oldName and newName required', 400)
+    if any(sep in old_name for sep in ('..', '/', '\\')):
+        return api_error('invalid oldName', 400)
+
+    new_name_sanitized = secure_filename(new_name)
+    if not new_name_sanitized:
+        return api_error('invalid newName', 400)
+
+    project_name = get_project_from_request()
+    project_data = load_project() or {}
+    attachments_folder, _, _, _, _ = get_project_paths(project_name)
+
+    old_path = os.path.join(attachments_folder, old_name)
+    if not os.path.exists(old_path):
+        return api_error('file not found', 404)
+
+    if new_name_sanitized == old_name:
+        return api_success(
+            {
+                "name": new_name_sanitized,
+                "localUrl": f"/projects/{project_name}/uploads/{new_name_sanitized}",
+                "ossStatus": None,
+            }
+        )
+
+    new_path = os.path.join(attachments_folder, new_name_sanitized)
+    if os.path.exists(new_path):
+        return api_error('target filename already exists', 409)
+
     try:
-        os.remove(target)
-        return api_success()
-    except Exception as exc:
+        os.rename(old_path, new_path)
+    except OSError as exc:
         return api_error(str(exc), 500)
+
+    oss_status: dict[str, object] | None = None
+    if bool(project_data.get('ossSyncEnabled')) and oss_is_configured():
+        oss_status = {"uploaded": False, "deleted": False}
+        try:
+            oss_upload_file(project_name, new_name_sanitized, new_path)
+            oss_status["uploaded"] = True
+        except Exception as exc:
+            oss_status["error"] = str(exc)
+            try:
+                current_app.logger.warning('OSS 重命名上传失败 %s→%s: %s', old_name, new_name_sanitized, exc)
+            except Exception:
+                pass
+        try:
+            oss_delete_file(project_name, old_name)
+            oss_status["deleted"] = True
+        except Exception as exc:
+            oss_status = oss_status or {}
+            oss_status["delete_error"] = str(exc)
+            try:
+                current_app.logger.warning('OSS 删除旧附件失败 %s: %s', old_name, exc)
+            except Exception:
+                pass
+
+    return api_success(
+        {
+            "name": new_name_sanitized,
+            "localUrl": f"/projects/{project_name}/uploads/{new_name_sanitized}",
+            "ossStatus": oss_status,
+        }
+    )
+
+
+@bp.route("/attachments/sync", methods=["POST"])
+def update_attachment_sync():
+    """开启或关闭 OSS 同步，并在开启时执行一次同步。"""
+
+    data = request.get_json(silent=True) or {}
+    enabled = bool(data.get("enabled"))
+    configured = oss_is_configured()
+    if enabled and not configured:
+        return api_error("OSS 未配置，无法开启同步", 400)
+
+    project = load_project() or {}
+    project["ossSyncEnabled"] = enabled
+    save_project(project)
+
+    project_name = get_project_from_request()
+    attachments_folder, _, yaml_path, resources_folder, _ = get_project_paths(project_name)
+
+    sync_payload: dict[str, object] = {"syncEnabled": enabled}
+    if enabled:
+        sync_payload["synced"] = _run_full_oss_sync(project_name, attachments_folder, resources_folder, yaml_path)
+    return api_success(sync_payload)
+
+
+@bp.route("/oss/status", methods=["GET"])
+def oss_status():
+    """返回当前项目的 OSS 同步状态。"""
+
+    project = load_project() or {}
+    project_name = get_project_from_request()
+    attachments_folder, _, yaml_path, resources_folder, _ = get_project_paths(project_name)
+    payload = {
+        "syncEnabled": bool(project.get("ossSyncEnabled")),
+        "ossConfigured": oss_is_configured(),
+        "attachmentsPath": attachments_folder,
+        "resourcesPath": resources_folder,
+        "yamlPath": yaml_path if os.path.exists(yaml_path) else None,
+        "project": project_name,
+    }
+    return api_success(payload)
+
+
+@bp.route("/oss/sync_now", methods=["POST"])
+def oss_sync_now():
+    """立即将附件、资源与项目 YAML 同步至 OSS。"""
+
+    if not oss_is_configured():
+        return api_error("OSS 未配置，无法同步", 400)
+    project = load_project() or {}
+    project_name = get_project_from_request()
+    attachments_folder, _, yaml_path, resources_folder, _ = get_project_paths(project_name)
+    summary = _run_full_oss_sync(project_name, attachments_folder, resources_folder, yaml_path)
+    return api_success({
+        "syncEnabled": bool(project.get("ossSyncEnabled")),
+        "synced": summary,
+    })
 
 
 @bp.route("/upload_resource", methods=["POST"])
@@ -739,17 +1003,33 @@ def upload_resource():
             project['resources'].append(name)
 
     save_project(project)
+    local_url = f'/projects/{project_name}/resources/{name}'
+    oss_url = None
+    if bool(project.get('ossSyncEnabled')) and oss_is_configured():
+        try:
+            oss_url = oss_upload_file(project_name, name, save_path, category='resources')
+        except Exception as exc:
+            try:
+                current_app.logger.warning('OSS 上传资源失败 %s: %s', name, exc)
+            except Exception:
+                pass
 
-    url = f'/resources/{name}?project={project_name}'
+    url = local_url or oss_url or ''
     scope = 'page' if page_idx is not None else 'global'
-    return api_success({'url': url, 'name': name, 'scope': scope, 'page': page_idx})
+    return api_success({
+        'url': url,
+        'preferredUrl': url,
+        'name': name,
+        'scope': scope,
+        'page': page_idx,
+        'localUrl': local_url,
+        'ossUrl': oss_url,
+    })
 
 
-@bp.route('/resources/<path:filename>')
-def serve_resource(filename):
-    """提供资源文件，找不到时按文件名回退检索。"""
-
-    project_name = get_project_from_request()
+def _serve_resource_file(project_name: str, filename: str):
+    if not ensure_safe_project(project_name):
+        return '', 404
     _, _, _, resources_folder, _ = get_project_paths(project_name)
     if not filename:
         return '', 404
@@ -769,6 +1049,21 @@ def serve_resource(filename):
         if common == os.path.abspath(resources_folder):
             return send_file(fallback)
     return '', 404
+
+
+@bp.route('/projects/<project_name>/resources/<path:filename>')
+def project_resources(project_name: str, filename: str):
+    """RESTful 访问指定项目资源文件。"""
+
+    return _serve_resource_file(project_name, filename)
+
+
+@bp.route('/resources/<path:filename>')
+def serve_resource(filename):
+    """兼容旧接口，通过查询参数解析项目名。"""
+
+    project_name = get_project_from_request()
+    return _serve_resource_file(project_name, filename)
 
 
 @bp.route('/resources/delete', methods=['POST'])
@@ -792,6 +1087,7 @@ def delete_resource():
         return api_error('invalid name', 400)
 
     project_name = get_project_from_request()
+    project = load_project()
     _, _, _, resources_folder, _ = get_project_paths(project_name)
     direct_target = os.path.join(resources_folder, relative)
     target = direct_target if os.path.exists(direct_target) else _find_resource_file(resources_folder, name)
@@ -801,7 +1097,26 @@ def delete_resource():
         except Exception as exc:
             return api_error(str(exc), 500)
 
-    project = load_project()
+    if bool(project.get('ossSyncEnabled')) and oss_is_configured():
+        remote_candidates: list[str] = []
+        try:
+            existing = oss_list_files(project_name, category='resources')
+            remote_candidates = [key for key in existing if os.path.basename(key) == name]
+        except Exception as exc:
+            try:
+                current_app.logger.warning('OSS 列出资源失败 %s: %s', name, exc)
+            except Exception:
+                pass
+        targets = remote_candidates or [name]
+        for key in targets:
+            try:
+                oss_delete_file(project_name, key, category='resources')
+            except Exception as exc:
+                try:
+                    current_app.logger.warning('OSS 删除资源失败 %s: %s', key, exc)
+                except Exception:
+                    pass
+
     if isinstance(project.get('resources'), list):
         project['resources'] = [r for r in project['resources'] if os.path.basename(r) != name]
     if isinstance(project.get('pages'), list):
@@ -839,18 +1154,50 @@ def list_resources():
         if isinstance(res_list, list):
             names = res_list
 
+    local_map: dict[str, str] = {}
+    for root, _, file_names in os.walk(resources_folder):
+        for fname in file_names:
+            rel_root = os.path.relpath(root, resources_folder)
+            rel_path = fname if rel_root in ('.', '') else os.path.join(rel_root, fname)
+            local_map.setdefault(os.path.basename(rel_path), f'/projects/{project_name}/resources/{rel_path.replace(os.sep, "/")}')
+
+    remote_map: dict[str, str] = {}
+    oss_error: str | None = None
+    configured = oss_is_configured()
+    if configured:
+        try:
+            raw_remote = oss_list_files(project_name, category='resources')
+            for rel_name, url in raw_remote.items():
+                remote_map.setdefault(os.path.basename(rel_name), url)
+        except Exception as exc:
+            oss_error = str(exc)
+            try:
+                current_app.logger.warning('OSS 列出资源失败: %s', exc)
+            except Exception:
+                pass
+
     files = []
     for name in names:
         sanitized = os.path.basename(str(name))
         if not sanitized:
             continue
-        filepath = _find_resource_file(resources_folder, sanitized)
+        local_url = local_map.get(sanitized)
+        oss_url = remote_map.get(sanitized)
+        preferred = local_url or oss_url or ''
         files.append({
             'name': sanitized,
-            'url': f'/resources/{sanitized}?project={project_name}',
-            'exists': bool(filepath)
+            'url': preferred,
+            'preferredUrl': preferred,
+            'localUrl': local_url,
+            'ossUrl': oss_url,
+            'exists': bool(local_url),
+            'remote': bool(oss_url),
         })
-    return api_success({'files': files})
+
+    payload = {'files': files, 'ossConfigured': configured}
+    if oss_error:
+        payload['ossError'] = oss_error
+    return api_success(payload)
 
 
 @bp.route('/templates/list', methods=['GET'])

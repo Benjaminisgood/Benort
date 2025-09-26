@@ -16,7 +16,9 @@ dist/
 *.egg-info/
 
 # 运行期项目/资产
-
+benort/projects/
+benort/attachments_store/
+benort/resources_store/
 temps/
 flask.log
 flask.pid

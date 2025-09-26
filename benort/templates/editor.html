@@ -287,6 +287,123 @@
         </div>
       </div>
 
+      <!-- Project Create Modal -->
+      <div class="modal fade" id="projectCreateModal" tabindex="-1" aria-labelledby="projectCreateModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="projectCreateModalLabel">新建项目</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <label for="project-create-name" class="form-label">项目名称</label>
+              <input type="text" class="form-control" id="project-create-name" placeholder="请输入项目名称" />
+              <div class="form-text">名称仅支持字母、数字、下划线和中划线。</div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-primary" id="project-create-confirm">创建</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project Rename Modal -->
+      <div class="modal fade" id="projectRenameModal" tabindex="-1" aria-labelledby="projectRenameModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="projectRenameModalLabel">重命名项目</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p class="mb-2" id="project-rename-current"></p>
+              <label for="project-rename-name" class="form-label">新名称</label>
+              <input type="text" class="form-control" id="project-rename-name" placeholder="请输入新名称" />
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-primary" id="project-rename-confirm">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project Delete Modal -->
+      <div class="modal fade" id="projectDeleteModal" tabindex="-1" aria-labelledby="projectDeleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="projectDeleteModalLabel">删除项目</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p class="text-danger" id="project-delete-warning">此操作无法撤销。</p>
+              <label for="project-delete-confirm-name" class="form-label">请输入项目名称以确认删除</label>
+              <input type="text" class="form-control" id="project-delete-confirm-name" />
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-danger" id="project-delete-confirm">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project Password Modal -->
+      <div class="modal fade" id="projectPasswordModal" tabindex="-1" aria-labelledby="projectPasswordModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="projectPasswordModalLabel">项目密码</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label for="project-password-current" class="form-label">当前密码（若已有密码）</label>
+                <input type="password" class="form-control" id="project-password-current" autocomplete="current-password" />
+              </div>
+              <div class="mb-3">
+                <label for="project-password-new" class="form-label">新密码</label>
+                <input type="password" class="form-control" id="project-password-new" autocomplete="new-password" />
+              </div>
+              <div class="mb-3">
+                <label for="project-password-confirm" class="form-label">确认新密码</label>
+                <input type="password" class="form-control" id="project-password-confirm" autocomplete="new-password" />
+              </div>
+              <div class="alert alert-warning d-none" id="project-password-warning"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-danger me-auto" id="project-password-remove">移除密码</button>
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-primary" id="project-password-confirm">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project Unlock Modal -->
+      <div class="modal fade" id="projectUnlockModal" tabindex="-1" aria-labelledby="projectUnlockModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="projectUnlockModalLabel">解锁项目</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p id="project-unlock-target" class="mb-2"></p>
+              <label for="project-unlock-password" class="form-label">输入项目密码</label>
+              <input type="password" class="form-control" id="project-unlock-password" autocomplete="current-password" />
+              <div class="alert alert-danger d-none mt-3" id="project-unlock-error"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-primary" id="project-unlock-confirm">解锁</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- OSS Sync Modal -->
       <div class="modal fade" id="ossSyncModal" tabindex="-1" aria-labelledby="ossSyncModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -591,6 +708,24 @@
   let pendingSaveCallbacks = [];
 
   let attachmentRenameTarget = null;
+  const SCRIPT_ROOT = {{ request.script_root|tojson }} || '';
+  function buildApiUrl(path){
+    if(!path) return SCRIPT_ROOT || '';
+    if(path.startsWith('http://') || path.startsWith('https://')) return path;
+    if(path.startsWith('/')) return (SCRIPT_ROOT || '') + path;
+    return (SCRIPT_ROOT || '') + '/' + path;
+  }
+  const PROJECT_ENDPOINTS = {
+    list: buildApiUrl('/projects'),
+    create: buildApiUrl('/projects/create'),
+    rename: buildApiUrl('/projects/rename'),
+    delete: buildApiUrl('/projects/delete'),
+    password: buildApiUrl('/projects/password'),
+    unlock: buildApiUrl('/projects/unlock'),
+    lock: buildApiUrl('/projects/lock'),
+    project: buildApiUrl('/project'),
+    projectSave: buildApiUrl('/project'),
+  };
   const attachmentRenameModalEl = document.getElementById('attachmentRenameModal');
   const attachmentRenameInput = document.getElementById('attachment-rename-input');
   const attachmentRenameConfirm = document.getElementById('attachment-rename-confirm');
@@ -606,6 +741,34 @@
   const ossSyncYaml = document.getElementById('oss-sync-yaml');
   const ossSyncStatusBox = document.getElementById('oss-sync-status');
   const ossSyncRunBtn = document.getElementById('oss-sync-run');
+  let projectMetadata = {};
+  let projectRenameTarget = '';
+  let projectDeleteTarget = '';
+  let projectPasswordTarget = '';
+  let projectUnlockTargetName = '';
+  const projectCreateModalEl = document.getElementById('projectCreateModal');
+  const projectCreateNameInput = document.getElementById('project-create-name');
+  const projectCreateConfirmBtn = document.getElementById('project-create-confirm');
+  const projectRenameModalEl = document.getElementById('projectRenameModal');
+  const projectRenameCurrent = document.getElementById('project-rename-current');
+  const projectRenameInput = document.getElementById('project-rename-name');
+  const projectRenameConfirmBtn = document.getElementById('project-rename-confirm');
+  const projectDeleteModalEl = document.getElementById('projectDeleteModal');
+  const projectDeleteWarning = document.getElementById('project-delete-warning');
+  const projectDeleteConfirmInput = document.getElementById('project-delete-confirm-name');
+  const projectDeleteConfirmBtn = document.getElementById('project-delete-confirm');
+  const projectPasswordModalEl = document.getElementById('projectPasswordModal');
+  const projectPasswordCurrentInput = document.getElementById('project-password-current');
+  const projectPasswordNewInput = document.getElementById('project-password-new');
+  const projectPasswordConfirmInput = document.getElementById('project-password-confirm');
+  const projectPasswordWarning = document.getElementById('project-password-warning');
+  const projectPasswordConfirmBtn = document.getElementById('project-password-confirm');
+  const projectPasswordRemoveBtn = document.getElementById('project-password-remove');
+  const projectUnlockModalEl = document.getElementById('projectUnlockModal');
+  const projectUnlockTargetLabel = document.getElementById('project-unlock-target');
+  const projectUnlockPasswordInput = document.getElementById('project-unlock-password');
+  const projectUnlockErrorBox = document.getElementById('project-unlock-error');
+  const projectUnlockConfirmBtn = document.getElementById('project-unlock-confirm');
 
   if(attachmentRenameModalEl){
     attachmentRenameModalEl.addEventListener('hidden.bs.modal', () => {
@@ -618,6 +781,68 @@
     attachmentPreviewModalEl.addEventListener('hidden.bs.modal', () => {
       if(attachmentPreviewImage) attachmentPreviewImage.removeAttribute('src');
       if(attachmentPreviewMeta) attachmentPreviewMeta.textContent = '';
+    });
+  }
+
+  if(projectCreateModalEl){
+    projectCreateModalEl.addEventListener('hidden.bs.modal', () => {
+      if(projectCreateNameInput) projectCreateNameInput.value = '';
+    });
+    projectCreateModalEl.addEventListener('shown.bs.modal', () => {
+      if(projectCreateNameInput) projectCreateNameInput.focus();
+    });
+  }
+
+  if(projectRenameModalEl){
+    projectRenameModalEl.addEventListener('hidden.bs.modal', () => {
+      projectRenameTarget = '';
+      if(projectRenameInput) projectRenameInput.value = '';
+    });
+    projectRenameModalEl.addEventListener('shown.bs.modal', () => {
+      if(projectRenameInput) projectRenameInput.focus();
+    });
+  }
+
+  if(projectDeleteModalEl){
+    projectDeleteModalEl.addEventListener('hidden.bs.modal', () => {
+      projectDeleteTarget = '';
+      if(projectDeleteConfirmInput){
+        projectDeleteConfirmInput.value = '';
+        projectDeleteConfirmInput.classList.remove('is-invalid');
+      }
+    });
+    projectDeleteModalEl.addEventListener('shown.bs.modal', () => {
+      if(projectDeleteConfirmInput) projectDeleteConfirmInput.focus();
+    });
+  }
+
+  if(projectPasswordModalEl){
+    projectPasswordModalEl.addEventListener('hidden.bs.modal', () => {
+      projectPasswordTarget = '';
+      if(projectPasswordCurrentInput) projectPasswordCurrentInput.value = '';
+      if(projectPasswordNewInput) projectPasswordNewInput.value = '';
+      if(projectPasswordConfirmInput) projectPasswordConfirmInput.value = '';
+      if(projectPasswordWarning){
+        projectPasswordWarning.textContent = '';
+        projectPasswordWarning.classList.add('d-none');
+      }
+    });
+    projectPasswordModalEl.addEventListener('shown.bs.modal', () => {
+      if(projectPasswordNewInput) projectPasswordNewInput.focus();
+    });
+  }
+
+  if(projectUnlockModalEl){
+    projectUnlockModalEl.addEventListener('hidden.bs.modal', () => {
+      projectUnlockTargetName = '';
+      if(projectUnlockPasswordInput) projectUnlockPasswordInput.value = '';
+      if(projectUnlockErrorBox){
+        projectUnlockErrorBox.classList.add('d-none');
+        projectUnlockErrorBox.textContent = '';
+      }
+    });
+    projectUnlockModalEl.addEventListener('shown.bs.modal', () => {
+      if(projectUnlockPasswordInput) projectUnlockPasswordInput.focus();
     });
   }
 
@@ -636,6 +861,171 @@
       return '未上传';
     }
     return JSON.stringify(entry);
+  }
+
+  function getProjectMeta(name){
+    if(!name) return {};
+    return projectMetadata && Object.prototype.hasOwnProperty.call(projectMetadata, name) ? (projectMetadata[name] || {}) : {};
+  }
+
+  function closeProjectDropdown(){
+    const dropdownToggle = document.getElementById('project-dropdown');
+    if(!dropdownToggle) return;
+    const dropdown = bootstrap.Dropdown.getInstance(dropdownToggle);
+    if(dropdown) dropdown.hide();
+  }
+
+  function openProjectUnlockModal(name){
+    projectUnlockTargetName = name || currentProject || '';
+    if(projectUnlockTargetLabel){
+      const labelName = projectUnlockTargetName || '当前项目';
+      projectUnlockTargetLabel.textContent = `项目「${labelName}」已加密，请输入密码解锁。`;
+    }
+    if(projectUnlockErrorBox){
+      projectUnlockErrorBox.classList.add('d-none');
+      projectUnlockErrorBox.textContent = '';
+    }
+    if(projectUnlockPasswordInput) projectUnlockPasswordInput.value = '';
+    if(projectUnlockModalEl){
+      const modal = bootstrap.Modal.getOrCreateInstance(projectUnlockModalEl);
+      modal.show();
+    }
+  }
+
+  function handleProjectLocked(message){
+    const info = message || '项目已加密，请先解锁';
+    showStatus(info, 'warning', 6000);
+    openProjectUnlockModal(currentProject);
+  }
+
+  function createMenuAction(menu, {id, label, handler, disabled}) {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dropdown-item';
+    if(id) btn.id = id;
+    btn.textContent = label;
+    if(disabled) btn.disabled = true;
+    btn.addEventListener('click', () => {
+      closeProjectDropdown();
+      if(typeof handler === 'function') handler();
+    });
+    li.dataset.projectAction = 'item';
+    li.appendChild(btn);
+    menu.appendChild(li);
+    return btn;
+  }
+
+  function buildProjectMenu(menu, projects){
+    menu.innerHTML = '';
+    const header = document.createElement('li');
+    header.innerHTML = '<h6 class="dropdown-header">项目</h6>';
+    menu.appendChild(header);
+
+    if(!projects.length){
+      const empty = document.createElement('li');
+      empty.innerHTML = '<span class="dropdown-item-text text-muted">无项目</span>';
+      menu.appendChild(empty);
+    } else {
+      projects.forEach(name => {
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'dropdown-item d-flex justify-content-between align-items-center';
+        if(name === currentProject) btn.classList.add('active');
+        const label = document.createElement('span');
+        label.textContent = name;
+        btn.appendChild(label);
+        const meta = getProjectMeta(name);
+        if(meta.locked){
+          const badge = document.createElement('span');
+          badge.className = 'badge rounded-pill ' + (meta.unlocked ? 'bg-success' : 'bg-warning text-dark');
+          badge.textContent = meta.unlocked ? '已解锁' : '需密码';
+          btn.appendChild(badge);
+        }
+        btn.addEventListener('click', () => {
+          menu.querySelectorAll('.dropdown-item').forEach(item => item.classList.remove('active'));
+          btn.classList.add('active');
+          currentProject = name;
+          currentPageIdx = 0;
+          updateProjectButtonLabel();
+          const metaNow = getProjectMeta(name);
+          if(metaNow.locked && !metaNow.unlocked){
+            closeProjectDropdown();
+            showStatus('项目已加密，请输入密码后继续', 'warning', 6000);
+            openProjectUnlockModal(name);
+            return;
+          }
+          closeProjectDropdown();
+          loadProject();
+        });
+        li.appendChild(btn);
+        menu.appendChild(li);
+      });
+    }
+    renderProjectActionsSection(menu);
+  }
+
+  function renderProjectActionsSection(menu){
+    if(!menu) return;
+    menu.querySelectorAll('[data-project-action]').forEach(node => node.remove());
+
+    const divider = document.createElement('li');
+    divider.dataset.projectAction = 'divider';
+    divider.innerHTML = '<hr class="dropdown-divider">';
+    menu.appendChild(divider);
+
+    const manageHeader = document.createElement('li');
+    manageHeader.dataset.projectAction = 'header';
+    manageHeader.innerHTML = '<h6 class="dropdown-header">管理</h6>';
+    menu.appendChild(manageHeader);
+
+    const currentMeta = getProjectMeta(currentProject);
+    const hasProject = !!currentProject;
+    const locked = !!currentMeta.locked;
+    const unlocked = !!currentMeta.unlocked;
+
+    createMenuAction(menu, {
+      id: 'project-action-create',
+      label: '新建项目',
+      handler: openProjectCreateModal,
+      disabled: false,
+    });
+    createMenuAction(menu, {
+      id: 'project-action-rename',
+      label: '重命名当前项目',
+      handler: () => openProjectRenameModal(currentProject),
+      disabled: !hasProject,
+    });
+    createMenuAction(menu, {
+      id: 'project-action-delete',
+      label: '删除当前项目',
+      handler: () => openProjectDeleteModal(currentProject),
+      disabled: !hasProject,
+    });
+    createMenuAction(menu, {
+      id: 'project-action-password',
+      label: '设置/修改密码',
+      handler: () => openProjectPasswordModal(currentProject),
+      disabled: !hasProject,
+    });
+    createMenuAction(menu, {
+      id: 'project-action-unlock',
+      label: '解锁当前项目',
+      handler: () => {
+        if(hasProject){
+          showStatus('请输入密码解锁项目', 'info', 5000);
+          openProjectUnlockModal(currentProject);
+        }
+      },
+      disabled: !(hasProject && locked && !unlocked),
+    });
+    createMenuAction(menu, {
+      id: 'project-action-lock',
+      label: '锁定当前项目',
+      handler: lockCurrentProject,
+      disabled: !(hasProject && locked && unlocked),
+    });
   }
 
   async function refreshOssSyncModal(){
@@ -733,7 +1123,18 @@
   function updateProjectButtonLabel() {
     const btn = document.getElementById('project-dropdown');
     if (!btn) return;
-    btn.textContent = currentProject ? `Benort · ${currentProject}` : 'Benort';
+    if(!currentProject){
+      btn.textContent = 'Benort';
+      renderProjectActionsSection(document.getElementById('project-menu'));
+      return;
+    }
+    const meta = getProjectMeta(currentProject);
+    let suffix = '';
+    if(meta.locked){
+      suffix = meta.unlocked ? '（已解锁）' : '（已加密）';
+    }
+    btn.textContent = `Benort · ${currentProject}${suffix}`;
+    renderProjectActionsSection(document.getElementById('project-menu'));
   }
 
   function normalizeTemplateText(text) {
@@ -1107,14 +1508,27 @@
     };
     saveRequestQueue = saveRequestQueue
       .catch(() => {})
-      .then(() => fetch('/project', {
+      .then(() => fetch(PROJECT_ENDPOINTS.projectSave || '/project', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload),
       }))
-      .then(response => {
+      .then(async response => {
         if (!response.ok) {
-          throw new Error('保存接口返回错误');
+          let message = '保存接口返回错误';
+          try {
+            const parsed = await parseJsonSafe(response);
+            if(parsed.json && parsed.json.error){
+              message = parsed.json.error;
+            } else if(parsed.text){
+              message = parsed.text;
+            } else {
+              message = `HTTP ${response.status}`;
+            }
+          } catch (e) {
+            message = `HTTP ${response.status}`;
+          }
+          throw new Error(message);
         }
         callbacks.forEach(cb => {
           try {
@@ -1147,33 +1561,54 @@
 
   
   function loadProject(cb) {
-    return fetch('/project').then(res => res.json()).then(data => {
-      latexTemplate = typeof data.template === 'string' ? {
-        header: data.template,
-        beforePages: '\\begin{document}',
-        footer: '\\end{document}'
-      } : (data.template || latexTemplate);
+    const projectUrl = PROJECT_ENDPOINTS.project || '/project';
+    return fetch(projectUrl)
+      .then(async res => {
+        let data;
+        try {
+          data = await res.json();
+        } catch (e) {
+          data = {};
+        }
+        if (res.status === 401) {
+          return null;
+        }
+        if (!res.ok) {
+          const message = data && data.error ? data.error : `HTTP ${res.status}`;
+          throw new Error(message);
+        }
+        return data;
+      })
+      .then(data => {
+        if (!data) return;
+        latexTemplate = typeof data.template === 'string' ? {
+          header: data.template,
+          beforePages: '\\begin{document}',
+          footer: '\\end{document}'
+        } : (data.template || latexTemplate);
 
-      pagesData = (data.pages || []).map(p => {
-        if(typeof p === 'string') return {content: p, script: '', notes: '', bib: [], resources: []};
-        p.script = p.script || '';
-        p.notes = p.notes || '';
-        p.bib = Array.isArray(p.bib) ? p.bib : [];
-        p.resources = Array.isArray(p.resources) ? p.resources : [];
-        return p;
+        pagesData = (data.pages || []).map(p => {
+          if(typeof p === 'string') return {content: p, script: '', notes: '', bib: [], resources: []};
+          p.script = p.script || '';
+          p.notes = p.notes || '';
+          p.bib = Array.isArray(p.bib) ? p.bib : [];
+          p.resources = Array.isArray(p.resources) ? p.resources : [];
+          return p;
+        });
+        if(pagesData.length === 0) pagesData = [{content: '', script: '', notes: '', bib: [], resources: []}];
+        globalResources = Array.isArray(data.resources) ? data.resources.slice() : [];
+        currentPageIdx = Math.min(currentPageIdx, pagesData.length - 1);
+        updateProjectButtonLabel();
+        renderSingleEditor();
+        updatePageNumLabel();
+        ensureTemplatesLoaded().then(() => detectCurrentTemplate()).catch(() => {});
+        if(cb) cb();
+      })
+      .catch(err => {
+        if(!err) return;
+        console.error(err);
+        showStatus('加载项目失败：' + (err?.message || '未知错误'), 'danger', 6000);
       });
-      if(pagesData.length === 0) pagesData = [{content: '', script: '', notes: '', bib: [], resources: []}];
-      globalResources = Array.isArray(data.resources) ? data.resources.slice() : [];
-      currentPageIdx = Math.min(currentPageIdx, pagesData.length - 1);
-      updateProjectButtonLabel();
-      renderSingleEditor();
-      updatePageNumLabel();
-      ensureTemplatesLoaded().then(() => detectCurrentTemplate()).catch(() => {});
-      if(cb) cb();
-    }).catch(err => {
-      console.error(err);
-      showStatus('加载项目失败：' + (err?.message || '未知错误'), 'danger', 6000);
-    });
   }
   
   document.addEventListener('input', function(e) {
@@ -1322,89 +1757,554 @@
     return currentProject || '';
   }
 
-  // monkey-patch fetch for same-origin API routes so existing code works
+  function appendProjectQuery(url, key, value) {
+    if(typeof url !== 'string') return url;
+    const sep = url.indexOf('?') > -1 ? '&' : '?';
+    return url + sep + encodeURIComponent(key) + '=' + encodeURIComponent(value);
+  }
+
+  function extractContentType(headers){
+    if(!headers) return '';
+    if(headers instanceof Headers){
+      return headers.get('Content-Type') || headers.get('content-type') || '';
+    }
+    if(Array.isArray(headers)){
+      for(const entry of headers){
+        if(Array.isArray(entry) && entry.length >= 2 && typeof entry[0] === 'string' && entry[0].toLowerCase() === 'content-type'){
+          return entry[1];
+        }
+      }
+      return '';
+    }
+    if(typeof headers === 'object'){
+      return headers['Content-Type'] || headers['content-type'] || '';
+    }
+    return '';
+  }
+
   const _origFetch = window.fetch.bind(window);
   window.fetch = function(input, init){
+    let requestUrl = input;
+    let requestInit = init;
+    let shouldTrack401 = false;
+
     try {
-      const project = getSelectedProject();
-      // only modify same-origin app routes and when project is set
-      if(project && typeof input === 'string' && input.startsWith('/')){
-        // if body is FormData, append project as query param to URL (safer for multipart)
-        if(init && init.body && (init.body instanceof FormData)){
-          const sep = input.indexOf('?')>-1 ? '&' : '?';
-          input = input + sep + 'project=' + encodeURIComponent(project);
-          return _origFetch(input, init);
+      if(typeof requestUrl === 'string' && requestUrl.startsWith('/')){
+        shouldTrack401 = true;
+        const project = getSelectedProject();
+        if(project){
+          if(requestInit && requestInit.body instanceof FormData){
+            requestUrl = appendProjectQuery(requestUrl, 'project', project);
+          } else if(requestInit && requestInit.headers){
+            const contentType = extractContentType(requestInit.headers) || '';
+            if(contentType.indexOf('application/json') > -1 && requestInit.body){
+              try{
+                const obj = JSON.parse(requestInit.body);
+                obj.project = project;
+                requestInit = Object.assign({}, requestInit, { body: JSON.stringify(obj) });
+              }catch(e){}
+            } else {
+              requestUrl = appendProjectQuery(requestUrl, 'project', project);
+            }
+          } else {
+            requestUrl = appendProjectQuery(requestUrl, 'project', project);
+          }
         }
-        // if JSON body, embed project into JSON payload
-        if(init && init.headers && init.headers['Content-Type'] && init.headers['Content-Type'].indexOf('application/json') > -1 && init.body){
-          try{
-            const obj = JSON.parse(init.body);
-            obj.project = project;
-            init.body = JSON.stringify(obj);
-          }catch(e){}
-          return _origFetch(input, init);
-        }
-        // otherwise append project as query param
-        const sep = input.indexOf('?')>-1 ? '&' : '?';
-        input = input + sep + 'project=' + encodeURIComponent(project);
-        return _origFetch(input, init);
       }
     } catch(e) {
-      // fallthrough to default fetch
+      // ignore and fall back to default fetch
     }
-    return _origFetch(input, init);
+
+    const fetchPromise = _origFetch(requestUrl, requestInit);
+    if(shouldTrack401){
+      return fetchPromise.then(async res => {
+        if(res.status === 401){
+          let message = '';
+          try{
+            const header = res.headers.get('content-type') || res.headers.get('Content-Type') || '';
+            if(header && header.indexOf('application/json') > -1){
+              const data = await res.clone().json();
+              if(data && data.error) message = data.error;
+            } else {
+              message = await res.clone().text();
+            }
+          }catch(err){
+            message = '';
+          }
+          handleProjectLocked(message);
+        }
+        return res;
+      });
+    }
+    return fetchPromise;
   };
 
-  // load projects into dropdown
   window.loadProjects = async function(){
     try{
-      const res = await _origFetch('/projects');
+      const listUrl = PROJECT_ENDPOINTS.list || '/projects';
+      const res = await _origFetch(listUrl);
       if(!res.ok) return;
       const data = await res.json();
       const projects = Array.isArray(data.projects) ? data.projects : [];
-      if(!currentProject){
-        if(data.default && projects.includes(data.default)) currentProject = data.default;
-        else if(projects.length) currentProject = projects[0];
+      projectMetadata = data && typeof data.metadata === 'object' && data.metadata ? data.metadata : {};
+
+      if(currentProject && projects.length && !projects.includes(currentProject)){
+        currentProject = projects[0];
       }
+      if(!currentProject){
+        currentProject = data.default || projects[0] || '';
+      }
+      if(!currentProject && data.default){
+        currentProject = data.default;
+      }
+
       const menu = document.getElementById('project-menu');
       if(menu){
-        menu.innerHTML = '';
-        if(projects.length === 0){
-          const empty = document.createElement('li');
-          empty.innerHTML = '<span class="dropdown-item-text text-muted">无项目</span>';
-          menu.appendChild(empty);
-        } else {
-          projects.forEach(name => {
-            const li = document.createElement('li');
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'dropdown-item' + (name === currentProject ? ' active' : '');
-            btn.textContent = name;
-            btn.onclick = () => {
-              if (currentProject !== name) {
-                currentProject = name;
-                currentPageIdx = 0;
-                updateProjectButtonLabel();
-                menu.querySelectorAll('.dropdown-item').forEach(item => item.classList.remove('active'));
-                btn.classList.add('active');
-                loadProject();
-              }
-              const dropdownToggle = document.getElementById('project-dropdown');
-              if (dropdownToggle) {
-                const dropdown = bootstrap.Dropdown.getInstance(dropdownToggle);
-                if (dropdown) dropdown.hide();
-              }
-            };
-            li.appendChild(btn);
-            menu.appendChild(li);
-          });
-        }
+        buildProjectMenu(menu, projects);
       }
       updateProjectButtonLabel();
       return data;
-    }catch(e){ console.warn('loadProjects failed', e); }
+    }catch(e){
+      console.warn('loadProjects failed', e);
+    }
   };
 })();
+
+  function openProjectCreateModal(){
+    if(!projectCreateModalEl){
+      showStatus('当前界面不支持新建项目', 'danger', 6000);
+      return;
+    }
+    const modal = bootstrap.Modal.getOrCreateInstance(projectCreateModalEl);
+    modal.show();
+  }
+
+  function openProjectRenameModal(target){
+    const name = target || currentProject;
+    if(!name){
+      showStatus('暂无可重命名的项目', 'warning', 4000);
+      return;
+    }
+    projectRenameTarget = name;
+    if(projectRenameCurrent) projectRenameCurrent.textContent = `当前项目：${name}`;
+    if(projectRenameInput){
+      projectRenameInput.value = name;
+      setTimeout(() => {
+        try{ projectRenameInput.select(); } catch(e){}
+      }, 100);
+    }
+    if(!projectRenameModalEl){
+      showStatus('当前界面不支持重命名', 'danger', 6000);
+      return;
+    }
+    const modal = bootstrap.Modal.getOrCreateInstance(projectRenameModalEl);
+    modal.show();
+  }
+
+  function openProjectDeleteModal(target){
+    const name = target || currentProject;
+    if(!name){
+      showStatus('暂无可删除的项目', 'warning', 4000);
+      return;
+    }
+    projectDeleteTarget = name;
+    if(projectDeleteWarning) projectDeleteWarning.textContent = `此操作无法撤销，将永久删除项目「${name}」及其所有附件与资源。`;
+    if(projectDeleteConfirmInput){
+      projectDeleteConfirmInput.value = '';
+      projectDeleteConfirmInput.placeholder = name;
+      projectDeleteConfirmInput.classList.remove('is-invalid');
+    }
+    if(!projectDeleteModalEl){
+      showStatus('当前界面不支持删除项目', 'danger', 6000);
+      return;
+    }
+    const modal = bootstrap.Modal.getOrCreateInstance(projectDeleteModalEl);
+    modal.show();
+  }
+
+  function openProjectPasswordModal(target){
+    const name = target || currentProject;
+    if(!name){
+      showStatus('暂无可设置密码的项目', 'warning', 4000);
+      return;
+    }
+    projectPasswordTarget = name;
+    if(projectPasswordModalEl) projectPasswordModalEl.dataset.project = name;
+    if(projectPasswordCurrentInput) projectPasswordCurrentInput.value = '';
+    if(projectPasswordNewInput) projectPasswordNewInput.value = '';
+    if(projectPasswordConfirmInput) projectPasswordConfirmInput.value = '';
+    if(projectPasswordWarning){
+      projectPasswordWarning.textContent = '';
+      projectPasswordWarning.classList.add('d-none');
+    }
+    if(projectPasswordRemoveBtn){
+      const meta = getProjectMeta(name);
+      projectPasswordRemoveBtn.disabled = !meta.locked;
+    }
+    if(!projectPasswordModalEl){
+      showStatus('当前界面不支持项目加密设置', 'danger', 6000);
+      return;
+    }
+    const modal = bootstrap.Modal.getOrCreateInstance(projectPasswordModalEl);
+    modal.show();
+  }
+
+  async function lockCurrentProject(){
+    const name = currentProject;
+    if(!name){
+      showStatus('请选择项目后再锁定', 'warning', 4000);
+      return;
+    }
+    const meta = getProjectMeta(name);
+    if(!meta.locked){
+      showStatus('当前项目尚未设置密码，无需锁定', 'info', 4000);
+      return;
+    }
+    const lockBtn = document.getElementById('project-action-lock');
+    if(lockBtn) lockBtn.disabled = true;
+    try{
+      const res = await fetch(PROJECT_ENDPOINTS.lock || '/projects/lock', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({project: name}),
+      });
+      const parsed = await parseJsonSafe(res);
+      if(res.ok && (!parsed.json || parsed.json.success !== false)){
+        showStatus('项目已锁定，下次访问需密码解锁', 'info', 5000);
+        await loadProjects();
+      } else {
+        const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || (`HTTP ${res.status}`));
+        showStatus('锁定失败：' + message, 'danger', 6000);
+      }
+    }catch(e){
+      showStatus('锁定失败：' + e.message, 'danger', 6000);
+    } finally {
+      if(lockBtn) lockBtn.disabled = false;
+    }
+  }
+
+  if(projectCreateConfirmBtn){
+    projectCreateConfirmBtn.addEventListener('click', async function(){
+      if(!projectCreateNameInput){
+        showStatus('请输入项目名称', 'warning', 4000);
+        return;
+      }
+      const name = projectCreateNameInput.value.trim();
+      if(!name){
+        showStatus('项目名称不能为空', 'warning', 4000);
+        return;
+      }
+      const original = this.textContent;
+      this.disabled = true;
+      this.textContent = '创建中...';
+      try{
+        const res = await fetch(PROJECT_ENDPOINTS.create || '/projects/create', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name}),
+        });
+        const parsed = await parseJsonSafe(res);
+        if(res.ok && (!parsed.json || parsed.json.success !== false)){
+          const payload = parsed.json || {};
+          currentProject = payload.project || name;
+          updateProjectButtonLabel();
+          if(projectCreateModalEl){
+            const modal = bootstrap.Modal.getInstance(projectCreateModalEl);
+            if(modal) modal.hide();
+          }
+          showStatus('项目创建成功', 'success', 4000);
+          await loadProjects();
+          await loadProject();
+        } else {
+          const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || (`HTTP ${res.status}`));
+          showStatus('创建项目失败：' + message, 'danger', 6000);
+        }
+      }catch(e){
+        showStatus('创建项目失败：' + e.message, 'danger', 6000);
+      }
+      this.disabled = false;
+      this.textContent = original || '创建';
+    });
+  }
+
+  if(projectRenameConfirmBtn){
+    projectRenameConfirmBtn.addEventListener('click', async function(){
+      if(!projectRenameTarget){
+        showStatus('请选择要重命名的项目', 'warning', 4000);
+        return;
+      }
+      const newName = projectRenameInput ? projectRenameInput.value.trim() : '';
+      if(!newName){
+        showStatus('新名称不能为空', 'warning', 4000);
+        return;
+      }
+      const original = this.textContent;
+      this.disabled = true;
+      this.textContent = '保存中...';
+      try{
+        const res = await fetch(PROJECT_ENDPOINTS.rename || '/projects/rename', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({oldName: projectRenameTarget, newName}),
+        });
+        const parsed = await parseJsonSafe(res);
+        if(res.ok && (!parsed.json || parsed.json.success !== false)){
+          const payload = parsed.json || {};
+          const finalName = payload.project || newName;
+          const wasCurrent = currentProject === projectRenameTarget;
+          if(wasCurrent){
+            currentProject = finalName;
+          }
+          updateProjectButtonLabel();
+          showStatus('项目已重命名', 'success', 4000);
+          if(projectRenameModalEl){
+            const modal = bootstrap.Modal.getInstance(projectRenameModalEl);
+            if(modal) modal.hide();
+          }
+          projectRenameTarget = '';
+          await loadProjects();
+          if(wasCurrent){
+            await loadProject();
+          }
+        } else {
+          const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || (`HTTP ${res.status}`));
+          showStatus('重命名失败：' + message, 'danger', 6000);
+        }
+      }catch(e){
+        showStatus('重命名失败：' + e.message, 'danger', 6000);
+      }
+      this.disabled = false;
+      this.textContent = original || '保存';
+    });
+  }
+
+  if(projectDeleteConfirmBtn){
+    projectDeleteConfirmBtn.addEventListener('click', async function(){
+      if(!projectDeleteTarget){
+        showStatus('请选择要删除的项目', 'warning', 4000);
+        return;
+      }
+      const confirmation = projectDeleteConfirmInput ? projectDeleteConfirmInput.value.trim() : '';
+      if(confirmation !== projectDeleteTarget){
+        if(projectDeleteConfirmInput) projectDeleteConfirmInput.classList.add('is-invalid');
+        showStatus('请输入准确的项目名称以确认删除', 'warning', 4000);
+        return;
+      }
+      if(projectDeleteConfirmInput) projectDeleteConfirmInput.classList.remove('is-invalid');
+      const original = this.textContent;
+      this.disabled = true;
+      this.textContent = '删除中...';
+      try{
+        const res = await fetch(PROJECT_ENDPOINTS.delete || '/projects/delete', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name: projectDeleteTarget}),
+        });
+        const parsed = await parseJsonSafe(res);
+        if(res.ok && (!parsed.json || parsed.json.success !== false)){
+          const deleted = projectDeleteTarget;
+          if(projectDeleteModalEl){
+            const modal = bootstrap.Modal.getInstance(projectDeleteModalEl);
+            if(modal) modal.hide();
+          }
+          showStatus('项目已删除', 'success', 4000);
+          if(currentProject === deleted){
+            currentProject = '';
+            updateProjectButtonLabel();
+          }
+          projectDeleteTarget = '';
+          await loadProjects();
+          await loadProject();
+        } else {
+          const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || (`HTTP ${res.status}`));
+          showStatus('删除项目失败：' + message, 'danger', 6000);
+        }
+      }catch(e){
+        showStatus('删除项目失败：' + e.message, 'danger', 6000);
+      }
+      this.disabled = false;
+      this.textContent = original || '删除';
+    });
+  }
+
+  if(projectPasswordConfirmBtn){
+    projectPasswordConfirmBtn.addEventListener('click', async function(){
+      if(!projectPasswordTarget){
+        showStatus('请选择项目后再设置密码', 'warning', 4000);
+        return;
+      }
+      const newPassword = projectPasswordNewInput ? projectPasswordNewInput.value : '';
+      const confirmPassword = projectPasswordConfirmInput ? projectPasswordConfirmInput.value : '';
+      if(!newPassword){
+        if(projectPasswordWarning){
+          projectPasswordWarning.textContent = '新密码不能为空';
+          projectPasswordWarning.classList.remove('d-none');
+        }
+        return;
+      }
+      if(newPassword !== confirmPassword){
+        if(projectPasswordWarning){
+          projectPasswordWarning.textContent = '两次输入的密码不一致';
+          projectPasswordWarning.classList.remove('d-none');
+        }
+        return;
+      }
+      if(projectPasswordWarning){
+        projectPasswordWarning.textContent = '';
+        projectPasswordWarning.classList.add('d-none');
+      }
+      const original = this.textContent;
+      this.disabled = true;
+      this.textContent = '保存中...';
+      try{
+        const payload = {
+          project: projectPasswordTarget,
+          newPassword,
+        };
+        const currentPassword = projectPasswordCurrentInput ? projectPasswordCurrentInput.value : '';
+        if(currentPassword) payload.currentPassword = currentPassword;
+        const res = await fetch(PROJECT_ENDPOINTS.password || '/projects/password', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+        const parsed = await parseJsonSafe(res);
+        if(res.ok && (!parsed.json || parsed.json.success !== false)){
+          if(projectPasswordModalEl){
+            const modal = bootstrap.Modal.getInstance(projectPasswordModalEl);
+            if(modal) modal.hide();
+          }
+          showStatus('项目密码已更新', 'success', 4000);
+          updateProjectButtonLabel();
+          await loadProjects();
+          await loadProject();
+        } else {
+          const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || (`HTTP ${res.status}`));
+          if(projectPasswordWarning){
+            projectPasswordWarning.textContent = message;
+            projectPasswordWarning.classList.remove('d-none');
+          } else {
+            showStatus('更新密码失败：' + message, 'danger', 6000);
+          }
+        }
+      }catch(e){
+        if(projectPasswordWarning){
+          projectPasswordWarning.textContent = e.message;
+          projectPasswordWarning.classList.remove('d-none');
+        } else {
+          showStatus('更新密码失败：' + e.message, 'danger', 6000);
+        }
+      }
+      this.disabled = false;
+      this.textContent = original || '保存';
+    });
+  }
+
+  if(projectPasswordRemoveBtn){
+    projectPasswordRemoveBtn.addEventListener('click', async function(){
+      if(this.disabled) return;
+      if(!projectPasswordTarget){
+        showStatus('请选择项目后再移除密码', 'warning', 4000);
+        return;
+      }
+      const payload = { project: projectPasswordTarget, remove: true };
+      const currentPassword = projectPasswordCurrentInput ? projectPasswordCurrentInput.value : '';
+      if(currentPassword) payload.currentPassword = currentPassword;
+      this.disabled = true;
+      try{
+        const res = await fetch(PROJECT_ENDPOINTS.password || '/projects/password', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+        const parsed = await parseJsonSafe(res);
+        if(res.ok && (!parsed.json || parsed.json.success !== false)){
+          if(projectPasswordModalEl){
+            const modal = bootstrap.Modal.getInstance(projectPasswordModalEl);
+            if(modal) modal.hide();
+          }
+          showStatus('项目密码已移除', 'success', 4000);
+          updateProjectButtonLabel();
+          await loadProjects();
+          await loadProject();
+        } else {
+          const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || (`HTTP ${res.status}`));
+          if(projectPasswordWarning){
+            projectPasswordWarning.textContent = message;
+            projectPasswordWarning.classList.remove('d-none');
+          } else {
+            showStatus('移除密码失败：' + message, 'danger', 6000);
+          }
+        }
+      }catch(e){
+        if(projectPasswordWarning){
+          projectPasswordWarning.textContent = e.message;
+          projectPasswordWarning.classList.remove('d-none');
+        } else {
+          showStatus('移除密码失败：' + e.message, 'danger', 6000);
+        }
+      }
+      this.disabled = false;
+    });
+  }
+
+  if(projectUnlockConfirmBtn){
+    projectUnlockConfirmBtn.addEventListener('click', async function(){
+      const name = projectUnlockTargetName || currentProject;
+      const password = projectUnlockPasswordInput ? projectUnlockPasswordInput.value : '';
+      if(!name){
+        showStatus('请选择项目后再解锁', 'warning', 4000);
+        return;
+      }
+      if(!password){
+        if(projectUnlockErrorBox){
+          projectUnlockErrorBox.textContent = '请输入密码';
+          projectUnlockErrorBox.classList.remove('d-none');
+        }
+        return;
+      }
+      this.disabled = true;
+      const original = this.textContent;
+      this.textContent = '解锁中...';
+      try{
+        const res = await fetch(PROJECT_ENDPOINTS.unlock || '/projects/unlock', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({project: name, password}),
+        });
+        const parsed = await parseJsonSafe(res);
+        if(res.ok && (!parsed.json || parsed.json.success !== false)){
+          if(projectUnlockModalEl){
+            const modal = bootstrap.Modal.getInstance(projectUnlockModalEl);
+            if(modal) modal.hide();
+          }
+          showStatus('项目已解锁', 'success', 4000);
+          projectUnlockTargetName = name;
+          currentProject = name;
+          updateProjectButtonLabel();
+          await loadProjects();
+          await loadProject();
+        } else {
+          const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || (`HTTP ${res.status}`));
+          if(projectUnlockErrorBox){
+            projectUnlockErrorBox.textContent = message || '解锁失败';
+            projectUnlockErrorBox.classList.remove('d-none');
+          } else {
+            showStatus('解锁失败：' + message, 'danger', 6000);
+          }
+        }
+      }catch(e){
+        if(projectUnlockErrorBox){
+          projectUnlockErrorBox.textContent = e.message;
+          projectUnlockErrorBox.classList.remove('d-none');
+        } else {
+          showStatus('解锁失败：' + e.message, 'danger', 6000);
+        }
+      }
+      this.disabled = false;
+      this.textContent = original || '解锁';
+    });
+  }
 
 // load projects then project data
 loadProjects().then(()=>{
@@ -1546,7 +2446,7 @@ loadProjects().then(()=>{
   
   let bibData = [];
   document.getElementById('edit-bib').onclick = function() {
-    fetch('/project').then(res=>res.json()).then(data=>{
+    fetch(PROJECT_ENDPOINTS.project || '/project').then(res=>res.json()).then(data=>{
       bibData = data.bib || [];
       renderBibList();
       var modal = new bootstrap.Modal(document.getElementById('bibModal'));
@@ -1615,11 +2515,11 @@ loadProjects().then(()=>{
           saveProject();
         } else {
           bibData.push(data.bib);
-          fetch('/project', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({bib: bibData})
-          });
+      fetch(PROJECT_ENDPOINTS.projectSave || '/project', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({bib: bibData})
+      });
         }
         renderBibList();
         document.getElementById('bib-input').value = '';
@@ -1653,7 +2553,7 @@ loadProjects().then(()=>{
       saveProject();
     } else {
       bibData.push(bib);
-      fetch('/project', {
+      fetch(PROJECT_ENDPOINTS.projectSave || '/project', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({bib: bibData})

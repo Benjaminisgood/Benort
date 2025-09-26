@@ -14,8 +14,16 @@ venv/
 build/
 dist/
 *.egg-info/
+
+# 运行期项目/资产
+benort/projects/
+benort/attachments_store/
+benort/resources_store/
 projects/**/**/
 projects/
+temps/
+flask.log
+flask.pid
 
 # 编辑器/系统文件
 .DS_Store

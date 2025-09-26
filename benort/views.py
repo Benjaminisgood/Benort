@@ -14,13 +14,24 @@ from werkzeug.utils import secure_filename
 
 from .latex import normalize_latex_content, prepare_latex_assets, _find_resource_file
 from .project_store import (
+    ProjectLockedError,
     _store_attachment_file,
+    clear_project_password,
+    create_project,
+    delete_project,
+    get_project_cookie_name,
     get_project_from_request,
+    get_project_metadata,
+    get_project_password_hash,
     get_project_paths,
     is_safe_project_name,
+    issue_project_cookie,
     list_projects,
     load_project,
+    rename_project,
     save_project,
+    set_project_password,
+    verify_project_password,
 )
 from .oss_client import (
     delete_file as oss_delete_file,
@@ -44,6 +55,8 @@ from .responses import api_error, api_success
 # 定义蓝图以便在应用工厂中一次性注册所有路由
 bp = Blueprint("benort", __name__)
 
+_LOCKED_ERROR = '项目已加密，请先解锁'
+
 
 @bp.route("/")
 def index():
@@ -56,7 +69,10 @@ def index():
 def export_audio():
     """合并所有讲稿并调用 OpenAI TTS 生成整段音频。"""
 
-    project = load_project()
+    try:
+        project = load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     pages = project.get("pages", [])
     # 取出每页讲稿并合并为一段文本
     scripts = [p.get("script", "") for p in pages if isinstance(p, dict)]
@@ -129,7 +145,10 @@ def export_audio():
 def add_page():
     """在指定位置插入一张默认幻灯片。"""
 
-    project = load_project() or {}
+    try:
+        project = load_project() or {}
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     if "pages" not in project or not isinstance(project["pages"], list):
         project["pages"] = []
     idx = int(request.json.get("idx", len(project["pages"])))
@@ -152,7 +171,10 @@ def compile_page():
 
     data = request.json
     page_idx = int(data.get("page", 0))
-    project = load_project()
+    try:
+        project = load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     template = project.get("template")
     pages = project.get("pages", [])
     project_name = get_project_from_request()
@@ -219,7 +241,10 @@ def get_page_pdf(page: int):
 def export_tex():
     """导出全量幻灯片的 LaTeX 文本。"""
 
-    project = load_project()
+    try:
+        project = load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     template = project.get("template")
     pages = project.get("pages", [])
     project_name = get_project_from_request()
@@ -255,7 +280,10 @@ def export_tex():
 def export_notes():
     """导出分页备注为 Markdown 文档。"""
 
-    project = load_project()
+    try:
+        project = load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     pages = project.get("pages", [])
     notes_list = []
     for idx, page in enumerate(pages, start=1):
@@ -278,7 +306,11 @@ def export_notes():
 def get_project_api():
     """返回当前项目的完整 JSON 描述。"""
 
-    return jsonify(load_project())
+    try:
+        data = load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
+    return jsonify(data)
 
 
 @bp.route("/upload_image", methods=["POST"])
@@ -332,7 +364,10 @@ def save_project_api():
     """持久化前端传入的项目数据。"""
 
     data = request.json or {}
-    project = load_project() or {}
+    try:
+        project = load_project() or {}
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     for key, value in data.items():
         project[key] = value
     if data.get("project"):
@@ -345,7 +380,10 @@ def save_project_api():
 def compile_tex():
     """将全部页面合成模板后编译为整册 PDF。"""
 
-    project = load_project()
+    try:
+        project = load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     template = project.get("template")
     pages = project.get("pages", [])
     project_name = get_project_from_request()
@@ -636,8 +674,152 @@ def api_list_projects():
     """返回所有项目名称以及当前项目。"""
 
     projects = list_projects()
-    return jsonify({"projects": projects, "default": get_project_from_request()})
+    metadata = {name: get_project_metadata(name) for name in projects}
+    return jsonify({
+        "projects": projects,
+        "default": get_project_from_request(),
+        "metadata": metadata,
+    })
 
+
+@bp.route("/projects/create", methods=["POST"])
+def api_create_project():
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return api_error('项目名不能为空', 400)
+    if not is_safe_project_name(name):
+        return api_error('非法的项目名', 400)
+    if name in list_projects():
+        return api_error('同名项目已存在', 409)
+    try:
+        create_project(name)
+    except Exception as exc:
+        return api_error(str(exc), 500)
+    return api_success({'project': name})
+
+
+@bp.route("/projects/rename", methods=["POST"])
+def api_rename_project():
+    data = request.get_json(silent=True) or {}
+    old = (data.get('oldName') or '').strip()
+    new = (data.get('newName') or '').strip()
+    if not old or not new:
+        return api_error('oldName 和 newName 必填', 400)
+    if not is_safe_project_name(old) or not is_safe_project_name(new):
+        return api_error('非法的项目名', 400)
+    if old == new:
+        return api_success({'project': new})
+    if new in list_projects():
+        return api_error('目标项目已存在', 409)
+    try:
+        rename_project(old, new)
+    except FileNotFoundError:
+        return api_error('项目不存在', 404)
+    except Exception as exc:
+        return api_error(str(exc), 500)
+
+    resp = api_success({'project': new})
+    # 清除旧项目的 cookie
+    old_cookie = get_project_cookie_name(old)
+    resp.set_cookie(old_cookie, '', max_age=0, expires=0, httponly=True, samesite='Lax')
+    return resp
+
+
+@bp.route("/projects/delete", methods=["POST"])
+def api_delete_project():
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return api_error('name 必填', 400)
+    if not is_safe_project_name(name):
+        return api_error('非法的项目名', 400)
+    if name not in list_projects():
+        return api_error('项目不存在', 404)
+    try:
+        delete_project(name)
+    except Exception as exc:
+        return api_error(str(exc), 500)
+    resp = api_success({'project': name})
+    cookie = get_project_cookie_name(name)
+    resp.set_cookie(cookie, '', max_age=0, expires=0, httponly=True, samesite='Lax')
+    return resp
+
+
+@bp.route("/projects/password", methods=["POST"])
+def api_project_password():
+    data = request.get_json(silent=True) or {}
+    project_name = (data.get('project') or '').strip()
+    if not project_name:
+        return api_error('project 必填', 400)
+    if not is_safe_project_name(project_name):
+        return api_error('非法的项目名', 400)
+    action = data.get('action') or 'set'
+    current_password = data.get('currentPassword') or data.get('oldPassword')
+    if data.get('remove') or action == 'clear':
+        try:
+            clear_project_password(project_name, current_password)
+        except PermissionError as exc:
+            return api_error(str(exc), 403)
+        except Exception as exc:
+            return api_error(str(exc), 500)
+        resp = api_success({'project': project_name, 'passwordCleared': True})
+        cookie = get_project_cookie_name(project_name)
+        resp.set_cookie(cookie, '', max_age=0, expires=0, httponly=True, samesite='Lax')
+        return resp
+
+    new_password = data.get('newPassword') or data.get('password')
+    if not new_password:
+        return api_error('新密码不能为空', 400)
+    try:
+        set_project_password(project_name, new_password, current_password)
+    except PermissionError as exc:
+        return api_error(str(exc), 403)
+    except ValueError as exc:
+        return api_error(str(exc), 400)
+    except Exception as exc:
+        return api_error(str(exc), 500)
+
+    password_hash = get_project_password_hash(project_name)
+    resp = api_success({'project': project_name, 'passwordSet': True})
+    if password_hash:
+        cookie_name, token = issue_project_cookie(project_name, password_hash)
+        resp.set_cookie(cookie_name, token, httponly=True, samesite='Lax')
+    return resp
+
+
+@bp.route("/projects/unlock", methods=["POST"])
+def api_unlock_project():
+    data = request.get_json(silent=True) or {}
+    project_name = (data.get('project') or '').strip()
+    password = data.get('password') or ''
+    if not project_name or not password:
+        return api_error('project 和 password 必填', 400)
+    if not is_safe_project_name(project_name):
+        return api_error('非法的项目名', 400)
+    if not verify_project_password(project_name, password):
+        return api_error('密码不正确', 403)
+    password_hash = get_project_password_hash(project_name)
+    if not password_hash:
+        return api_error('项目未设置密码', 400)
+    cookie_name, token = issue_project_cookie(project_name, password_hash)
+    resp = api_success({'project': project_name, 'unlocked': True})
+    resp.set_cookie(cookie_name, token, httponly=True, samesite='Lax')
+    return resp
+
+
+@bp.route("/projects/lock", methods=["POST"])
+def api_lock_project():
+    data = request.get_json(silent=True) or {}
+    project_name = (data.get('project') or '').strip()
+    if not project_name:
+        return api_error('project 必填', 400)
+    if not is_safe_project_name(project_name):
+        return api_error('非法的项目名', 400)
+    cookie_name = get_project_cookie_name(project_name)
+    resp = api_success({'project': project_name, 'locked': True})
+    resp.set_cookie(cookie_name, '', max_age=0, expires=0, httponly=True, samesite='Lax')
+    return resp
 
 @bp.route("/projects/<project_name>/static/<path:filename>")
 def project_static(project_name: str, filename: str):
@@ -706,7 +888,10 @@ def list_attachments():
     """返回项目附件清单及访问链接。"""
 
     project_name = get_project_from_request()
-    project_data = load_project() or {}
+    try:
+        project_data = load_project() or {}
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     attachments_folder, _, _, _, _ = get_project_paths(project_name)
     os.makedirs(attachments_folder, exist_ok=True)
 
@@ -779,7 +964,10 @@ def delete_attachment():
         return api_error('invalid path', 400)
 
     project_name = get_project_from_request()
-    project_data = load_project() or {}
+    try:
+        project_data = load_project() or {}
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     attachments_folder, _, _, _, _ = get_project_paths(project_name)
     target = os.path.normpath(os.path.join(attachments_folder, rel))
     if not target.startswith(os.path.normpath(attachments_folder)):
@@ -832,7 +1020,10 @@ def rename_attachment():
         return api_error('invalid newName', 400)
 
     project_name = get_project_from_request()
-    project_data = load_project() or {}
+    try:
+        project_data = load_project() or {}
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     attachments_folder, _, _, _, _ = get_project_paths(project_name)
 
     old_path = os.path.join(attachments_folder, old_name)
@@ -899,7 +1090,10 @@ def update_attachment_sync():
     if enabled and not configured:
         return api_error("OSS 未配置，无法开启同步", 400)
 
-    project = load_project() or {}
+    try:
+        project = load_project() or {}
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     project["ossSyncEnabled"] = enabled
     save_project(project)
 
@@ -916,7 +1110,10 @@ def update_attachment_sync():
 def oss_status():
     """返回当前项目的 OSS 同步状态。"""
 
-    project = load_project() or {}
+    try:
+        project = load_project() or {}
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     project_name = get_project_from_request()
     attachments_folder, _, yaml_path, resources_folder, _ = get_project_paths(project_name)
     payload = {
@@ -936,7 +1133,10 @@ def oss_sync_now():
 
     if not oss_is_configured():
         return api_error("OSS 未配置，无法同步", 400)
-    project = load_project() or {}
+    try:
+        project = load_project() or {}
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     project_name = get_project_from_request()
     attachments_folder, _, yaml_path, resources_folder, _ = get_project_paths(project_name)
     summary = _run_full_oss_sync(project_name, attachments_folder, resources_folder, yaml_path)
@@ -985,7 +1185,10 @@ def upload_resource():
 
     file_storage.save(save_path)
 
-    project = load_project()
+    try:
+        project = load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     name = filename
     if page_idx is not None:
         pages = project.get('pages', [])
@@ -1087,7 +1290,10 @@ def delete_resource():
         return api_error('invalid name', 400)
 
     project_name = get_project_from_request()
-    project = load_project()
+    try:
+        project = load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     _, _, _, resources_folder, _ = get_project_paths(project_name)
     direct_target = os.path.join(resources_folder, relative)
     target = direct_target if os.path.exists(direct_target) else _find_resource_file(resources_folder, name)
@@ -1133,7 +1339,10 @@ def delete_resource():
 def list_resources():
     """列出全局或指定页面的资源，并标记文件是否存在。"""
 
-    project = load_project()
+    try:
+        project = load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
     project_name = get_project_from_request()
     _, _, _, resources_folder, _ = get_project_paths(project_name)
     page = request.args.get('page')

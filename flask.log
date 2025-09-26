@@ -1,13 +1,7 @@
-[2025-09-26 11:35:22 +0800] [35152] [INFO] Starting gunicorn 21.2.0
-[2025-09-26 11:35:22 +0800] [35152] [INFO] Listening at: http://0.0.0.0:5004 (35152)
-[2025-09-26 11:35:22 +0800] [35152] [INFO] Using worker: sync
-[2025-09-26 11:35:22 +0800] [35183] [INFO] Booting worker with pid: 35183
-[2025-09-26 11:35:22 +0800] [35184] [INFO] Booting worker with pid: 35184
-[2025-09-26 11:35:22 +0800] [35185] [INFO] Booting worker with pid: 35185
-[2025-09-26 11:35:22 +0800] [35186] [INFO] Booting worker with pid: 35186
-[2025-09-26 12:14:42 +0800] [35152] [INFO] Handling signal: term
-[2025-09-26 12:14:42 +0800] [35183] [INFO] Worker exiting (pid: 35183)
-[2025-09-26 12:14:42 +0800] [35185] [INFO] Worker exiting (pid: 35185)
-[2025-09-26 12:14:42 +0800] [35184] [INFO] Worker exiting (pid: 35184)
-[2025-09-26 12:14:42 +0800] [35186] [INFO] Worker exiting (pid: 35186)
-[2025-09-26 12:14:43 +0800] [35152] [INFO] Shutting down: Master
+[2025-09-26 13:20:16 +0800] [71842] [INFO] Starting gunicorn 21.2.0
+[2025-09-26 13:20:16 +0800] [71842] [INFO] Listening at: http://0.0.0.0:5004 (71842)
+[2025-09-26 13:20:16 +0800] [71842] [INFO] Using worker: sync
+[2025-09-26 13:20:16 +0800] [71873] [INFO] Booting worker with pid: 71873
+[2025-09-26 13:20:16 +0800] [71874] [INFO] Booting worker with pid: 71874
+[2025-09-26 13:20:16 +0800] [71875] [INFO] Booting worker with pid: 71875
+[2025-09-26 13:20:16 +0800] [71876] [INFO] Booting worker with pid: 71876

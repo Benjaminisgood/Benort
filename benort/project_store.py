@@ -5,14 +5,17 @@ import os
 import re
 import shutil
 import tempfile
+import hashlib
+import hmac
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
 import yaml
 from flask import current_app, request
 from ruamel.yaml import YAML
 from ruamel.yaml.scalarstring import LiteralScalarString
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from .config import DEFAULT_PROJECT_NAME
 from .latex import normalize_latex_content
@@ -40,6 +43,10 @@ class StoredFileResult:
     oss_url: Optional[str]
 
 
+class ProjectLockedError(PermissionError):
+    """Raised when attempting to access a password-protected project without unlocking."""
+
+
 def get_projects_root() -> str:
     """返回项目根目录并确保存在。"""
 
@@ -48,6 +55,43 @@ def get_projects_root() -> str:
         raise RuntimeError("PROJECTS_ROOT 未在应用配置中设置")
     os.makedirs(root, exist_ok=True)
     return root
+
+
+def _project_cookie_name(project_name: str) -> str:
+    safe = secure_filename(project_name) or 'default'
+    return f'project_token_{safe}'
+
+
+def _get_secret_key() -> bytes:
+    secret = current_app.secret_key
+    if not secret:
+        secret = os.environ.get('BENORT_SECRET_KEY', 'benort-secret')
+    if isinstance(secret, bytes):
+        return secret
+    return str(secret).encode('utf-8')
+
+
+def _build_project_token(project_name: str, password_hash: str) -> str:
+    payload = f'{project_name}:{password_hash}'.encode('utf-8')
+    digest = hmac.new(_get_secret_key(), payload, hashlib.sha256).hexdigest()
+    return digest
+
+
+def _has_valid_project_token(project_name: str, password_hash: str) -> bool:
+    if not password_hash:
+        return True
+    cookie_name = _project_cookie_name(project_name)
+    try:
+        token = request.cookies.get(cookie_name)
+    except RuntimeError:
+        token = None
+    if not token:
+        return False
+    expected = _build_project_token(project_name, password_hash)
+    try:
+        return hmac.compare_digest(token, expected)
+    except Exception:
+        return False
 
 
 def get_local_attachments_root() -> str:
@@ -108,6 +152,36 @@ def _migrate_legacy_resources(legacy_dir: str, target_dir: str) -> None:
                 pass
 
 
+def _read_project_file(yaml_path: str) -> dict:
+    if not os.path.exists(yaml_path) or os.path.getsize(yaml_path) == 0:
+        return {}
+    with open(yaml_path, 'r', encoding='utf-8') as fh:
+        data = load_yaml(fh) or {}
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def _write_project_file(yaml_path: str, data: dict) -> None:
+    dump_ready = _prepare_yaml_for_dump(data)
+    buffer = io.StringIO()
+    _yaml_writer.dump(dump_ready, buffer)
+    yaml_str = buffer.getvalue()
+    yaml.safe_load(yaml_str)
+
+    tmp_fd, tmp_path = tempfile.mkstemp(prefix='project_', suffix='.yaml', dir=os.path.dirname(yaml_path))
+    try:
+        with os.fdopen(tmp_fd, 'w', encoding='utf-8') as tmp_file:
+            tmp_file.write(yaml_str)
+        os.replace(tmp_path, yaml_path)
+    finally:
+        try:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+        except OSError:
+            pass
+
+
 def _prepare_yaml_for_dump(value):
     """将多行字符串转换为 YAML 的字面量格式，保持换行。"""
 
@@ -118,6 +192,167 @@ def _prepare_yaml_for_dump(value):
     if isinstance(value, str) and '\n' in value:
         return LiteralScalarString(value)
     return value
+
+
+def _default_project_data(project_name: str) -> dict:
+    return {
+        'pages': [
+            {
+                'content': '\\begin{frame}\n内容...\n\\end{frame}',
+                'script': '',
+                'notes': '',
+                'bib': [],
+            }
+        ],
+        'template': dict(get_default_template()),
+        'resources': [],
+        'project': project_name,
+        'ossSyncEnabled': False,
+    }
+
+
+def get_project_password_hash(project_name: str) -> Optional[str]:
+    projects_root = get_projects_root()
+    yaml_path = os.path.join(projects_root, project_name, 'project.yaml')
+    data = _read_project_file(yaml_path)
+    if not data:
+        return None
+    password_hash = data.get('passwordHash')
+    if isinstance(password_hash, str) and password_hash:
+        return password_hash
+    return None
+
+
+def issue_project_cookie(project_name: str, password_hash: str) -> Tuple[str, str]:
+    return _project_cookie_name(project_name), _build_project_token(project_name, password_hash)
+
+
+def get_project_cookie_name(project_name: str) -> str:
+    return _project_cookie_name(project_name)
+
+
+def create_project(name: str) -> None:
+    ensure_project(name)
+    projects_root = get_projects_root()
+    yaml_path = os.path.join(projects_root, name, 'project.yaml')
+    data = _default_project_data(name)
+    existing = _read_project_file(yaml_path)
+    if existing.get('passwordHash'):
+        data['passwordHash'] = existing['passwordHash']
+    _write_project_file(yaml_path, data)
+
+
+def rename_project(old_name: str, new_name: str) -> None:
+    if not is_safe_project_name(old_name) or not is_safe_project_name(new_name):
+        raise ValueError('非法的项目名')
+    if old_name == new_name:
+        return
+    projects_root = get_projects_root()
+    old_path = os.path.join(projects_root, old_name)
+    new_path = os.path.join(projects_root, new_name)
+    if not os.path.isdir(old_path):
+        raise FileNotFoundError('项目不存在')
+    if os.path.exists(new_path):
+        raise FileExistsError('目标项目已存在')
+
+    os.rename(old_path, new_path)
+
+    attachments_root = get_local_attachments_root()
+    old_attachments = os.path.join(attachments_root, old_name)
+    new_attachments = os.path.join(attachments_root, new_name)
+    if os.path.exists(old_attachments):
+        os.rename(old_attachments, new_attachments)
+
+    resources_root = get_local_resources_root()
+    old_resources = os.path.join(resources_root, old_name)
+    new_resources = os.path.join(resources_root, new_name)
+    if os.path.exists(old_resources):
+        os.rename(old_resources, new_resources)
+
+    yaml_path = os.path.join(new_path, 'project.yaml')
+    data = _read_project_file(yaml_path)
+    if not data:
+        data = _default_project_data(new_name)
+    data['project'] = new_name
+    _write_project_file(yaml_path, data)
+
+
+def delete_project(name: str) -> None:
+    if not is_safe_project_name(name):
+        raise ValueError('非法的项目名')
+    projects_root = get_projects_root()
+    proj_path = os.path.join(projects_root, name)
+    if os.path.isdir(proj_path):
+        shutil.rmtree(proj_path, ignore_errors=False)
+
+    attachments_root = get_local_attachments_root()
+    attachments_path = os.path.join(attachments_root, name)
+    if os.path.isdir(attachments_path):
+        shutil.rmtree(attachments_path, ignore_errors=False)
+
+    resources_root = get_local_resources_root()
+    resources_path = os.path.join(resources_root, name)
+    if os.path.isdir(resources_path):
+        shutil.rmtree(resources_path, ignore_errors=False)
+
+
+def set_project_password(name: str, new_password: str, current_password: Optional[str] = None) -> None:
+    if not new_password:
+        raise ValueError('密码不能为空')
+    projects_root = get_projects_root()
+    yaml_path = os.path.join(projects_root, name, 'project.yaml')
+    data = _read_project_file(yaml_path)
+    if not data:
+        data = _default_project_data(name)
+    existing_hash = data.get('passwordHash')
+    if existing_hash:
+        if current_password:
+            if not check_password_hash(existing_hash, current_password):
+                raise PermissionError('原密码不正确')
+        else:
+            # allow if current token valid
+            if not _has_valid_project_token(name, existing_hash):
+                raise PermissionError('需要提供当前密码')
+    data['passwordHash'] = generate_password_hash(new_password)
+    _write_project_file(yaml_path, data)
+
+
+def clear_project_password(name: str, current_password: Optional[str] = None) -> None:
+    projects_root = get_projects_root()
+    yaml_path = os.path.join(projects_root, name, 'project.yaml')
+    data = _read_project_file(yaml_path)
+    if not data:
+        data = _default_project_data(name)
+    existing_hash = data.get('passwordHash')
+    if not existing_hash:
+        return
+    if current_password:
+        if not check_password_hash(existing_hash, current_password):
+            raise PermissionError('原密码不正确')
+    else:
+        if not _has_valid_project_token(name, existing_hash):
+            raise PermissionError('需要提供当前密码')
+    data.pop('passwordHash', None)
+    _write_project_file(yaml_path, data)
+
+
+def verify_project_password(name: str, password: str) -> bool:
+    password_hash = get_project_password_hash(name)
+    if not password_hash:
+        return True
+    if not password:
+        return False
+    return check_password_hash(password_hash, password)
+
+
+def get_project_metadata(name: str) -> dict:
+    password_hash = get_project_password_hash(name)
+    locked = bool(password_hash)
+    unlocked = locked and _has_valid_project_token(name, password_hash or '')
+    return {
+        'locked': locked,
+        'unlocked': unlocked,
+    }
 
 
 def _dedupe_preserve(items):
@@ -485,24 +720,13 @@ def load_project():
 
     project_name = get_project_from_request()
     attachments_folder, _, yaml_path, resources_folder, _ = get_project_paths(project_name)
-    if not os.path.exists(yaml_path) or os.path.getsize(yaml_path) == 0:
-        return _canonicalize_project_structure({
-            'pages': [
-                {
-                    'content': '\\begin{frame}\n内容...\n\\end{frame}',
-                    'script': '',
-                    'notes': '',
-                    'bib': [],
-                }
-            ],
-            'template': dict(get_default_template()),
-            'resources': [],
-            'project': project_name,
-            'ossSyncEnabled': False,
-        })
+    data = _read_project_file(yaml_path)
+    if not data:
+        data = _default_project_data(project_name)
 
-    with open(yaml_path, 'r', encoding='utf-8') as f:
-        data = load_yaml(f) or {}
+    password_hash = data.get('passwordHash')
+    if password_hash and not _has_valid_project_token(project_name, password_hash):
+        raise ProjectLockedError(project_name)
 
     if data and isinstance(data.get('pages'), list) and (not data['pages'] or isinstance(data['pages'][0], str)):
         # 兼容旧版本仅存储字符串列表的项目结构
@@ -553,6 +777,8 @@ def load_project():
             migrated = True
 
     data = _canonicalize_project_structure(data)
+    if 'passwordHash' in data:
+        data.pop('passwordHash', None)
     if migrated:
         save_project(data)
     return data
@@ -564,6 +790,10 @@ def save_project(data):
     data = _canonicalize_project_structure(dict(data or {}))
     project_name = get_project_from_request()
     attachments_folder, _, yaml_path, resources_folder, _ = get_project_paths(project_name)
+    existing_raw = _read_project_file(yaml_path)
+    existing_hash = existing_raw.get('passwordHash') if isinstance(existing_raw, dict) else None
+    new_hash = data.pop('passwordHash', None)
+    password_hash = new_hash if new_hash is not None else existing_hash
 
     for page in data['pages']:
         page['content'] = normalize_latex_content(page.get('content', ''), attachments_folder, resources_folder) or ''
@@ -615,27 +845,14 @@ def save_project(data):
 
     data = _canonicalize_project_structure(data)
 
+    if password_hash:
+        data['passwordHash'] = password_hash
+
     try:
-        dump_ready = _prepare_yaml_for_dump(data)
-        buffer = io.StringIO()
-        _yaml_writer.dump(dump_ready, buffer)
-        yaml_str = buffer.getvalue()
-        yaml.safe_load(yaml_str)
+        _write_project_file(yaml_path, data)
     except yaml.YAMLError as err:
         print('YAML序列化校验失败:', err)
         raise Exception('YAML序列化校验失败，未保存。请检查内容格式。')
-
-    tmp_fd, tmp_path = tempfile.mkstemp(prefix='project_', suffix='.yaml', dir=os.path.dirname(yaml_path))
-    try:
-        with os.fdopen(tmp_fd, 'w', encoding='utf-8') as tmp_file:
-            tmp_file.write(yaml_str)
-        os.replace(tmp_path, yaml_path)
-    finally:
-        try:
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-        except OSError:
-            pass
 
     if bool(data.get('ossSyncEnabled')) and oss_is_configured():
         try:
@@ -650,6 +867,7 @@ def save_project(data):
 __all__ = [
     'DEFAULT_PROJECT_NAME',
     'StoredFileResult',
+    'ProjectLockedError',
     'list_projects',
     'is_safe_project_name',
     'ensure_project',
@@ -662,4 +880,14 @@ __all__ = [
     '_store_attachment_file',
     '_sanitize_resource_list',
     '_sanitize_bib_list',
+    'create_project',
+    'rename_project',
+    'delete_project',
+    'set_project_password',
+    'clear_project_password',
+    'verify_project_password',
+    'get_project_password_hash',
+    'issue_project_cookie',
+    'get_project_cookie_name',
+    'get_project_metadata',
 ]

@@ -1,21 +1,7 @@
- * Serving Flask app 'benort'
- * Debug mode: off
-[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
- * Running on http://127.0.0.1:5004
-[33mPress CTRL+C to quit[0m
-127.0.0.1 - - [24/Sep/2025 22:54:20] "GET / HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:20] "GET /projects HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:20] "GET /project?project=default HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:20] "GET /templates/list?project=default HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:20] "HEAD /page_pdf/1?project=default&t=1758725660268&project=default HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:20] "GET /page_pdf/1?project=default&t=1758725660268 HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:22] "POST /compile_page HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:43] "GET / HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:43] "GET /projects HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:43] "GET /project?project=default HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:43] "GET /templates/list?project=default HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:43] "HEAD /page_pdf/1?project=default&t=1758725683965&project=default HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:43] "GET /page_pdf/1?project=default&t=1758725683965 HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:45] "POST /compile_page HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:45] "HEAD /page_pdf/1?project=default&t=1758725685869&project=default HTTP/1.1" 200 -
-127.0.0.1 - - [24/Sep/2025 22:54:45] "GET /page_pdf/1?project=default&t=1758725685869 HTTP/1.1" 200 -
+[2025-09-26 11:35:22 +0800] [35152] [INFO] Starting gunicorn 21.2.0
+[2025-09-26 11:35:22 +0800] [35152] [INFO] Listening at: http://0.0.0.0:5004 (35152)
+[2025-09-26 11:35:22 +0800] [35152] [INFO] Using worker: sync
+[2025-09-26 11:35:22 +0800] [35183] [INFO] Booting worker with pid: 35183
+[2025-09-26 11:35:22 +0800] [35184] [INFO] Booting worker with pid: 35184
+[2025-09-26 11:35:22 +0800] [35185] [INFO] Booting worker with pid: 35185
+[2025-09-26 11:35:22 +0800] [35186] [INFO] Booting worker with pid: 35186

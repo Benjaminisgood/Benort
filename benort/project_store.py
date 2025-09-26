@@ -3,6 +3,7 @@
 import io
 import os
 import re
+import tempfile
 
 import yaml
 from flask import current_app, request
@@ -502,8 +503,17 @@ def save_project(data):
         print('YAML序列化校验失败:', err)
         raise Exception('YAML序列化校验失败，未保存。请检查内容格式。')
 
-    with open(yaml_path, 'w', encoding='utf-8') as f:
-        f.write(yaml_str)
+    tmp_fd, tmp_path = tempfile.mkstemp(prefix='project_', suffix='.yaml', dir=os.path.dirname(yaml_path))
+    try:
+        with os.fdopen(tmp_fd, 'w', encoding='utf-8') as tmp_file:
+            tmp_file.write(yaml_str)
+        os.replace(tmp_path, yaml_path)
+    finally:
+        try:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+        except OSError:
+            pass
 
 
 __all__ = [

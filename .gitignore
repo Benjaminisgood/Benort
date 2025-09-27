@@ -22,6 +22,7 @@ benort/resources_store/
 temps/
 flask.log
 flask.pid
+flask.log.*
 
 # 编辑器/系统文件
 .DS_Store

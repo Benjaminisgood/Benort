@@ -1730,27 +1730,6 @@
     }
   });
 
-    document.getElementById('exportAttachmentsOption').onclick = function() {
-    this.disabled = true;
-    this.textContent = '导出中...';
-    fetch('/export_attachments').then(res => {
-      if(res.ok) return res.blob();
-      return res.json().then(data=>{throw new Error(data.error||'导出失败')});
-    }).then(blob => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'attachments.zip';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    }).catch(e=>alert('导出失败：'+e.message)).finally(()=>{
-      this.disabled = false;
-      this.textContent = '导出附件';
-    });
-  };
-
 // --- multi-project client helpers ---
 (function(){
   function getSelectedProject() {

@@ -289,7 +289,7 @@ def export_notes():
     for idx, page in enumerate(pages, start=1):
         if isinstance(page, dict):
             note = page.get("notes", "") or ""
-            notes_list.append(f"## Page {idx}\n\n{note}\n")
+            notes_list.append(f"{note}\n")
 
     markdown = "\n\n".join([note for note in notes_list if note.strip()])
     if not markdown:

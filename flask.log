@@ -1,7 +1,17 @@
-[2025-09-26 13:20:16 +0800] [71842] [INFO] Starting gunicorn 21.2.0
-[2025-09-26 13:20:16 +0800] [71842] [INFO] Listening at: http://0.0.0.0:5004 (71842)
-[2025-09-26 13:20:16 +0800] [71842] [INFO] Using worker: sync
-[2025-09-26 13:20:16 +0800] [71873] [INFO] Booting worker with pid: 71873
-[2025-09-26 13:20:16 +0800] [71874] [INFO] Booting worker with pid: 71874
-[2025-09-26 13:20:16 +0800] [71875] [INFO] Booting worker with pid: 71875
-[2025-09-26 13:20:16 +0800] [71876] [INFO] Booting worker with pid: 71876
+[2025-09-26 17:38:36 +0800] [41564] [INFO] Starting gunicorn 21.2.0
+[2025-09-26 17:38:36 +0800] [41564] [INFO] Listening at: http://0.0.0.0:5004 (41564)
+[2025-09-26 17:38:36 +0800] [41564] [INFO] Using worker: sync
+[2025-09-26 17:38:36 +0800] [41595] [INFO] Booting worker with pid: 41595
+[2025-09-26 17:38:36 +0800] [41596] [INFO] Booting worker with pid: 41596
+[2025-09-26 17:38:36 +0800] [41597] [INFO] Booting worker with pid: 41597
+[2025-09-26 17:38:36 +0800] [41598] [INFO] Booting worker with pid: 41598
+[2025-09-27 08:40:28 +0800] [41564] [CRITICAL] WORKER TIMEOUT (pid:41596)
+[2025-09-27 08:40:28 +0800] [41564] [CRITICAL] WORKER TIMEOUT (pid:41598)
+[2025-09-27 08:40:28 +0800] [41596] [INFO] Worker exiting (pid: 41596)
+[2025-09-27 08:40:28 +0800] [41598] [INFO] Worker exiting (pid: 41598)
+[2025-09-27 08:40:28 +0800] [41564] [ERROR] Worker (pid:41596) exited with code 1
+[2025-09-27 08:40:28 +0800] [41564] [ERROR] Worker (pid:41596) exited with code 1.
+[2025-09-27 08:40:28 +0800] [41564] [ERROR] Worker (pid:41598) exited with code 1
+[2025-09-27 08:40:28 +0800] [41564] [ERROR] Worker (pid:41598) exited with code 1.
+[2025-09-27 08:40:28 +0800] [87633] [INFO] Booting worker with pid: 87633
+[2025-09-27 08:40:28 +0800] [87634] [INFO] Booting worker with pid: 87634

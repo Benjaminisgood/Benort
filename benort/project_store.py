@@ -198,7 +198,7 @@ def _default_project_data(project_name: str) -> dict:
     return {
         'pages': [
             {
-                'content': '\\begin{frame}\n内容...\n\\end{frame}',
+                'content': '\\begin{frame}\n\\frametitle{Title of the Slide}\n\\framesubtitle{Subtitle}\n内容...\n\\end{frame}',
                 'script': '',
                 'notes': '',
                 'bib': [],

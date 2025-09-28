@@ -23,6 +23,7 @@ temps/
 flask.log
 flask.pid
 flask.log.*
+server.info
 
 # 编辑器/系统文件
 .DS_Store

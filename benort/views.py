@@ -395,6 +395,42 @@ def export_page_pdf():
     )
 
 
+@bp.route("/export_page_notes", methods=["GET"])
+def export_page_notes():
+    """导出当前页的 Markdown 笔记。"""
+
+    page_param = request.args.get("page", type=int)
+    page_idx = max((page_param or 1) - 1, 0)
+
+    try:
+        project = load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
+
+    pages = project.get("pages", []) if isinstance(project, dict) else []
+    if not pages or page_idx >= len(pages):
+        return jsonify({"success": False, "error": "指定页不存在"}), 404
+
+    page = pages[page_idx]
+    notes = ""
+    if isinstance(page, dict):
+        notes = page.get("notes", "") or ""
+    else:  # pragma: no cover - 容错兜底
+        notes = str(page or "")
+
+    if not notes.strip():
+        return jsonify({"success": False, "error": "当前页没有笔记可导出"}), 400
+
+    buffer = io.BytesIO(notes.encode("utf-8"))
+    download_name = f"page_{page_idx + 1}_notes.md"
+    return send_file(
+        buffer,
+        mimetype="text/markdown",
+        as_attachment=True,
+        download_name=download_name,
+    )
+
+
 @bp.route("/page_pdf/<int:page>")
 def get_page_pdf(page: int):
     """返回单页 PDF 结果，用于前端预览。"""

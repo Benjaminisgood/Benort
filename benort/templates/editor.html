@@ -640,24 +640,28 @@
         </div>
         <div class="modal-body">
           <div class="form-check">
-            <input class="form-check-input" type="radio" name="exportOption" id="exportTexOption" value="tex" checked>
-            <label class="form-check-label" for="exportTexOption">导出 TeX</label>
+            <input class="form-check-input" type="radio" name="exportOption" id="exportPagePdfOption" value="page_pdf" checked>
+            <label class="form-check-label" for="exportPagePdfOption">导出 当前页 PDF</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="exportOption" id="exportPageNotesOption" value="page_notes">
+            <label class="form-check-label" for="exportPageNotesOption">导出 当前页 Markdown</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="exportOption" id="exportNotesOption" value="notes">
+            <label class="form-check-label" for="exportNotesOption">导出 全部笔记 (Markdown)</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="exportOption" id="exportTexOption" value="tex">
+            <label class="form-check-label" for="exportTexOption">导出 全部 TeX</label>
           </div>
           <div class="form-check">
             <input class="form-check-input" type="radio" name="exportOption" id="exportAttachmentsOption" value="attachments">
-            <label class="form-check-label" for="exportAttachmentsOption">导出 资料、附件和 yaml 为 zip</label>
+            <label class="form-check-label" for="exportAttachmentsOption">导出 资料、附件和 yaml (zip)</label>
           </div>
           <div class="form-check">
             <input class="form-check-input" type="radio" name="exportOption" id="exportAudioOption" value="audio">
             <label class="form-check-label" for="exportAudioOption">导出 讲稿为语音 (MP3)</label>
-          </div>
-          <div class="form-check">
-            <input class="form-check-input" type="radio" name="exportOption" id="exportNotesOption" value="notes">
-            <label class="form-check-label" for="exportNotesOption">导出 笔记 (Markdown)</label>
-          </div>
-          <div class="form-check">
-            <input class="form-check-input" type="radio" name="exportOption" id="exportPagePdfOption" value="page_pdf">
-            <label class="form-check-label" for="exportPagePdfOption">导出 当前页 PDF</label>
           </div>
         </div>
         <div class="modal-footer">
@@ -2005,18 +2009,6 @@
     var modalEl = document.getElementById('exportModal');
     var modal = bootstrap.Modal.getInstance(modalEl);
     modal.hide();
-    if(opt === 'tex') return exportTex();
-    if(opt === 'attachments') {
-      fetch('/export_attachments').then(res => {
-        if(res.ok) return res.blob();
-        return res.json().then(data=>{throw new Error(data.error||'导出失败')});
-      }).then(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = 'attachments.zip'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-        showStatus('资料与附件已导出', 'success', 2500);
-      }).catch(e=>alert('导出失败：'+e.message));
-      return;
-    }
     if(opt === 'page_pdf') {
       const pageNumber = currentPageIdx + 1;
       fetch(`/export_page_pdf?page=${pageNumber}`).then(res => {
@@ -2029,15 +2021,15 @@
       }).catch(e=>alert('导出失败：'+e.message));
       return;
     }
-    if(opt === 'audio'){
-      // request the server to produce audio from 'script' (讲稿)
-      fetch('/export_audio').then(res => {
+    if(opt === 'page_notes') {
+      const pageNumber = currentPageIdx + 1;
+      fetch(`/export_page_notes?page=${pageNumber}`).then(res => {
         if(res.ok) return res.blob();
         return res.json().then(data=>{throw new Error(data.error||'导出失败')});
       }).then(blob => {
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = 'script.mp3'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-        showStatus('讲稿语音已导出', 'success', 2500);
+        const a = document.createElement('a'); a.href = url; a.download = `page_${pageNumber}_notes.md`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        showStatus(`第 ${pageNumber} 页 Markdown 已导出`, 'success', 2500);
       }).catch(e=>alert('导出失败：'+e.message));
       return;
     }
@@ -2048,7 +2040,31 @@
       }).then(blob => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = 'notes.md'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-        showStatus('笔记已导出', 'success', 2500);
+        showStatus('全部笔记已导出', 'success', 2500);
+      }).catch(e=>alert('导出失败：'+e.message));
+      return;
+    }
+    if(opt === 'tex') return exportTex();
+    if(opt === 'attachments') {
+      fetch('/export_attachments').then(res => {
+        if(res.ok) return res.blob();
+        return res.json().then(data=>{throw new Error(data.error||'导出失败')});
+      }).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'attachments.zip'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        showStatus('资料与附件已导出', 'success', 2500);
+      }).catch(e=>alert('导出失败：'+e.message));
+      return;
+    }
+    if(opt === 'audio'){
+      // request the server to produce audio from 'script' (讲稿)
+      fetch('/export_audio').then(res => {
+        if(res.ok) return res.blob();
+        return res.json().then(data=>{throw new Error(data.error||'导出失败')});
+      }).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'script.mp3'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        showStatus('讲稿语音已导出', 'success', 2500);
       }).catch(e=>alert('导出失败：'+e.message));
       return;
     }

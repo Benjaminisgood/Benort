@@ -244,6 +244,49 @@
             </div>
           </div>
 
+      <!-- Resource Preview Modal -->
+      <div class="modal fade" id="resourcePreviewModal" tabindex="-1" aria-labelledby="resourcePreviewModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="resourcePreviewModalLabel">资源预览</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+              <img id="resource-preview-image" src="" alt="preview" class="img-fluid" style="max-height:70vh;" />
+              <div class="text-muted small mt-2" id="resource-preview-meta"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+              <a id="resource-preview-open" href="#" target="_blank" class="btn btn-primary">新标签页打开</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resource Rename Modal -->
+      <div class="modal fade" id="resourceRenameModal" tabindex="-1" aria-labelledby="resourceRenameModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="resourceRenameModalLabel">重命名资源</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label for="resource-rename-input" class="form-label">新文件名</label>
+                <input type="text" class="form-control" id="resource-rename-input" />
+                <div class="form-text">名称会自动清理非法字符，请保留正确的扩展名。</div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-primary" id="resource-rename-confirm">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Attachments Modal -->
       <div class="modal fade" id="attachmentsModal" tabindex="-1" aria-labelledby="attachmentsModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -883,6 +926,7 @@
   let searchAbortController = null;
   let searchRequestId = 0;
 
+  let resourceRenameTarget = null;
   let attachmentRenameTarget = null;
   const SCRIPT_ROOT = {{ request.script_root|tojson }} || '';
   function buildApiUrl(path){
@@ -902,6 +946,13 @@
     project: buildApiUrl('/project'),
     projectSave: buildApiUrl('/project'),
   };
+  const resourceRenameModalEl = document.getElementById('resourceRenameModal');
+  const resourceRenameInput = document.getElementById('resource-rename-input');
+  const resourceRenameConfirm = document.getElementById('resource-rename-confirm');
+  const resourcePreviewModalEl = document.getElementById('resourcePreviewModal');
+  const resourcePreviewImage = document.getElementById('resource-preview-image');
+  const resourcePreviewMeta = document.getElementById('resource-preview-meta');
+  const resourcePreviewOpen = document.getElementById('resource-preview-open');
   const attachmentRenameModalEl = document.getElementById('attachmentRenameModal');
   const attachmentRenameInput = document.getElementById('attachment-rename-input');
   const attachmentRenameConfirm = document.getElementById('attachment-rename-confirm');
@@ -945,6 +996,23 @@
   const projectUnlockPasswordInput = document.getElementById('project-unlock-password');
   const projectUnlockErrorBox = document.getElementById('project-unlock-error');
   const projectUnlockConfirmBtn = document.getElementById('project-unlock-confirm');
+
+  if(resourceRenameModalEl){
+    resourceRenameModalEl.addEventListener('hidden.bs.modal', () => {
+      resourceRenameTarget = null;
+      if(resourceRenameInput) resourceRenameInput.value = '';
+    });
+  }
+  if(resourcePreviewModalEl){
+    resourcePreviewModalEl.addEventListener('hidden.bs.modal', () => {
+      if(resourcePreviewImage) resourcePreviewImage.removeAttribute('src');
+      if(resourcePreviewMeta) resourcePreviewMeta.textContent = '';
+      if(resourcePreviewOpen){
+        resourcePreviewOpen.href = '#';
+        resourcePreviewOpen.classList.add('disabled');
+      }
+    });
+  }
 
   if(attachmentRenameModalEl){
     attachmentRenameModalEl.addEventListener('hidden.bs.modal', () => {
@@ -3229,6 +3297,46 @@ loadProjects().then(()=>{
           left.appendChild(ossBadge);
         }
         const actions = document.createElement('div');
+        actions.className = 'd-flex flex-wrap align-items-center';
+        const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test(f.name || '');
+        const targetUrl = f.localUrl || f.ossUrl || preferredUrl;
+
+        const previewBtn = document.createElement('button');
+        previewBtn.className = 'btn btn-sm btn-outline-secondary me-2';
+        previewBtn.textContent = '预览';
+        previewBtn.onclick = function(){
+          if(isImage && resourcePreviewModalEl && resourcePreviewImage){
+            if(!targetUrl){
+              alert('当前资源没有可用的链接');
+              return;
+            }
+            resourcePreviewImage.src = targetUrl;
+            if(resourcePreviewMeta){
+              const parts = [];
+              parts.push(f.exists ? '来源：本地' : (f.ossUrl ? '来源：OSS' : '来源：未知'));
+              if(f.ossUrl && f.exists){
+                parts.push('已同步');
+              }
+              resourcePreviewMeta.textContent = `${f.name}${parts.length ? '（' + parts.join('，') + '）' : ''}`;
+            }
+            if(resourcePreviewOpen){
+              resourcePreviewOpen.href = targetUrl;
+              resourcePreviewOpen.classList.toggle('disabled', !targetUrl);
+            }
+            const modal = bootstrap.Modal.getOrCreateInstance(resourcePreviewModalEl);
+            modal.show();
+          } else {
+            if(targetUrl){
+              window.open(targetUrl, '_blank');
+            } else {
+              alert('当前资源没有可用的链接');
+            }
+          }
+        };
+        if(!targetUrl){
+          previewBtn.disabled = true;
+        }
+
         const openBtn = document.createElement('button');
         openBtn.className = 'btn btn-sm btn-outline-secondary me-2';
         openBtn.textContent = '打开';
@@ -3251,6 +3359,19 @@ loadProjects().then(()=>{
             copyBtn.textContent = '已复制';
             setTimeout(()=>{ copyBtn.textContent = '复制链接'; }, 2000);
           }).catch(()=>alert('复制失败，请手动复制链接'));
+        };
+        const renameBtn = document.createElement('button');
+        renameBtn.className = 'btn btn-sm btn-outline-secondary me-2';
+        renameBtn.textContent = '重命名';
+        renameBtn.onclick = function(){
+          if(!resourceRenameModalEl || !resourceRenameInput){
+            alert('当前界面不支持重命名');
+            return;
+          }
+          resourceRenameTarget = f.name;
+          resourceRenameInput.value = f.name;
+          const modal = bootstrap.Modal.getOrCreateInstance(resourceRenameModalEl);
+          modal.show();
         };
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'btn btn-sm btn-outline-danger';
@@ -3280,8 +3401,10 @@ loadProjects().then(()=>{
             }
           }catch(e){ console.error(e); alert('删除失败：' + e.message); }
         };
+      actions.appendChild(previewBtn);
       actions.appendChild(openBtn);
       actions.appendChild(copyBtn);
+      actions.appendChild(renameBtn);
       actions.appendChild(deleteBtn);
         item.appendChild(left);
         item.appendChild(actions);
@@ -3719,6 +3842,50 @@ loadProjects().then(()=>{
     this.disabled = false;
     this.textContent = '上传附件';
   });
+
+  if(resourceRenameConfirm && !resourceRenameConfirm.dataset.bound){
+    resourceRenameConfirm.dataset.bound = 'true';
+    resourceRenameConfirm.addEventListener('click', async function(){
+      if(!resourceRenameTarget){
+        alert('请先选择要重命名的资源');
+        return;
+      }
+      if(!resourceRenameInput){
+        alert('无法读取新文件名');
+        return;
+      }
+      const newName = resourceRenameInput.value.trim();
+      if(!newName){
+        alert('文件名不能为空');
+        return;
+      }
+      const originalText = this.textContent;
+      this.disabled = true;
+      this.textContent = '保存中...';
+      try{
+        const res = await fetch('/resources/rename', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({oldName: resourceRenameTarget, newName})});
+        const parsed = await parseJsonSafe(res);
+        if(res.ok && (!parsed.json || parsed.json.success !== false)){
+          if(parsed.json && parsed.json.name && parsed.json.name !== newName){
+            alert(`文件名已更新为：${parsed.json.name}`);
+          }
+          const modal = resourceRenameModalEl ? bootstrap.Modal.getInstance(resourceRenameModalEl) : null;
+          if(modal) modal.hide();
+          resourceRenameTarget = null;
+          await loadResourcesModal();
+          await refreshResourceLists();
+          queueCompile();
+        } else {
+          const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
+          alert('重命名失败：' + message);
+        }
+      }catch(e){
+        alert('重命名失败：' + e.message);
+      }
+      this.disabled = false;
+      this.textContent = originalText || '保存';
+    });
+  }
 
   if(attachmentRenameConfirm && !attachmentRenameConfirm.dataset.bound){
     attachmentRenameConfirm.dataset.bound = 'true';

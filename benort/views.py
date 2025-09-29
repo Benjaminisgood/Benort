@@ -1509,6 +1509,119 @@ def serve_resource(filename):
     return _serve_resource_file(project_name, filename)
 
 
+@bp.route('/resources/rename', methods=['POST'])
+def rename_resource():
+    """重命名资源文件并同步更新引用及 OSS。"""
+
+    data = request.get_json(silent=True) or request.form or {}
+    old_name = (data.get('oldName') or data.get('from') or data.get('old') or '').strip()
+    new_name = (data.get('newName') or data.get('to') or data.get('name') or '').strip()
+    if not old_name or not new_name:
+        return api_error('oldName and newName required', 400)
+    if any(sep in old_name for sep in ('..', '/', '\\')):
+        return api_error('invalid oldName', 400)
+
+    sanitized_new = secure_filename(new_name)
+    if not sanitized_new:
+        return api_error('invalid newName', 400)
+
+    project_name = get_project_from_request()
+    try:
+        project = load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
+
+    _, _, _, resources_folder, _ = get_project_paths(project_name)
+    os.makedirs(resources_folder, exist_ok=True)
+
+    original_path = os.path.join(resources_folder, old_name)
+    if not os.path.exists(original_path):
+        original_path = _find_resource_file(resources_folder, os.path.basename(old_name)) or ''
+
+    if not original_path or not os.path.exists(original_path):
+        return api_error('file not found', 404)
+
+    try:
+        common = os.path.commonpath([os.path.abspath(original_path), os.path.abspath(resources_folder)])
+    except ValueError:
+        return api_error('invalid path', 400)
+    if common != os.path.abspath(resources_folder):
+        return api_error('invalid path', 400)
+
+    old_base = os.path.basename(original_path)
+
+    if old_base == sanitized_new:
+        return api_success({
+            'name': sanitized_new,
+            'localUrl': f"/projects/{project_name}/resources/{os.path.relpath(original_path, resources_folder).replace(os.sep, '/')}"
+        })
+
+    target_dir = os.path.dirname(original_path)
+    new_path = os.path.join(target_dir, sanitized_new)
+    if os.path.exists(new_path):
+        return api_error('target filename already exists', 409)
+
+    try:
+        os.rename(original_path, new_path)
+    except OSError as exc:
+        return api_error(str(exc), 500)
+
+    # 更新项目引用的资源名称
+    def _update_names(container: list[str] | None) -> list[str] | None:
+        if not isinstance(container, list):
+            return container
+        updated: list[str] = []
+        for entry in container:
+            entry_str = str(entry)
+            base = os.path.basename(entry_str)
+            if base == old_base:
+                prefix = entry_str[:-len(base)] if entry_str.endswith(base) else ''
+                updated.append(prefix + sanitized_new)
+            else:
+                updated.append(entry)
+        return updated
+
+    if isinstance(project.get('resources'), list):
+        project['resources'] = _update_names(project['resources'])  # type: ignore[assignment]
+
+    if isinstance(project.get('pages'), list):
+        for page in project['pages']:
+            if isinstance(page, dict) and isinstance(page.get('resources'), list):
+                page['resources'] = _update_names(page['resources'])  # type: ignore[assignment]
+
+    save_project(project)
+
+    oss_status: dict[str, object] | None = None
+    if bool(project.get('ossSyncEnabled')) and oss_is_configured():
+        oss_status = {'uploaded': False, 'deleted': False}
+        try:
+            oss_upload_file(project_name, sanitized_new, new_path, category='resources')
+            oss_status['uploaded'] = True
+        except Exception as exc:
+            oss_status['error'] = str(exc)
+            try:
+                current_app.logger.warning('OSS 上传资源失败 %s→%s: %s', old_name, sanitized_new, exc)
+            except Exception:
+                pass
+        try:
+            oss_delete_file(project_name, old_base, category='resources')
+            oss_status['deleted'] = True
+        except Exception as exc:
+            oss_status['delete_error'] = str(exc)
+            try:
+                current_app.logger.warning('OSS 删除旧资源失败 %s: %s', old_name, exc)
+            except Exception:
+                pass
+
+    relative_new = os.path.relpath(new_path, resources_folder).replace(os.sep, '/')
+    payload = {
+        'name': sanitized_new,
+        'localUrl': f"/projects/{project_name}/resources/{relative_new}",
+        'ossStatus': oss_status,
+    }
+    return api_success(payload)
+
+
 @bp.route('/resources/delete', methods=['POST'])
 def delete_resource():
     """删除资源文件并清理项目中的引用。"""

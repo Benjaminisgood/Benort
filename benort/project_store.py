@@ -198,11 +198,17 @@ def _default_project_data(project_name: str) -> dict:
     return {
         'pages': [
             {
-                'content': '\\begin{frame}\n\\frametitle{Title of the Slide}\n\\framesubtitle{Subtitle}\n内容...\n\\end{frame}',
+                'content': '\\begin{frame}[plain]\n  \\titlepage\n\\end{frame}',
                 'script': '',
                 'notes': '',
                 'bib': [],
-            }
+            },
+            {
+                'content': '\\begin{frame}\n  \\frametitle{目录}\n  \\tableofcontents\n\\end{frame}',
+                'script': '',
+                'notes': '',
+                'bib': [],
+            },
         ],
         'template': dict(get_default_template()),
         'resources': [],

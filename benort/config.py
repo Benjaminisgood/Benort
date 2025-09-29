@@ -89,7 +89,10 @@ AI_PROMPTS = {
         ),
         "template": (
             "请优化以下LaTeX Beamer幻灯片页面内容(每一个%后面都是给你的一些指示）。\n"
-            "使其更规范、简洁、美观，并保留原有结构：\n{content}。严格遵守以下规则：\n"
+            "使其更规范、简洁、美观，并保留原有结构：\n{content}\n\n"
+            "当前页的笔记内容如下：\n{notes}\n\n"
+            "如果上述 LaTeX 内容为空但笔记存在，请基于笔记生成新的、可直接编译的幻灯片内容。\n"
+            "严格遵守以下规则：\n"
             "1. 只使用当前模板已经加载的宏包({allowed_packages})和命令({custom_macros})，禁止新增宏包、字体或 \\usepackage/\\RequirePackage 指令。\n"
             "2. 不要输出 \\documentclass、\\begin{{document}}、\\end{{document}} 等全局结构，不要出现```latex，```等无关标记，只返回纯LaTeX代码。\n"
             "3. 不允许使用需要额外宏包才能编译的命令，也不要新增 \\newcommand/\\renewcommand/\\DeclareMathOperator 等定义。\n"

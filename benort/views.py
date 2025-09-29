@@ -165,18 +165,23 @@ def add_page():
     return jsonify({"success": True, "pages": project["pages"]})
 
 
-@bp.route("/compile_page", methods=["POST"])
-def compile_page():
-    """将单页 LaTeX 组合模板后用 xelatex 编译为 PDF。"""
+def _compile_single_page_pdf(page_idx: int) -> tuple[int, dict]:
+    """编译指定页为 PDF，并返回状态码与信息。"""
 
-    data = request.json
-    page_idx = int(data.get("page", 0))
     try:
         project = load_project()
     except ProjectLockedError:
-        return api_error(_LOCKED_ERROR, 401)
-    template = project.get("template")
-    pages = project.get("pages", [])
+        return 401, {"error": _LOCKED_ERROR}
+
+    template = project.get("template") if isinstance(project, dict) else {}
+    pages = project.get("pages", []) if isinstance(project, dict) else []
+
+    if not isinstance(page_idx, int) or page_idx < 0:
+        return 400, {"error": "页索引无效"}
+
+    if not pages or page_idx >= len(pages):
+        return 404, {"error": "指定页不存在"}
+
     project_name = get_project_from_request()
     attachments_folder, pdf_folder, _, resources_folder, build_folder = get_project_paths(project_name)
 
@@ -185,7 +190,6 @@ def compile_page():
     default_before = default_template.get("beforePages", "\\begin{document}")
     default_footer = default_template.get("footer", "\\end{document}")
 
-    # 根据模板类型补齐 header/before/footer
     if isinstance(template, dict):
         header = normalize_latex_content(template.get("header", default_header), attachments_folder, resources_folder)
         before = normalize_latex_content(template.get("beforePages", default_before), attachments_folder, resources_folder)
@@ -195,20 +199,23 @@ def compile_page():
         before = normalize_latex_content(default_before, attachments_folder, resources_folder)
         footer = normalize_latex_content(default_footer, attachments_folder, resources_folder)
 
-    if 0 <= page_idx < len(pages):
-        raw = pages[page_idx]["content"] if isinstance(pages[page_idx], dict) else str(pages[page_idx])
-        page_tex = normalize_latex_content(raw, attachments_folder, resources_folder)
-    else:
-        page_tex = ""
+    page = pages[page_idx]
+    raw = page["content"] if isinstance(page, dict) else str(page)
+    page_tex = normalize_latex_content(raw or "", attachments_folder, resources_folder)
 
     tex = f"{header}\n{before}\n{page_tex}\n{footer}\n"
     filename = f"slide_page_{page_idx + 1}.tex"
     tex_path = os.path.join(build_folder, filename)
     pdf_name = f"slide_page_{page_idx + 1}.pdf"
+    pdf_path = os.path.join(pdf_folder, pdf_name)
     prepare_latex_assets([header, before, page_tex, footer], attachments_folder, resources_folder, build_folder, pdf_folder)
 
-    with open(tex_path, "w", encoding="utf-8") as fh:
-        fh.write(tex)
+    try:
+        with open(tex_path, "w", encoding="utf-8") as fh:
+            fh.write(tex)
+    except OSError as exc:
+        return 500, {"error": f"写入临时 TeX 文件失败: {exc}"}
+
     try:
         result = subprocess.run(
             ["xelatex", "-output-directory", pdf_folder, filename],
@@ -217,11 +224,47 @@ def compile_page():
             timeout=30,
             cwd=build_folder,
         )
-        if result.returncode != 0:
-            return jsonify({"success": False, "error": result.stderr})
-        return jsonify({"success": True, "pdf": pdf_name})
     except Exception as exc:
-        return jsonify({"success": False, "error": str(exc)})
+        return 500, {"error": str(exc)}
+
+    if result.returncode != 0:
+        return 500, {"error": result.stderr or "xelatex 编译失败"}
+
+    return 200, {"pdf": pdf_name, "path": pdf_path}
+
+
+@bp.route("/compile_page", methods=["POST"])
+def compile_page():
+    """将单页 LaTeX 组合模板后用 xelatex 编译为 PDF。"""
+
+    data = request.json or {}
+    page_idx = int(data.get("page", 0))
+    status, payload = _compile_single_page_pdf(page_idx)
+    if status != 200:
+        return jsonify({"success": False, "error": payload.get("error", "编译失败")}), status
+    return jsonify({"success": True, "pdf": payload["pdf"]})
+
+
+@bp.route("/export_page_pdf", methods=["GET"])
+def export_page_pdf():
+    """导出当前页的 PDF 文件。"""
+
+    page_param = request.args.get("page", type=int)
+    page_idx = max((page_param or 1) - 1, 0)
+    status, payload = _compile_single_page_pdf(page_idx)
+    if status != 200:
+        return jsonify({"success": False, "error": payload.get("error", "导出失败")}), status
+
+    pdf_path = payload.get("path")
+    if not pdf_path or not os.path.exists(pdf_path):
+        return jsonify({"success": False, "error": "PDF 文件不存在"}), 500
+
+    return send_file(
+        pdf_path,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=payload["pdf"],
+    )
 
 
 @bp.route("/page_pdf/<int:page>")
@@ -495,6 +538,7 @@ def ai_optimize():
     content = data.get("content", "")
     opt_type = data.get("type", "latex")
     page_tex = data.get("page_tex", "")
+    page_note = data.get("note", "")
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -536,6 +580,7 @@ def ai_optimize():
             content=content,
             allowed_packages=allowed_str,
             custom_macros=custom_macro_list,
+            notes=page_note or "（无笔记内容）",
         )
         system_prompt = AI_PROMPTS["latex"]["system"]
 

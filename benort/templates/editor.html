@@ -8,6 +8,7 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
   <style>
     #editor-preview-wrapper {
       display: flex;
@@ -53,6 +54,34 @@
     }
     #markdown-preview {
       padding: 1rem;
+    }
+    .markdown-preview-content pre {
+      background: #f5f5f5;
+      border-radius: 4px;
+      padding: 0.75rem;
+      overflow: auto;
+    }
+    .copy-trigger-wrapper {
+      position: relative;
+      display: block;
+    }
+    .copy-trigger-wrapper.inline-copy {
+      display: inline-block;
+      vertical-align: baseline;
+    }
+    .copy-trigger-btn {
+      position: absolute;
+      top: 0.35rem;
+      right: 0.35rem;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      padding: 0.1rem 0.4rem;
+      line-height: 1.2;
+      font-size: 0.75rem;
+    }
+    .copy-trigger-wrapper:hover .copy-trigger-btn,
+    .copy-trigger-btn:focus {
+      opacity: 1;
     }
     #pdf-pages {
       width: 100%;
@@ -534,7 +563,9 @@
       <div id="pdf-container">
         <div id="pdf-pages" class="w-100 d-flex flex-column align-items-center gap-3"></div>
       </div>
-      <div id="markdown-preview" class="d-none"></div>
+      <div id="markdown-preview" class="d-none">
+        <div id="markdown-preview-content" class="markdown-preview-content mt-4"></div>
+      </div>
     </div>
   </div>
 
@@ -567,6 +598,10 @@
             <input class="form-check-input" type="radio" name="exportOption" id="exportNotesOption" value="notes">
             <label class="form-check-label" for="exportNotesOption">导出 笔记 (Markdown)</label>
           </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="exportOption" id="exportPagePdfOption" value="page_pdf">
+            <label class="form-check-label" for="exportPagePdfOption">导出 当前页 PDF</label>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
@@ -580,8 +615,43 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/stex/stex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/markdown/markdown.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+  if (window.hljs) {
+    hljs.configure({ignoreUnescapedHTML: true});
+  }
+</script>
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']],
+      processEscapes: true
+    },
+    svg: { fontCache: 'global' }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <script>
+  marked.setOptions({
+    breaks: true,
+    gfm: true,
+    highlight: function(code, lang) {
+      if (window.hljs) {
+        try {
+          if (lang && hljs.getLanguage(lang)) {
+            return hljs.highlight(code, {language: lang}).value;
+          }
+          return hljs.highlightAuto(code).value;
+        } catch (err) {
+          console.warn('代码高亮失败', err);
+        }
+      }
+      return code;
+    }
+  });
+
   
   function updatePageNumLabel() {
     document.getElementById('page-num').textContent = currentPageIdx+1;
@@ -1120,6 +1190,31 @@
     }, timeout);
   }
 
+  async function exportTex() {
+    try {
+      const res = await fetch('/export_tex');
+      if (!res.ok) {
+        const parsed = await parseJsonSafe(res);
+        const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || `HTTP ${res.status}`);
+        showStatus('导出 TeX 失败：' + message, 'danger', 6000);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'exported_full.tex';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      showStatus('TeX 导出完成', 'success', 2500);
+    } catch (err) {
+      console.error('导出 TeX 失败', err);
+      showStatus('导出 TeX 失败：' + (err?.message || '未知错误'), 'danger', 6000);
+    }
+  }
+
   function updateProjectButtonLabel() {
     const btn = document.getElementById('project-dropdown');
     if (!btn) return;
@@ -1198,10 +1293,110 @@
   }
 
   function renderMarkdownPreview() {
-    const preview = document.getElementById('markdown-preview');
-    if (!preview) return;
+    const wrapper = document.getElementById('markdown-preview');
+    const preview = document.getElementById('markdown-preview-content') || wrapper;
+    if (!wrapper || !preview) return;
     const md = pagesData[currentPageIdx]?.notes || '';
-    preview.innerHTML = md ? marked.parse(md) : '<p class="text-muted mb-0">暂无 Markdown 内容</p>';
+    if (md.trim()) {
+      preview.innerHTML = marked.parse(md);
+    } else {
+      preview.innerHTML = '<p class="text-muted mb-0">暂无 Markdown 内容</p>';
+    }
+    if (window.hljs && preview.querySelectorAll) {
+      preview.querySelectorAll('pre code').forEach(block => {
+        hljs.highlightElement(block);
+      });
+    }
+    enhanceCodeCopy(preview);
+    if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
+      try {
+        if (typeof window.MathJax.typesetClear === 'function') {
+          window.MathJax.typesetClear([preview]);
+        }
+      } catch (err) {
+        console.warn('清理 MathJax 队列失败', err);
+      }
+      window.MathJax.typesetPromise([preview])
+        .then(() => enhanceMathCopy(preview))
+        .catch(err => console.warn('MathJax 渲染失败', err));
+    }
+  }
+
+  async function copyTextToClipboard(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
+      }
+      return true;
+    } catch (err) {
+      console.warn('复制失败', err);
+      return false;
+    }
+  }
+
+  function attachCopyButton(target, text, label, inline = false) {
+    if (!target || !text) return;
+    const parent = target.parentElement;
+    if (!parent) return;
+    const wrapper = document.createElement(inline ? 'span' : 'div');
+    wrapper.className = 'copy-trigger-wrapper' + (inline ? ' inline-copy' : '');
+    parent.insertBefore(wrapper, target);
+    wrapper.appendChild(target);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'copy-trigger-btn btn btn-sm btn-outline-secondary';
+    btn.textContent = '复制';
+    btn.setAttribute('aria-label', `复制${label}`);
+    btn.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const ok = await copyTextToClipboard(text);
+      if (ok) {
+        showStatus(`${label}已复制`, 'success', 2000);
+      } else {
+        showStatus(`复制${label}失败`, 'warning', 3000);
+      }
+    });
+    wrapper.appendChild(btn);
+  }
+
+  function enhanceCodeCopy(preview) {
+    if (!preview || !preview.querySelectorAll) return;
+    preview.querySelectorAll('pre').forEach(pre => {
+      if (pre.closest('.copy-trigger-wrapper')) return;
+      const code = pre.querySelector('code');
+      const text = code ? code.textContent || '' : pre.textContent || '';
+      if (!text.trim()) return;
+      attachCopyButton(pre, text, '代码');
+    });
+  }
+
+  function enhanceMathCopy(preview) {
+    if (!preview || !window.MathJax || !MathJax.startup || !MathJax.startup.document) return;
+    const items = MathJax.startup.document.math || [];
+    items.forEach(item => {
+      const root = item && item.typesetRoot;
+      if (!root || !preview.contains(root)) return;
+      if (!item.display) return; // 仅对块级公式启用复制按钮
+      let tex = (item.math || item.originalText || '').trim();
+      if (!tex) return;
+      if (!/^((\$\$)|(\\\[)|(\\begin))/i.test(tex)) {
+        tex = `$$${tex}$$`;
+      }
+      if (root.closest('.copy-trigger-wrapper')) return;
+      attachCopyButton(root, tex, '公式');
+    });
   }
 
   function syncPaneHeights() {
@@ -1474,6 +1669,19 @@
       }).then(blob => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = 'attachments.zip'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        showStatus('资料与附件已导出', 'success', 2500);
+      }).catch(e=>alert('导出失败：'+e.message));
+      return;
+    }
+    if(opt === 'page_pdf') {
+      const pageNumber = currentPageIdx + 1;
+      fetch(`/export_page_pdf?page=${pageNumber}`).then(res => {
+        if(res.ok) return res.blob();
+        return res.json().then(data=>{throw new Error(data.error||'导出失败')});
+      }).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = `slide_page_${pageNumber}.pdf`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        showStatus(`第 ${pageNumber} 页 PDF 已导出`, 'success', 2500);
       }).catch(e=>alert('导出失败：'+e.message));
       return;
     }
@@ -1485,6 +1693,7 @@
       }).then(blob => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = 'script.mp3'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        showStatus('讲稿语音已导出', 'success', 2500);
       }).catch(e=>alert('导出失败：'+e.message));
       return;
     }
@@ -1495,6 +1704,7 @@
       }).then(blob => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = 'notes.md'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        showStatus('笔记已导出', 'success', 2500);
       }).catch(e=>alert('导出失败：'+e.message));
       return;
     }
@@ -2293,12 +2503,13 @@ loadProjects().then(()=>{
   
   document.getElementById('ai-optimize').onclick = function() {
     const content = pagesData[currentPageIdx]?.content || '';
+    const note = pagesData[currentPageIdx]?.notes || '';
     this.disabled = true;
     this.textContent = '优化中...';
     fetch('/ai_optimize', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({content: content, type: 'latex'})
+      body: JSON.stringify({content: content, type: 'latex', note: note})
     }).then(res => res.json()).then(data => {
       if(data.success && data.result) {
         document.getElementById('ai-result').value = data.result;

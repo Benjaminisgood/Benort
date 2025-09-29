@@ -94,6 +94,38 @@
     .navbar .btn-outline-primary {
       border-width: 2px;
     }
+    .navbar-nav {
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .navbar-nav .nav-item {
+      display: flex;
+      align-items: center;
+    }
+    .navbar-nav .dropdown-divider {
+      height: 1.5rem;
+      margin: 0 0.35rem;
+    }
+    @media (max-width: 991.98px) {
+      .navbar-nav {
+        flex-direction: row;
+        justify-content: flex-start;
+      }
+      #project-search-group {
+        flex: 1 1 220px;
+        min-width: 200px;
+      }
+    }
+    @media (max-width: 575.98px) {
+      #project-search-group {
+        flex-basis: 100%;
+        min-width: 100%;
+      }
+      .navbar-nav {
+        gap: 0.4rem;
+      }
+    }
     @media (max-width: 767.98px) {
       .editor-pane,
       .preview-pane {
@@ -124,6 +156,12 @@
             <span id="page-num">1</span> / <span id="page-count">1</span>
           </button>
           <button class="btn btn-outline-primary btn-sm me-2" id="next-page" title="下一页">下</button>
+        </li>
+        <li class="nav-item d-flex align-items-center">
+          <div class="input-group input-group-sm me-2" id="project-search-group" style="min-width: 220px;">
+            <input type="search" class="form-control" id="project-search-input" placeholder="检索当前项目" aria-label="检索当前项目" autocomplete="off">
+            <button class="btn btn-outline-primary" type="button" id="project-search-btn">检索</button>
+          </div>
         </li>
         <li class="nav-item"><button class="btn btn-outline-primary me-2" id="mode-switch-btn" title="切换LaTeX/Markdown">模式</button></li>
         <li class="nav-item"><button class="btn btn-outline-secondary me-2" id="add-page" title="添加新页">加页</button></li>
@@ -228,6 +266,25 @@
                 <button id="modal-attachment-upload-btn" class="btn btn-primary">上传附件</button>
               </div>
               <div id="attachments-list-modal" class="list-group"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="modal fade" id="searchModal" tabindex="-1" aria-labelledby="searchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="searchModalLabel">内容检索</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3 text-muted" id="search-summary">请输入关键词后检索当前项目。</div>
+              <div id="search-results" class="list-group"></div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
@@ -652,6 +709,46 @@
     }
   });
 
+  function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    return String(text).replace(/[&<"'>]/g, function(ch) {
+      switch (ch) {
+        case '&': return '&amp;';
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '"': return '&quot;';
+        case "'": return '&#39;';
+        default: return ch;
+      }
+    });
+  }
+
+  function highlightExcerptText(excerpt, query) {
+    if (!excerpt) return '';
+    if (!query) return escapeHtml(excerpt);
+    try {
+      const escapedQuery = query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      if (!escapedQuery) return escapeHtml(excerpt);
+      const regex = new RegExp(escapedQuery, 'gi');
+      let cursor = 0;
+      let html = '';
+      let match;
+      while ((match = regex.exec(excerpt)) !== null) {
+        const chunk = excerpt.slice(cursor, match.index);
+        html += escapeHtml(chunk);
+        html += '<mark>' + escapeHtml(match[0]) + '</mark>';
+        cursor = match.index + match[0].length;
+        if (regex.lastIndex === match.index) {
+          regex.lastIndex += 1;
+        }
+      }
+      html += escapeHtml(excerpt.slice(cursor));
+      return html || escapeHtml(excerpt);
+    } catch (err) {
+      return escapeHtml(excerpt);
+    }
+  }
+
   
   function updatePageNumLabel() {
     document.getElementById('page-num').textContent = currentPageIdx+1;
@@ -776,6 +873,11 @@
   let saveProjectTimer = null;
   let saveRequestQueue = Promise.resolve();
   let pendingSaveCallbacks = [];
+  let searchModalInstance = null;
+  let searchResultsCache = [];
+  let searchQueryCache = '';
+  let searchAbortController = null;
+  let searchRequestId = 0;
 
   let attachmentRenameTarget = null;
   const SCRIPT_ROOT = {{ request.script_root|tojson }} || '';
@@ -966,6 +1068,226 @@
     const info = message || '项目已加密，请先解锁';
     showStatus(info, 'warning', 6000);
     openProjectUnlockModal(currentProject);
+  }
+
+  function ensureSearchModal() {
+    if (searchModalInstance) return searchModalInstance;
+    const modalEl = document.getElementById('searchModal');
+    if (!modalEl) return null;
+    searchModalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      const resultsEl = document.getElementById('search-results');
+      if (resultsEl) {
+        resultsEl.scrollTop = 0;
+      }
+    });
+    return searchModalInstance;
+  }
+
+  function setSearchSummary(message, tone = 'muted') {
+    const summaryEl = document.getElementById('search-summary');
+    if (!summaryEl) return;
+    summaryEl.textContent = message || '';
+    summaryEl.classList.remove('text-muted', 'text-danger', 'text-success');
+    if (tone === 'danger') summaryEl.classList.add('text-danger');
+    else if (tone === 'success') summaryEl.classList.add('text-success');
+    else summaryEl.classList.add('text-muted');
+  }
+
+  function renderSearchResults(results, query) {
+    const list = document.getElementById('search-results');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (!Array.isArray(results) || results.length === 0) {
+      const message = query ? `未找到与“${query}”相关的内容。` : '请输入关键词后检索当前项目。';
+      setSearchSummary(message, query ? 'danger' : 'muted');
+      return;
+    }
+
+    setSearchSummary(`找到 ${results.length} 条与 “${query}” 相关的内容。`, 'success');
+
+    results.forEach((match, idx) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'list-group-item list-group-item-action text-start';
+      item.dataset.searchResultIndex = String(idx);
+
+      const pageLabel = match.pageLabel || `第 ${match.pageIndex + 1} 页`;
+      const fieldLabel = match.fieldLabel || match.field || '';
+      const matchCount = typeof match.matchCount === 'number' ? match.matchCount : 1;
+      const excerptHtml = highlightExcerptText(match.excerpt || '', query);
+
+      item.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div class="fw-semibold">${escapeHtml(pageLabel)}</div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle">${escapeHtml(fieldLabel)}</span>
+            <span class="badge bg-light text-muted border">${matchCount} 次命中</span>
+          </div>
+        </div>
+        <div class="mt-2 text-muted small">${excerptHtml}</div>
+      `;
+
+      item.addEventListener('click', () => {
+        navigateToSearchMatch(match, query);
+      });
+
+      list.appendChild(item);
+    });
+  }
+
+  function resetSearchState() {
+    searchResultsCache = [];
+    searchQueryCache = '';
+    renderSearchResults([], '');
+    setSearchSummary('请输入关键词后检索当前项目。', 'muted');
+  }
+
+  function handleSearchError(message) {
+    renderSearchResults([], searchQueryCache);
+    setSearchSummary(message || '检索失败，请稍后再试。', 'danger');
+  }
+
+  function highlightScriptMatch(match, query) {
+    const scriptInput = document.getElementById('page-script');
+    if (!scriptInput) return;
+    const value = scriptInput.value || '';
+    let start = typeof match.position === 'number' ? match.position : -1;
+    const searchTerm = query || '';
+    if (start < 0 && searchTerm) {
+      start = value.toLowerCase().indexOf(searchTerm.toLowerCase());
+    }
+    if (start < 0) return;
+    const len = Math.min(match.matchLength || searchTerm.length || 1, value.length - start);
+    scriptInput.focus();
+    scriptInput.setSelectionRange(start, start + len);
+  }
+
+  function highlightEditorMatch(match, query) {
+    if (!singleEditor) return;
+    const doc = singleEditor.getDoc();
+    const value = doc.getValue();
+    if (!value) return;
+    const searchTerm = query || '';
+    let start = typeof match.position === 'number' ? match.position : -1;
+    if (start < 0 && searchTerm) {
+      start = value.toLowerCase().indexOf(searchTerm.toLowerCase());
+    }
+    if (start < 0) return;
+    const length = Math.min(match.matchLength || searchTerm.length || 1, value.length - start);
+    const from = doc.posFromIndex(start);
+    const to = doc.posFromIndex(start + length);
+    doc.setSelection(from, to);
+    singleEditor.focus();
+    singleEditor.scrollIntoView({from, to}, 100);
+  }
+
+  function navigateToSearchMatch(match, query) {
+    if (!match || typeof match.pageIndex !== 'number') return;
+    const idx = match.pageIndex;
+    if (idx < 0 || idx >= pagesData.length) return;
+
+    currentPageIdx = idx;
+    updatePageNumLabel();
+
+    if (match.field === 'script') {
+      renderSingleEditor();
+      refreshPreview();
+      setTimeout(() => highlightScriptMatch(match, query), 80);
+      return;
+    }
+
+    const desiredMode = match.field === 'notes' ? 'markdown' : 'latex';
+    const needSwitch = currentEditMode !== desiredMode;
+    if (needSwitch) {
+      setEditMode(desiredMode);
+      setTimeout(() => {
+        refreshPreview();
+        highlightEditorMatch(match, query);
+      }, 100);
+    } else {
+      renderSingleEditor();
+      refreshPreview();
+      setTimeout(() => highlightEditorMatch(match, query), 80);
+    }
+  }
+
+  function performProjectSearch(rawQuery) {
+    const input = document.getElementById('project-search-input');
+    const button = document.getElementById('project-search-btn');
+    const query = (rawQuery || '').trim();
+
+    const modal = ensureSearchModal();
+    if (modal) modal.show();
+
+    if (searchAbortController) {
+      try {
+        searchAbortController.abort();
+      } catch (err) {}
+      searchAbortController = null;
+    }
+
+    if (!query) {
+      resetSearchState();
+      if (input) input.focus();
+      return;
+    }
+
+    searchQueryCache = query;
+    setSearchSummary(`正在检索 “${query}”…`, 'muted');
+    renderSearchResults([], query);
+
+    if (button) button.disabled = true;
+    if (input) input.setAttribute('data-loading', 'true');
+
+    const controller = new AbortController();
+    searchAbortController = controller;
+    const requestToken = ++searchRequestId;
+
+    fetch('/search', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({query}),
+      signal: controller.signal,
+    }).then(async res => {
+      if (requestToken !== searchRequestId) return;
+      if (button) button.disabled = false;
+      if (input) input.removeAttribute('data-loading');
+
+      if (res.status === 401) {
+        handleProjectLocked();
+        handleSearchError('项目已加密，请先解锁。');
+        return;
+      }
+
+      if (!res.ok) {
+        let message = `检索失败：HTTP ${res.status}`;
+        try {
+          const data = await res.json();
+          if (data && data.error) message = data.error;
+        } catch (err) {
+          try {
+            const text = await res.text();
+            if (text) message = text;
+          } catch (_) {}
+        }
+        handleSearchError(message);
+        return;
+      }
+
+      const data = await res.json();
+      if (requestToken !== searchRequestId) return;
+
+      searchResultsCache = Array.isArray(data.matches) ? data.matches : [];
+      renderSearchResults(searchResultsCache, data.query || query);
+    }).catch(err => {
+      if (requestToken !== searchRequestId) return;
+      if (button) button.disabled = false;
+      if (input) input.removeAttribute('data-loading');
+      if (err && err.name === 'AbortError') return;
+      handleSearchError(err?.message || '检索失败，请稍后再试。');
+    });
   }
 
   function createMenuAction(menu, {id, label, handler, disabled}) {
@@ -1578,6 +1900,28 @@
       refreshPreview();
     });
   };
+
+  const projectSearchInput = document.getElementById('project-search-input');
+  const projectSearchBtn = document.getElementById('project-search-btn');
+  if (projectSearchBtn && projectSearchInput) {
+    projectSearchBtn.addEventListener('click', () => {
+      performProjectSearch(projectSearchInput.value);
+    });
+    projectSearchInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        performProjectSearch(projectSearchInput.value);
+      } else if (event.key === 'Escape') {
+        if (projectSearchInput.value) {
+          projectSearchInput.value = '';
+        } else {
+          const modal = ensureSearchModal();
+          if (modal) modal.hide();
+        }
+      }
+    });
+  }
+
   const modeSwitchBtn = document.getElementById('mode-switch-btn');
   if (modeSwitchBtn) {
     modeSwitchBtn.addEventListener('click', () => {
@@ -1812,6 +2156,7 @@
         renderSingleEditor();
         updatePageNumLabel();
         ensureTemplatesLoaded().then(() => detectCurrentTemplate()).catch(() => {});
+        resetSearchState();
         if(cb) cb();
       })
       .catch(err => {

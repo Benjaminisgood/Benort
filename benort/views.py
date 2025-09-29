@@ -52,10 +52,138 @@ from .template_store import get_default_header, get_default_template, list_templ
 from .responses import api_error, api_success
 
 
+_SEARCH_FIELD_LABELS = {
+    "content": "LaTeX 内容",
+    "notes": "Markdown 笔记",
+    "script": "讲稿",
+}
+
+
 # 定义蓝图以便在应用工厂中一次性注册所有路由
 bp = Blueprint("benort", __name__)
 
 _LOCKED_ERROR = '项目已加密，请先解锁'
+
+
+def _clean_text_for_excerpt(text: str) -> str:
+    """粗略去除 LaTeX/Markdown 标记，生成更易读的摘要。"""
+
+    if not text:
+        return ""
+    cleaned = re.sub(r"\\(begin|end)\{[^}]+\}", " ", text)
+    cleaned = re.sub(r"\\[a-zA-Z@]+\*?(?:\[[^\]]*\])?(?:\{[^}]*\})?", " ", cleaned)
+    cleaned = re.sub(r"\$[^$]*\$", " ", cleaned)
+    cleaned = re.sub(r"`{1,3}[^`]*`{1,3}", " ", cleaned)
+    cleaned = re.sub(r"[*_#>-]", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned.strip()
+
+
+def _build_excerpt(text: str, start: int, match_len: int, radius: int = 60) -> str:
+    """根据命中位置构建简短摘要。"""
+
+    if not text:
+        return ""
+    start = max(start, 0)
+    if match_len <= 0:
+        match_len = 1
+    end = min(len(text), start + match_len)
+    left = max(0, start - radius)
+    right = min(len(text), end + radius)
+    snippet = text[left:right].replace('\n', ' ')
+    snippet = re.sub(r"\s+", " ", snippet).strip()
+    if left > 0:
+        snippet = '…' + snippet
+    if right < len(text):
+        snippet += '…'
+    return snippet
+
+
+def _extract_page_label(idx: int, page: dict) -> str:
+    """尽量提取页面标题用于搜索结果展示。"""
+
+    if not isinstance(page, dict):
+        return f"第 {idx + 1} 页"
+
+    content = page.get("content") or ""
+    notes = page.get("notes") or ""
+    script = page.get("script") or ""
+
+    for pattern in (r"\\frametitle\{([^}]*)\}", r"\\section\{([^}]*)\}"):
+        match = re.search(pattern, content)
+        if match and match.group(1).strip():
+            return _clean_text_for_excerpt(match.group(1).strip()) or f"第 {idx + 1} 页"
+
+    note_title = re.search(r"^\s*#+\s+(.+)$", notes, flags=re.MULTILINE)
+    if note_title and note_title.group(1).strip():
+        return _clean_text_for_excerpt(note_title.group(1).strip()) or f"第 {idx + 1} 页"
+
+    for raw in (content, notes, script):
+        cleaned = _clean_text_for_excerpt(raw)
+        if cleaned:
+            return cleaned[:40]
+
+    return f"第 {idx + 1} 页"
+
+
+def _collect_search_matches(pages, query: str, limit: int = 50):
+    """在项目页内检索关键词，返回按命中次数排序的结果。"""
+
+    matches = []
+    if not query:
+        return matches
+
+    lowered_query = query.lower()
+    tokens = [token.lower() for token in re.split(r"\s+", query) if token.strip()]
+
+    for idx, page in enumerate(pages):
+        if not isinstance(page, dict):
+            continue
+        for field, label in _SEARCH_FIELD_LABELS.items():
+            raw = page.get(field)
+            if not raw:
+                continue
+            text = str(raw)
+            lowered_text = text.lower()
+
+            positions = []
+            if lowered_query:
+                start = 0
+                while True:
+                    found = lowered_text.find(lowered_query, start)
+                    if found == -1:
+                        break
+                    positions.append(found)
+                    increment = len(lowered_query) or 1
+                    start = found + increment
+
+            if not positions and tokens:
+                if all(token in lowered_text for token in tokens):
+                    first_token = tokens[0]
+                    pos = lowered_text.find(first_token)
+                    if pos != -1:
+                        positions.append(pos)
+
+            if not positions:
+                continue
+
+            page_label = _extract_page_label(idx, page)
+            excerpt_source = _build_excerpt(text, positions[0], len(query))
+            excerpt = _clean_text_for_excerpt(excerpt_source) or excerpt_source
+
+            matches.append({
+                "pageIndex": idx,
+                "pageLabel": page_label,
+                "field": field,
+                "fieldLabel": label,
+                "matchCount": len(positions),
+                "excerpt": excerpt,
+                "position": positions[0],
+                "matchLength": max(len(query), 1),
+            })
+
+    matches.sort(key=lambda item: (-item["matchCount"], item["pageIndex"]))
+    return matches[:limit]
 
 
 @bp.route("/")
@@ -354,6 +482,37 @@ def get_project_api():
     except ProjectLockedError:
         return api_error(_LOCKED_ERROR, 401)
     return jsonify(data)
+
+
+@bp.route("/search", methods=["POST"])
+def search_project_content():
+    """检索当前项目的 LaTeX、笔记与讲稿内容。"""
+
+    payload = request.get_json(silent=True) or {}
+    query = (payload.get("query") or payload.get("q") or "").strip()
+    if not query:
+        return jsonify({"success": True, "query": "", "total": 0, "matches": []})
+
+    try:
+        project = load_project() or {}
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
+
+    pages = project.get("pages", []) if isinstance(project, dict) else []
+    try:
+        limit = int(payload.get("limit", 50))
+    except (TypeError, ValueError):
+        limit = 50
+    limit = max(1, min(limit, 200))
+
+    matches = _collect_search_matches(pages, query, limit)
+    return jsonify({
+        "success": True,
+        "query": query,
+        "total": len(matches),
+        "matches": matches,
+        "pages": len(pages),
+    })
 
 
 @bp.route("/upload_image", methods=["POST"])

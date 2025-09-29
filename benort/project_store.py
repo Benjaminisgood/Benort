@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import tempfile
+import uuid
 import hashlib
 import hmac
 from dataclasses import dataclass
@@ -33,6 +34,45 @@ _yaml_writer.indent(mapping=2, sequence=4, offset=2)
 _yaml_writer.width = 4096
 
 _BIB_URL_RE = re.compile(r'(url\s*=\s*[{\"])\s*([^}\"]+)([}\"])', re.IGNORECASE)
+_BIB_KEY_RE = re.compile(r'@\w+\s*\{\s*([^,\s]+)')
+_BIB_TITLE_RE = re.compile(r'title\s*=\s*[{\"]([^}\"]+)[}\"]', re.IGNORECASE)
+_BIB_DOI_RE = re.compile(r'doi\s*=\s*[{\"]([^}\"]+)[}\"]', re.IGNORECASE)
+
+
+def _generate_bib_id() -> str:
+    return f'ref{uuid.uuid4().hex[:8]}'
+
+
+def _guess_bib_key(entry: str) -> str:
+    match = _BIB_KEY_RE.search(entry)
+    if match:
+        candidate = match.group(1).strip()
+        if candidate:
+            return candidate
+    return _generate_bib_id()
+
+
+def _guess_bib_title(entry: str) -> str:
+    match = _BIB_TITLE_RE.search(entry)
+    if match:
+        title = match.group(1).strip()
+        if title:
+            return title
+    return ''
+
+
+def _guess_bib_link(entry: str, fallback: str = '') -> str:
+    match = _BIB_URL_RE.search(entry)
+    if match:
+        url = match.group(2).strip()
+        if url:
+            return _strip_url_query_fragment(url)
+    doi_match = _BIB_DOI_RE.search(entry)
+    if doi_match:
+        doi = doi_match.group(1).strip()
+        if doi:
+            return f'https://doi.org/{doi}'
+    return fallback.strip()
 
 
 @dataclass(slots=True)
@@ -397,11 +437,11 @@ def _strip_url_query_fragment(url: str) -> str:
     return no_fragment
 
 
-def _sanitize_bib_entry(entry):
+def _sanitize_bib_entry(entry: str) -> str:
     """清洗单条 bib 文本，修复 URL 与大括号匹配问题。"""
 
     if not isinstance(entry, str):
-        return entry
+        return ''
 
     entry = entry.replace('\r\n', '\n')
     entry = '\n'.join(line.rstrip() for line in entry.split('\n'))
@@ -418,18 +458,58 @@ def _sanitize_bib_entry(entry):
     opens = sanitized.count('{')
     closes = sanitized.count('}')
 
-    while closes > opens and sanitized.endswith('}'):
-        sanitized = sanitized[:-1].rstrip()
-        closes -= 1
-
-    if closes < opens:
-        missing = opens - closes
-        append_str = '\n'.join('}' for _ in range(missing))
-        if append_str:
-            if sanitized and not sanitized.endswith('\n'):
-                sanitized += '\n'
-            sanitized += append_str
+    if opens and opens == closes:
+        return sanitized
+    if opens and closes:
+        diff = opens - closes
+        if diff > 0:
+            sanitized += '}' * diff
+        elif diff < 0:
+            sanitized = '{' * (-diff) + sanitized
     return sanitized
+
+
+def _normalize_bib_entry(entry) -> dict | None:
+    """统一 bib 结构，补齐 id/label/link 等字段。"""
+
+    raw_entry = ''
+    label = ''
+    note = ''
+    link = ''
+    entry_id = ''
+
+    if isinstance(entry, dict):
+        raw_entry = entry.get('entry') or entry.get('bib') or ''
+        label = (entry.get('label') or entry.get('name') or entry.get('title') or '').strip()
+        note = (entry.get('note') or '').strip()
+        link = (entry.get('link') or '').strip()
+        entry_id = (entry.get('id') or '').strip()
+    elif isinstance(entry, str):
+        raw_entry = entry
+    else:
+        return None
+
+    sanitized = _sanitize_bib_entry(raw_entry.strip())
+    if not sanitized:
+        return None
+
+    if not entry_id:
+        entry_id = _guess_bib_key(sanitized)
+    if not label:
+        label = _guess_bib_title(sanitized) or entry_id
+    inferred_link = _guess_bib_link(sanitized, link)
+
+    normalized: dict[str, str] = {
+        'id': entry_id,
+        'entry': sanitized,
+        'label': label,
+    }
+    if inferred_link:
+        normalized['link'] = inferred_link
+    elif link:
+        normalized['link'] = link
+    normalized['note'] = note
+    return normalized
 
 
 def _sanitize_bib_list(items):
@@ -437,14 +517,19 @@ def _sanitize_bib_list(items):
 
     if not isinstance(items, list):
         return []
-    cleaned = []
+
+    cleaned: list[dict[str, str]] = []
+    seen: set[str] = set()
     for entry in items:
-        if not isinstance(entry, str):
+        normalized = _normalize_bib_entry(entry)
+        if not normalized:
             continue
-        sanitized = _sanitize_bib_entry(entry.strip())
-        if sanitized:
-            cleaned.append(sanitized)
-    return _dedupe_preserve(cleaned)
+        key = normalized.get('id') or normalized.get('entry')
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(normalized)
+    return cleaned
 
 
 def _sanitize_resource_list(resources):

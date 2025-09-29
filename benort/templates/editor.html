@@ -192,16 +192,47 @@
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-              <div class="mb-2 d-flex">
-                <input id="bib-input" class="form-control me-2" placeholder="输入DOI或文献链接">
-                <select id="bib-scope" class="form-select me-2" style="width:auto;">
-                  <option value="global">全局</option>
-                  <option value="page">本页</option>
-                </select>
-                <button class="btn btn-success me-2" id="add-bib-btn">AI生成并添加</button>
-                <button class="btn btn-outline-primary" id="add-url-bib-btn">直接添加URL</button>
+              <div class="row g-2 align-items-center mb-3">
+                <div class="col-12 col-lg">
+                  <input id="bib-input" class="form-control" placeholder="输入DOI、文献链接或完整bibtex">
+                </div>
+                <div class="col-6 col-sm-4 col-lg-2">
+                  <select id="bib-scope" class="form-select">
+                    <option value="global">全局</option>
+                    <option value="page">本页</option>
+                  </select>
+                </div>
+                <div class="col-6 col-sm-4 col-lg-2">
+                  <button class="btn btn-success w-100" id="add-bib-btn">AI生成</button>
+                </div>
+                <div class="col-6 col-sm-4 col-lg-2">
+                  <button class="btn btn-outline-primary w-100" id="add-url-bib-btn">直接保存</button>
+                </div>
               </div>
-              <div id="bib-list" class="list-group"></div>
+              <div class="row g-2 mb-3">
+                <div class="col-12 col-md-6">
+                  <input id="bib-label-input" class="form-control" placeholder="可选：给文献起一个记忆用的名字">
+                </div>
+                <div class="col-12 col-md-6">
+                  <input id="bib-note-input" class="form-control" placeholder="可选：备注这篇文献的重点">
+                </div>
+              </div>
+              <div id="bib-list" class="d-flex flex-column gap-3">
+                <div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">本页文献</h6>
+                    <small class="text-muted" id="bib-page-count"></small>
+                  </div>
+                  <div id="bib-page-list" class="list-group"></div>
+                </div>
+                <div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">全局文献</h6>
+                    <small class="text-muted" id="bib-global-count"></small>
+                  </div>
+                  <div id="bib-global-list" class="list-group"></div>
+                </div>
+              </div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
@@ -296,13 +327,10 @@
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-              <div class="d-flex align-items-center mb-3 gap-2">
-                <label class="form-label small mb-0" for="attachment-insert-format">插入格式</label>
-                <select id="attachment-insert-format" class="form-select form-select-sm" style="width:auto;">
-                  <option value="auto">自动（根据当前编辑模式）</option>
-                  <option value="latex">LaTeX</option>
-                  <option value="markdown">Markdown</option>
-                </select>
+              <div class="input-group input-group-sm mb-3">
+                <span class="input-group-text">筛选</span>
+                <input id="attachment-filter-input" type="search" class="form-control" placeholder="输入关键词快速查找附件">
+                <button class="btn btn-outline-secondary" type="button" id="attachment-filter-clear">清除</button>
               </div>
               <div class="input-group mb-3">
                 <input id="modal-attachment-upload-input" type="file" class="form-control" />
@@ -1965,7 +1993,17 @@
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({idx: currentPageIdx+1})
     }).then(res => res.json()).then(data => {
-      pagesData = data.pages;
+      pagesData = (data.pages || []).map(p => {
+        if (typeof p !== 'object') {
+          return {content: String(p || ''), script: '', notes: '', bib: [], resources: []};
+        }
+        p.content = p.content || '';
+        p.script = p.script || '';
+        p.notes = p.notes || '';
+        p.bib = normalizeBibList(p.bib);
+        p.resources = Array.isArray(p.resources) ? p.resources : [];
+        return p;
+      });
       currentPageIdx++;
       renderSingleEditor();
       updatePageNumLabel();
@@ -2229,12 +2267,13 @@
           if(typeof p === 'string') return {content: p, script: '', notes: '', bib: [], resources: []};
           p.script = p.script || '';
           p.notes = p.notes || '';
-          p.bib = Array.isArray(p.bib) ? p.bib : [];
+          p.bib = normalizeBibList(p.bib);
           p.resources = Array.isArray(p.resources) ? p.resources : [];
           return p;
         });
         if(pagesData.length === 0) pagesData = [{content: '', script: '', notes: '', bib: [], resources: []}];
         globalResources = Array.isArray(data.resources) ? data.resources.slice() : [];
+        bibData = normalizeBibList(data.bib || []);
         currentPageIdx = Math.min(currentPageIdx, pagesData.length - 1);
         updateProjectButtonLabel();
         renderSingleEditor();
@@ -3063,58 +3102,267 @@ loadProjects().then(()=>{
   // legacy export-audio removed (use unified export modal)
   
   
+  function normalizeBibEntry(raw) {
+    if (!raw) return null;
+    let entryText = '';
+    let note = '';
+    let label = '';
+    let link = '';
+    let id = '';
+
+    if (typeof raw === 'string') {
+      entryText = raw;
+    } else if (typeof raw === 'object') {
+      entryText = (raw.entry || raw.bib || '').trim();
+      note = (raw.note || '').trim();
+      label = (raw.label || raw.name || raw.title || '').trim();
+      link = (raw.link || '').trim();
+      id = (raw.id || '').trim();
+    }
+
+    entryText = (entryText || '').trim();
+    if (!entryText) return null;
+
+    const keyMatch = entryText.match(/@\w+\s*\{\s*([^,\s]+)/);
+    if (!id) {
+      id = keyMatch && keyMatch[1] ? keyMatch[1].trim() : '';
+    }
+    if (!id) {
+      id = `ref${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    }
+
+    if (!label) {
+      const titleMatch = entryText.match(/title\s*=\s*[{"]([^}\"]+)[}"]/i);
+      label = titleMatch && titleMatch[1] ? titleMatch[1].trim() : id;
+    }
+
+    if (!link) {
+      const urlMatch = entryText.match(/url\s*=\s*[{"]([^}\"]+)[}"]/i);
+      if (urlMatch && urlMatch[1]) {
+        link = urlMatch[1].split('?')[0].split('#')[0].trim();
+      } else {
+        const doiMatch = entryText.match(/doi\s*=\s*[{"]([^}\"]+)[}"]/i);
+        if (doiMatch && doiMatch[1]) {
+          link = `https://doi.org/${doiMatch[1].trim()}`;
+        }
+      }
+    }
+
+    return {
+      id,
+      entry: entryText,
+      label,
+      note,
+      link,
+    };
+  }
+
+  function normalizeBibList(list) {
+    if (!Array.isArray(list)) return [];
+    const seen = new Set();
+    const normalized = [];
+    list.forEach(item => {
+      const entry = normalizeBibEntry(item);
+      if (!entry) return;
+      if (seen.has(entry.id)) return;
+      seen.add(entry.id);
+      normalized.push(entry);
+    });
+    return normalized;
+  }
+
+  function findBibIndex(collection, id) {
+    return collection.findIndex(item => item && item.id === id);
+  }
+
+  function insertBibIntoEditor(entry, mode) {
+    if (!singleEditor || !entry) return;
+    const doc = singleEditor.getDoc();
+    const cursor = doc.getCursor();
+    const label = entry.label || entry.id;
+    if (mode === 'markdown') {
+      let snippet = entry.link ? `[${label}](${entry.link})` : `[${label}]`;
+      if (entry.note) snippet += ` (${entry.note})`;
+      doc.replaceRange(snippet + ' ', cursor);
+    } else {
+      let snippet = entry.link ? `\\href{${entry.link}}{${label}}` : `\\cite{${entry.id}}`;
+      if (entry.note && entry.link) {
+        snippet += `\\footnote{${entry.note}}`;
+      }
+      doc.replaceRange(snippet + ' ', cursor);
+    }
+  }
+
   let bibData = [];
+
+  function currentPageBib() {
+    if (!pagesData[currentPageIdx]) {
+      pagesData[currentPageIdx] = {content: '', script: '', notes: '', bib: [], resources: []};
+    }
+    if (!Array.isArray(pagesData[currentPageIdx].bib)) {
+      pagesData[currentPageIdx].bib = [];
+    }
+    pagesData[currentPageIdx].bib = normalizeBibList(pagesData[currentPageIdx].bib);
+    return pagesData[currentPageIdx].bib;
+  }
+
+  function saveGlobalBib() {
+    const payload = { bib: bibData };
+    return fetch(PROJECT_ENDPOINTS.projectSave || '/project', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+  }
+
+  function clearBibForm() {
+    document.getElementById('bib-input').value = '';
+    document.getElementById('bib-label-input').value = '';
+    document.getElementById('bib-note-input').value = '';
+  }
+
+  function renderBibList() {
+    const pageList = document.getElementById('bib-page-list');
+    const globalList = document.getElementById('bib-global-list');
+    const pageCount = document.getElementById('bib-page-count');
+    const globalCount = document.getElementById('bib-global-count');
+    const pageEntries = currentPageBib();
+    bibData = normalizeBibList(bibData);
+
+    pageList.innerHTML = '';
+    globalList.innerHTML = '';
+    if (pageCount) pageCount.textContent = pageEntries.length ? `${pageEntries.length} 条` : '暂无';
+    if (globalCount) globalCount.textContent = bibData.length ? `${bibData.length} 条` : '暂无';
+
+    const buildItem = (entry, scope) => {
+      const item = document.createElement('div');
+      item.className = 'list-group-item';
+
+      const header = document.createElement('div');
+      header.className = 'd-flex justify-content-between align-items-start gap-2';
+
+      const meta = document.createElement('div');
+      meta.className = 'flex-grow-1';
+      const title = document.createElement('div');
+      title.className = 'fw-semibold';
+      if (entry.link) {
+        const anchor = document.createElement('a');
+        anchor.href = entry.link;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener';
+        anchor.textContent = entry.label || entry.id;
+        title.appendChild(anchor);
+      } else {
+        title.textContent = entry.label || entry.id;
+      }
+      meta.appendChild(title);
+
+      if (entry.note) {
+        const note = document.createElement('div');
+        note.className = 'text-muted small';
+        note.textContent = entry.note;
+        meta.appendChild(note);
+      }
+
+      const idLine = document.createElement('div');
+      idLine.className = 'text-muted small';
+      idLine.textContent = scope === 'page' ? `本页 · ${entry.id}` : `全局 · ${entry.id}`;
+      meta.appendChild(idLine);
+
+      const body = document.createElement('pre');
+      body.className = 'small bg-light rounded border mt-2 mb-0 p-2';
+      body.style.whiteSpace = 'pre-wrap';
+      body.style.wordBreak = 'break-all';
+      body.textContent = entry.entry;
+      meta.appendChild(body);
+
+      header.appendChild(meta);
+
+      const actions = document.createElement('div');
+      actions.className = 'd-flex flex-column gap-1';
+
+      const mdBtn = document.createElement('button');
+      mdBtn.type = 'button';
+      mdBtn.className = 'btn btn-sm btn-outline-primary';
+      mdBtn.textContent = '插入 Markdown';
+      mdBtn.onclick = () => insertBibIntoEditor(entry, 'markdown');
+      actions.appendChild(mdBtn);
+
+      const texBtn = document.createElement('button');
+      texBtn.type = 'button';
+      texBtn.className = 'btn btn-sm btn-outline-primary';
+      texBtn.textContent = '插入 LaTeX';
+      texBtn.onclick = () => insertBibIntoEditor(entry, 'latex');
+      actions.appendChild(texBtn);
+
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'btn btn-sm btn-outline-secondary';
+      editBtn.textContent = '编辑备注';
+      editBtn.onclick = () => {
+        const newLabel = prompt('输入文献名字（留空保持不变）', entry.label || '');
+        if (newLabel === null) return;
+        const newNote = prompt('输入备注（留空可清空）', entry.note || '');
+        if (newLabel !== null) entry.label = newLabel.trim() || entry.id;
+        if (newNote !== null) entry.note = newNote.trim();
+        if (scope === 'page') {
+          saveProject();
+          queueCompile();
+        } else {
+          saveGlobalBib();
+        }
+        renderBibList();
+      };
+      actions.appendChild(editBtn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'btn btn-sm btn-outline-danger';
+      deleteBtn.textContent = '删除';
+      deleteBtn.onclick = () => {
+        if (!confirm('确认删除这条文献吗？')) return;
+        if (scope === 'page') {
+          const idx = findBibIndex(pageEntries, entry.id);
+          if (idx > -1) {
+            pageEntries.splice(idx, 1);
+            saveProject();
+            queueCompile();
+          }
+        } else {
+          const idx = findBibIndex(bibData, entry.id);
+          if (idx > -1) {
+            bibData.splice(idx, 1);
+            saveGlobalBib();
+          }
+        }
+        renderBibList();
+      };
+      actions.appendChild(deleteBtn);
+
+      header.appendChild(actions);
+      item.appendChild(header);
+      return item;
+    };
+
+    pageEntries.forEach(entry => {
+      const item = buildItem(entry, 'page');
+      pageList.appendChild(item);
+    });
+
+    bibData.forEach(entry => {
+      const item = buildItem(entry, 'global');
+      globalList.appendChild(item);
+    });
+  }
+
   document.getElementById('edit-bib').onclick = function() {
     fetch(PROJECT_ENDPOINTS.project || '/project').then(res=>res.json()).then(data=>{
-      bibData = data.bib || [];
+      bibData = normalizeBibList(data.bib || []);
       renderBibList();
       var modal = new bootstrap.Modal(document.getElementById('bibModal'));
       modal.show();
     });
   };
-
-  function renderBibList() {
-    const list = document.getElementById('bib-list');
-    list.innerHTML = '';
-
-    (pagesData[currentPageIdx]?.bib || []).forEach((bib, idx) => {
-      let doi = '';
-      let url = '';
-      const doiMatch = bib.match(/doi\s*=\s*[{"]([^}\"]+)/i);
-      if(doiMatch) doi = doiMatch[1];
-      const urlMatch = bib.match(/url\s*=\s*[{"]([^}\"]+)/i);
-      if(urlMatch) url = urlMatch[1];
-      let link = url || (doi ? ('https://doi.org/' + doi) : '');
-      const item = document.createElement('div');
-      item.className = 'list-group-item';
-      item.innerHTML = `<pre style="white-space:pre-wrap;word-break:break-all;">[本页] ${bib}</pre>`;
-      if(link) {
-        item.style.cursor = 'pointer';
-        item.title = '点击跳转到文献';
-        item.onclick = ()=>window.open(link, '_blank');
-      }
-      list.appendChild(item);
-    });
-
-    bibData.forEach((bib, idx) => {
-      let doi = '';
-      let url = '';
-      const doiMatch = bib.match(/doi\s*=\s*[{"]([^}\"]+)/i);
-      if(doiMatch) doi = doiMatch[1];
-      const urlMatch = bib.match(/url\s*=\s*[{"]([^}\"]+)/i);
-      if(urlMatch) url = urlMatch[1];
-      let link = url || (doi ? ('https://doi.org/' + doi) : '');
-      const item = document.createElement('div');
-      item.className = 'list-group-item';
-      item.innerHTML = `<pre style="white-space:pre-wrap;word-break:break-all;">[全局] ${bib}</pre>`;
-      if(link) {
-        item.style.cursor = 'pointer';
-        item.title = '点击跳转到文献';
-        item.onclick = ()=>window.open(link, '_blank');
-      }
-      list.appendChild(item);
-    });
-  }
 
   document.getElementById('add-bib-btn').onclick = function() {
     const val = document.getElementById('bib-input').value.trim();
@@ -3122,32 +3370,38 @@ loadProjects().then(()=>{
     this.disabled = true;
     this.textContent = '生成中...';
     const scope = document.getElementById('bib-scope').value;
+    const labelInput = document.getElementById('bib-label-input');
+    const noteInput = document.getElementById('bib-note-input');
     fetch('/ai_bib', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ref: val})
     }).then(res=>res.json()).then(data=>{
       if(data.success && data.bib) {
-        if(scope === 'page') {
-          pagesData[currentPageIdx].bib = pagesData[currentPageIdx].bib || [];
-          pagesData[currentPageIdx].bib.push(data.bib);
-          saveProject();
-        } else {
-          bibData.push(data.bib);
-      fetch(PROJECT_ENDPOINTS.projectSave || '/project', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({bib: bibData})
-      });
+        const entry = normalizeBibEntry({
+          entry: data.bib,
+          label: labelInput.value,
+          note: noteInput.value,
+        });
+        if(entry){
+          if(scope === 'page') {
+            const pageEntries = currentPageBib();
+            pageEntries.push(entry);
+            saveProject();
+            queueCompile();
+          } else {
+            bibData.push(entry);
+            saveGlobalBib();
+          }
         }
         renderBibList();
-        document.getElementById('bib-input').value = '';
+        clearBibForm();
       } else {
         alert('AI生成失败：'+(data.error||'未知错误'));
       }
     }).catch(()=>alert('AI请求失败')).finally(()=>{
       this.disabled = false;
-      this.textContent = 'AI生成并添加';
+      this.textContent = 'AI生成';
     });
   };
 
@@ -3155,6 +3409,8 @@ loadProjects().then(()=>{
     let val = document.getElementById('bib-input').value.trim();
     if(!val) return;
     const scope = document.getElementById('bib-scope').value;
+    const labelInput = document.getElementById('bib-label-input');
+    const noteInput = document.getElementById('bib-note-input');
     let cleanVal = val;
     try {
       const parsed = new URL(cleanVal);
@@ -3166,20 +3422,25 @@ loadProjects().then(()=>{
       cleanVal = noQuery.split('#')[0];
     }
     const bib = `@misc{url${Date.now()},\n  url={${cleanVal}}\n}`;
-    if(scope === 'page') {
-      pagesData[currentPageIdx].bib = pagesData[currentPageIdx].bib || [];
-      pagesData[currentPageIdx].bib.push(bib);
-      saveProject();
-    } else {
-      bibData.push(bib);
-      fetch(PROJECT_ENDPOINTS.projectSave || '/project', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({bib: bibData})
-      });
+    const entry = normalizeBibEntry({
+      entry: bib,
+      label: labelInput.value,
+      note: noteInput.value,
+      link: cleanVal,
+    });
+    if(entry){
+      if(scope === 'page') {
+        const pageEntries = currentPageBib();
+        pageEntries.push(entry);
+        saveProject();
+        queueCompile();
+      } else {
+        bibData.push(entry);
+        saveGlobalBib();
+      }
     }
     renderBibList();
-    document.getElementById('bib-input').value = '';
+    clearBibForm();
   };
 
   // Resource upload & listing
@@ -3499,16 +3760,52 @@ loadProjects().then(()=>{
     this.textContent = '上传为全局';
   });
 
-  async function loadAttachmentsModal(){
+  let attachmentsCache = [];
+  let attachmentsFilterTerm = '';
+
+  function setAttachmentsFilter(term) {
+    attachmentsFilterTerm = (term || '').trim().toLowerCase();
+    renderAttachmentsList();
+  }
+
+  function getFilteredAttachments() {
+    if (!Array.isArray(attachmentsCache)) return [];
+    const tokens = attachmentsFilterTerm.split(/\s+/).filter(Boolean);
+    if (!tokens.length) return attachmentsCache.slice();
+    return attachmentsCache.filter(f => {
+      if (!f) return false;
+      const preferredUrl = (f.preferredUrl || f.localUrl || f.ossUrl || '').toString();
+      const haystack = [
+        f.name || '',
+        f.location || '',
+        preferredUrl,
+        f.localUrl || '',
+        f.ossUrl || '',
+        f.path || '',
+      ]
+        .join(' ')
+        .toLowerCase();
+      return tokens.every(token => haystack.includes(token));
+    });
+  }
+
+  function renderAttachmentsList(){
     const listEl = document.getElementById('attachments-list-modal');
     if(!listEl) return;
-    listEl.innerHTML = '<div class="text-muted p-2">加载中...</div>';
-    try{
-      const res = await fetch('/attachments/list');
-      const data = res.ok ? await res.json() : {files: []};
-      listEl.innerHTML = '';
+    listEl.innerHTML = '';
+    const files = getFilteredAttachments();
 
-      (data.files || []).forEach(f => {
+    if((attachmentsCache || []).length === 0){
+      listEl.innerHTML = '<div class="text-muted p-2">没有附件</div>';
+      return;
+    }
+
+    if(files.length === 0){
+      listEl.innerHTML = '<div class="text-muted p-2">未找到匹配的附件</div>';
+      return;
+    }
+
+    files.forEach(f => {
         const preferredUrl = f.preferredUrl || f.localUrl || f.ossUrl || '';
         const item = document.createElement('div');
         item.className = 'list-group-item';
@@ -3562,10 +3859,7 @@ loadProjects().then(()=>{
         insertBtn.textContent = '插入';
         insertBtn.onclick = function(){
           if(!singleEditor) return;
-          const formatSelect = document.getElementById('attachment-insert-format');
-          const choice = formatSelect ? formatSelect.value : 'auto';
-          let mode = choice === 'auto' ? (typeof currentEditMode === 'string' ? currentEditMode : 'latex') : choice;
-          if(mode !== 'markdown' && mode !== 'latex') mode = 'latex';
+          let mode = typeof currentEditMode === 'string' && currentEditMode === 'markdown' ? 'markdown' : 'latex';
           const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test(f.name || '');
           const doc = singleEditor.getDoc();
           const cursor = doc.getCursor();
@@ -3715,9 +4009,48 @@ loadProjects().then(()=>{
         item.appendChild(wrapper);
         listEl.appendChild(item);
       });
+  }
 
-      if((data.files || []).length === 0){
-        listEl.innerHTML = '<div class="text-muted p-2">没有附件</div>';
+  const attachmentFilterInput = document.getElementById('attachment-filter-input');
+  const attachmentFilterClear = document.getElementById('attachment-filter-clear');
+
+  if(attachmentFilterInput && !attachmentFilterInput.dataset.bound){
+    attachmentFilterInput.dataset.bound = 'true';
+    attachmentFilterInput.addEventListener('input', () => {
+      setAttachmentsFilter(attachmentFilterInput.value);
+    });
+    attachmentFilterInput.addEventListener('keydown', (event) => {
+      if(event.key === 'Escape'){
+        attachmentFilterInput.value = '';
+        setAttachmentsFilter('');
+        event.preventDefault();
+      }
+    });
+  }
+
+  if(attachmentFilterClear && !attachmentFilterClear.dataset.bound){
+    attachmentFilterClear.dataset.bound = 'true';
+    attachmentFilterClear.addEventListener('click', () => {
+      if(attachmentFilterInput){
+        attachmentFilterInput.value = '';
+        attachmentFilterInput.focus();
+      }
+      setAttachmentsFilter('');
+    });
+  }
+
+  async function loadAttachmentsModal(){
+    const listEl = document.getElementById('attachments-list-modal');
+    if(!listEl) return;
+    listEl.innerHTML = '<div class="text-muted p-2">加载中...</div>';
+    try{
+      const res = await fetch('/attachments/list');
+      const data = res.ok ? await res.json() : {files: []};
+      attachmentsCache = Array.isArray(data.files) ? data.files : [];
+      if(attachmentFilterInput && typeof attachmentFilterInput.value === 'string'){
+        setAttachmentsFilter(attachmentFilterInput.value);
+      } else {
+        renderAttachmentsList();
       }
     }catch(e){
       console.warn('加载附件失败', e);

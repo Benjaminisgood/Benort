@@ -425,6 +425,19 @@ COMPONENT_LIBRARY = {
     ],
 }
 
+UI_THEME = {
+    "color_mode": os.environ.get("BENORT_COLOR_MODE", "light"),  # light | dark
+    "navbar_buttons": {
+        "style": os.environ.get("BENORT_NAVBAR_STYLE", "uniform"),  # uniform | palette
+        "variant": os.environ.get("BENORT_NAVBAR_VARIANT", "outline"),  # outline | solid
+        "color": os.environ.get("BENORT_NAVBAR_COLOR", "primary"),
+        "palette": [
+            c.strip() for c in (os.environ.get("BENORT_NAVBAR_PALETTE") or "primary,success,warning,danger,info")
+            .split(',') if c.strip()
+        ] or ["primary"],
+    },
+}
+
 
 def template_library_root(app: object | None = None) -> str:
     """确定可复用 LaTeX 模板所在目录。"""
@@ -481,6 +494,7 @@ __all__ = [
     "AI_PROMPTS",
     "AI_BIB_PROMPT",
     "COMPONENT_LIBRARY",
+    "UI_THEME",
     "init_app_config",
     "template_library_root",
 ]

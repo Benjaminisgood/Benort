@@ -46,6 +46,7 @@ from .config import (
     AI_BIB_PROMPT,
     AI_PROMPTS,
     COMPONENT_LIBRARY,
+    UI_THEME,
     OPENAI_CHAT_COMPLETIONS_MODEL,
     OPENAI_TTS_MODEL,
     OPENAI_TTS_RESPONSE_FORMAT,
@@ -243,7 +244,7 @@ def _collect_search_matches(pages, query: str, limit: int = 50):
 def index():
     """渲染主编辑器页面，提供初始 UI。"""
 
-    return render_template("editor.html", component_library=COMPONENT_LIBRARY)
+    return render_template("editor.html", component_library=COMPONENT_LIBRARY, ui_theme=UI_THEME)
 
 
 @bp.route("/export_audio", methods=["GET"])

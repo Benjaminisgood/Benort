@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
   <script>
     window.BENORT_COMPONENT_LIBRARY = {{ (component_library or {})|tojson }};
+    window.BENORT_UI_THEME = {{ (ui_theme or {})|tojson }};
   </script>
   <style>
     #editor-preview-wrapper {
@@ -38,6 +39,52 @@
       border-radius: 4px;
       background: #fff;
       overflow: auto;
+    }
+    body.theme-dark {
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    body.theme-dark .navbar {
+      background: #111827;
+      border-bottom: 1px solid #1f2937;
+    }
+    body.theme-dark .navbar .btn {
+      color: inherit;
+    }
+    body.theme-dark #editor-container,
+    body.theme-dark #pdf-container,
+    body.theme-dark #markdown-preview {
+      background: #1a2333;
+      border-color: #253047;
+      color: #e2e8f0;
+    }
+    body.theme-dark .modal-content {
+      background: #111827;
+      color: #e2e8f0;
+      border: 1px solid #1f2937;
+    }
+    body.theme-dark .form-control,
+    body.theme-dark .form-select,
+    body.theme-dark .input-group-text {
+      background-color: #1f2937;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    body.theme-dark .list-group-item {
+      background-color: #111827;
+      color: #e2e8f0;
+      border-color: #1f2937;
+    }
+    body.theme-dark .list-group-item-action:hover,
+    body.theme-dark .list-group-item-action:focus {
+      background-color: #1f2937;
+    }
+    body.theme-dark .btn-outline-light {
+      color: #f8fafc;
+      border-color: #f8fafc;
+    }
+    body.theme-dark .btn-outline-light:hover {
+      background-color: rgba(248, 250, 252, 0.1);
     }
     #editor-container {
       background: #f8f9fa;
@@ -129,7 +176,7 @@
     }
   </style>
 </head>
-<body>
+<body class="{% if ui_theme and ui_theme.get('color_mode') == 'dark' %}theme-dark{% endif %}" data-bs-theme="{{ ui_theme.get('color_mode', 'light') if ui_theme else 'light' }}">
 <div id="status-area" class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index:2000;"></div>
  
 <nav class="navbar navbar-expand-lg navbar-light bg-light mb-3">
@@ -146,35 +193,35 @@
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
 
         <li class="nav-item d-flex align-items-center">
-          <button class="btn btn-outline-primary btn-sm me-2" id="prev-page" title="上一页">上</button>
+          <button class="btn btn-outline-primary btn-sm me-2 js-nav-btn" id="prev-page" title="上一页">上</button>
           <button type="button" class="btn btn-outline-primary btn-sm me-2" id="page-status" >
             <span id="page-num">1</span> / <span id="page-count">1</span>
           </button>
-          <button class="btn btn-outline-primary btn-sm me-2" id="next-page" title="下一页">下</button>
+          <button class="btn btn-outline-primary btn-sm me-2 js-nav-btn" id="next-page" title="下一页">下</button>
         </li>
         <li class="nav-item d-flex align-items-center">
-          <button class="btn btn-outline-primary btn-sm me-2" id="project-search-btn" title="检索当前项目">检索</button>
+          <button class="btn btn-outline-primary btn-sm me-2 js-nav-btn" id="project-search-btn" title="检索当前项目">检索</button>
         </li>
-        <li class="nav-item"><button class="btn btn-outline-primary me-2" id="mode-switch-btn" title="切换LaTeX/Markdown">模式</button></li>
-        <li class="nav-item"><button class="btn btn-outline-secondary me-2" id="add-page" title="添加新页">加页</button></li>
-        <li class="nav-item"><button class="btn btn-outline-warning me-2" id="insert-component" title="插入常用组件">插入</button></li>
-        <li class="nav-item"><button class="btn btn-outline-info me-2" id="edit-template" title="编辑LaTeX样式模板">样式</button></li>
+        <li class="nav-item"><button class="btn btn-outline-primary me-2 js-nav-btn" id="mode-switch-btn" title="切换LaTeX/Markdown">模式</button></li>
+        <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="add-page" title="添加新页">加页</button></li>
+        <li class="nav-item"><button class="btn btn-outline-warning me-2 js-nav-btn" id="insert-component" title="插入常用组件">插入</button></li>
+        <li class="nav-item"><button class="btn btn-outline-info me-2 js-nav-btn" id="edit-template" title="编辑LaTeX样式模板">样式</button></li>
         <li><hr class="dropdown-divider m-1"></li>
 
-  <li class="nav-item"><button class="btn btn-outline-success me-2" id="export-btn" title="导出">导出</button></li>
+  <li class="nav-item"><button class="btn btn-outline-success me-2 js-nav-btn" id="export-btn" title="导出">导出</button></li>
         <li><hr class="dropdown-divider m-1"></li>
 
-        <li class="nav-item"><button class="btn btn-outline-danger me-2" id="ai-optimize" title="AI代码优化">代码优化</button></li>
-  <li class="nav-item"><button class="btn btn-outline-secondary me-2" id="ai-note-optimize" title="AI笔记优化">笔记优化</button></li>
-  <li class="nav-item"><button class="btn btn-outline-secondary me-2" id="ai-script-optimize" title="AI讲稿优化">讲稿优化</button></li>
+        <li class="nav-item"><button class="btn btn-outline-danger me-2 js-nav-btn" id="ai-optimize" title="AI代码优化">代码优化</button></li>
+  <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-note-optimize" title="AI笔记优化">笔记优化</button></li>
+  <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-script-optimize" title="AI讲稿优化">讲稿优化</button></li>
         <li><hr class="dropdown-divider m-1"></li>
-  <li class="nav-item"><button class="btn btn-outline-dark me-2" id="play-note" title="播放当前页讲稿">播放讲稿</button></li>
+  <li class="nav-item"><button class="btn btn-outline-dark me-2 js-nav-btn" id="play-note" title="播放当前页讲稿">播放讲稿</button></li>
         <li><hr class="dropdown-divider m-1"></li>
 
-        <li class="nav-item"><button class="btn btn-outline-primary me-2" id="edit-bib" title="管理文献">管理文献</button></li>
-        <li class="nav-item"><button class="btn btn-outline-primary me-2" id="manage-resources" title="管理资源">管理资源</button></li>
-        <li class="nav-item"><button class="btn btn-outline-primary me-2" id="manage-attachments" title="管理附件">管理附件</button></li>
-        <li class="nav-item"><button class="btn btn-outline-primary me-2" id="manage-sync" title="OSS 同步设置">同步设置</button></li>
+        <li class="nav-item"><button class="btn btn-outline-primary me-2 js-nav-btn" id="edit-bib" title="管理文献">管理文献</button></li>
+        <li class="nav-item"><button class="btn btn-outline-primary me-2 js-nav-btn" id="manage-resources" title="管理资源">管理资源</button></li>
+        <li class="nav-item"><button class="btn btn-outline-primary me-2 js-nav-btn" id="manage-attachments" title="管理附件">管理附件</button></li>
+        <li class="nav-item"><button class="btn btn-outline-primary me-2 js-nav-btn" id="manage-sync" title="OSS 同步设置">同步设置</button></li>
 
       <div class="modal fade" id="bibModal" tabindex="-1" aria-labelledby="bibModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -1832,6 +1879,30 @@
     }
   }
 
+  function applyNavbarTheme() {
+    const theme = window.BENORT_UI_THEME || {};
+    const config = theme.navbar_buttons || {};
+    const style = (config.style || 'uniform').toLowerCase();
+    const variant = (config.variant || 'outline').toLowerCase() === 'solid' ? 'solid' : 'outline';
+    const palette = Array.isArray(config.palette) && config.palette.length ? config.palette : ['primary', 'success', 'warning', 'danger', 'info'];
+    const uniformColor = (config.color || palette[0] || 'primary').toLowerCase();
+    const colorClassPattern = /^btn(?:-outline)?-(primary|secondary|success|danger|warning|info|light|dark)$/;
+    const buttons = document.querySelectorAll('.js-nav-btn');
+    if (!buttons.length) return;
+    buttons.forEach((btn, idx) => {
+      const classes = Array.from(btn.classList);
+      classes.forEach(cls => {
+        if (colorClassPattern.test(cls)) {
+          btn.classList.remove(cls);
+        }
+      });
+      const color = style === 'palette' ? (palette[idx % palette.length] || uniformColor) : uniformColor;
+      const normalized = color.trim().toLowerCase() || 'primary';
+      const toneClass = variant === 'solid' ? `btn-${normalized}` : `btn-outline-${normalized}`;
+      btn.classList.add(toneClass);
+    });
+  }
+
   function renderMarkdownPreview() {
     const wrapper = document.getElementById('markdown-preview');
     const preview = document.getElementById('markdown-preview-content') || wrapper;
@@ -2183,6 +2254,7 @@
     });
   }
   updateModeToggleUI();
+  applyNavbarTheme();
   
   document.getElementById('edit-template').onclick = function() {
     const mode = currentEditMode === 'markdown' ? 'markdown' : 'latex';

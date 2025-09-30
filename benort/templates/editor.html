@@ -81,6 +81,37 @@
     body.theme-dark .list-group-item-action:focus {
       background-color: #1f2937;
     }
+    .resource-list .resource-item {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .resource-list .resource-name {
+      flex: 1 1 240px;
+      min-width: 0;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    .resource-list .resource-name a {
+      word-break: inherit;
+      overflow-wrap: inherit;
+    }
+    .resource-list .resource-actions {
+      flex: 0 0 auto;
+      margin-left: auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .resource-list .resource-actions .btn {
+      margin-right: 0;
+    }
+    #resource-rename-preview {
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
     .js-nav-btn {
       min-height: 34px;
       padding: 6px 14px;
@@ -444,14 +475,7 @@
                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                  <div class="mb-3 d-flex align-items-center">
-                    <select id="resources-scope" class="form-select me-2" style="width:auto;">
-                      <option value="page">本页</option>
-                      <option value="global">全局</option>
-                    </select>
-                    <button id="refresh-resources" class="btn btn-outline-secondary me-2">刷新</button>
-                    <div class="ms-auto text-muted">当前页: <span id="resources-current-page">1</span></div>
-                  </div>
+                  <div class="mb-3 text-muted">当前页: <span id="resources-current-page">1</span></div>
 
                   <div class="input-group mb-3">
                     <input id="modal-resource-upload-input" type="file" class="form-control" />
@@ -459,8 +483,17 @@
                     <button id="modal-resource-upload-global-btn" class="btn btn-secondary">上传为全局</button>
                   </div>
 
-                  <h6 class="mt-2">资源</h6>
-                  <div id="resources-list-modal" class="list-group mb-3"></div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">本页资源</h6>
+                    <small class="text-muted" id="resources-page-count"></small>
+                  </div>
+                  <div id="resources-page-list" class="list-group mb-3 resource-list"></div>
+
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">全局资源</h6>
+                    <small class="text-muted" id="resources-global-count"></small>
+                  </div>
+                  <div id="resources-global-list" class="list-group resource-list"></div>
                 </div>
                 <div class="modal-footer">
                   <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
@@ -502,6 +535,7 @@
                 <label for="resource-rename-input" class="form-label">新文件名</label>
                 <input type="text" class="form-control" id="resource-rename-input" />
                 <div class="form-text">名称会自动清理非法字符，请保留正确的扩展名。</div>
+                <div class="form-text text-break mt-2" id="resource-rename-preview"></div>
               </div>
             </div>
             <div class="modal-footer">
@@ -1180,6 +1214,7 @@
   };
   const resourceRenameModalEl = document.getElementById('resourceRenameModal');
   const resourceRenameInput = document.getElementById('resource-rename-input');
+  const resourceRenamePreview = document.getElementById('resource-rename-preview');
   const resourceRenameConfirm = document.getElementById('resource-rename-confirm');
   const resourcePreviewModalEl = document.getElementById('resourcePreviewModal');
   const resourcePreviewImage = document.getElementById('resource-preview-image');
@@ -1234,7 +1269,31 @@
   if(resourceRenameModalEl){
     resourceRenameModalEl.addEventListener('hidden.bs.modal', () => {
       resourceRenameTarget = null;
-      if(resourceRenameInput) resourceRenameInput.value = '';
+      if(resourceRenameInput) {
+        resourceRenameInput.value = '';
+        resourceRenameInput.removeAttribute('title');
+      }
+      if(resourceRenamePreview) resourceRenamePreview.textContent = '';
+    });
+    resourceRenameModalEl.addEventListener('shown.bs.modal', () => {
+      if(!resourceRenameInput) return;
+      requestAnimationFrame(() => {
+        resourceRenameInput.focus();
+        resourceRenameInput.select();
+      });
+    });
+  }
+
+  if(resourceRenameInput && resourceRenamePreview && !resourceRenameInput.dataset.previewBound){
+    resourceRenameInput.dataset.previewBound = 'true';
+    resourceRenameInput.addEventListener('input', () => {
+      const currentValue = resourceRenameInput.value;
+      resourceRenamePreview.textContent = currentValue ? `完整名称：${currentValue}` : '';
+      if(currentValue){
+        resourceRenameInput.title = currentValue;
+      } else {
+        resourceRenameInput.removeAttribute('title');
+      }
     });
   }
   if(resourcePreviewModalEl){
@@ -4080,191 +4139,221 @@ loadProjects().then(()=>{
     modal.show();
   });
 
-  async function loadResourcesModal(){
-    const scope = document.getElementById('resources-scope').value;
-    const modalList = document.getElementById('resources-list-modal');
-    modalList.innerHTML = '<div class="text-muted p-2">加载中...</div>';
-    // show current page
-    const cp = getCurrentPageIndex()+1;
-    const cpEl = document.getElementById('resources-current-page');
-    if(cpEl) cpEl.textContent = cp;
-    try{
-      const pageIdx = getCurrentPageIndex();
-      let url = '/resources/list';
-      if(scope === 'page') url += `?page=${pageIdx}`;
-      const res = await fetch(url);
-      const data = res.ok ? await res.json() : {files: []};
-      if(data.ossError){
-        console.warn('资源 OSS 状态:', data.ossError);
-      }
-      // resources list
-      const resList = document.getElementById('resources-list-modal');
-      const files = Array.isArray(data.files) ? data.files : [];
-      const names = files.map(f => f && f.name).filter(Boolean);
-      if(scope === 'page' && pagesData[pageIdx]) {
-        pagesData[pageIdx].resources = names.slice();
-      }
-      if(scope !== 'page') {
-        globalResources = names.slice();
-      }
-      resList.innerHTML = '';
-      files.forEach(f => {
-        const item = document.createElement('div');
-        item.className = 'list-group-item d-flex justify-content-between align-items-center';
-        const left = document.createElement('div');
-        const name = document.createElement('a');
-        const localUrl = f.localUrl || '';
-        const ossUrl = f.ossUrl || '';
-        const preferredUrl = f.url || localUrl || ossUrl || '';
-        const hasLocal = !!localUrl && f.exists !== false ? true : !!localUrl;
-        const hasRemote = !!ossUrl;
-        name.href = preferredUrl || '#';
-        name.textContent = f.name;
-        if(preferredUrl){
-          name.target = '_blank';
-        } else {
-          name.classList.add('disabled');
-        }
-        if(!hasLocal){
-          name.classList.add('text-muted');
-          name.title = hasRemote ? '本地缺失，仅 OSS 可用' : '文件缺失';
-        }
-        left.appendChild(name);
-        if(!hasLocal){
-          const badge = document.createElement('span');
-          badge.className = 'badge bg-warning text-dark ms-2';
-          badge.textContent = '缺失';
-          left.appendChild(badge);
-        }
-        if(hasRemote && !hasLocal){
-          const ossBadge = document.createElement('span');
-          ossBadge.className = 'badge bg-info text-dark ms-2';
-          ossBadge.textContent = 'OSS';
-          left.appendChild(ossBadge);
-        }
-        const actions = document.createElement('div');
-        actions.className = 'd-flex flex-wrap align-items-center';
-        const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test(f.name || '');
-        const targetUrl = f.localUrl || f.ossUrl || preferredUrl;
+  function createResourceListItem(file){
+    const f = file || {};
+    const item = document.createElement('div');
+    item.className = 'list-group-item resource-item';
+    const left = document.createElement('div');
+    left.className = 'resource-name';
+    const name = document.createElement('a');
+    const localUrl = f.localUrl || '';
+    const ossUrl = f.ossUrl || '';
+    const preferredUrl = f.url || localUrl || ossUrl || '';
+    const hasLocal = !!localUrl && f.exists !== false ? true : !!localUrl;
+    const hasRemote = !!ossUrl;
+    name.href = preferredUrl || '#';
+    name.textContent = f.name || '';
+    if(preferredUrl){
+      name.target = '_blank';
+    } else {
+      name.classList.add('disabled');
+    }
+    if(!hasLocal){
+      name.classList.add('text-muted');
+      name.title = hasRemote ? '本地缺失，仅 OSS 可用' : '文件缺失';
+    }
+    left.appendChild(name);
+    if(!hasLocal){
+      const badge = document.createElement('span');
+      badge.className = 'badge bg-warning text-dark ms-2';
+      badge.textContent = '缺失';
+      left.appendChild(badge);
+    }
+    if(hasRemote && !hasLocal){
+      const ossBadge = document.createElement('span');
+      ossBadge.className = 'badge bg-info text-dark ms-2';
+      ossBadge.textContent = 'OSS';
+      left.appendChild(ossBadge);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'resource-actions d-flex flex-wrap';
+    const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test((f.name || '').toString());
+    const targetUrl = f.localUrl || f.ossUrl || preferredUrl;
 
-        const previewBtn = document.createElement('button');
-        previewBtn.className = 'btn btn-sm btn-outline-secondary me-2';
-        previewBtn.textContent = '预览';
-        previewBtn.onclick = function(){
-          if(isImage && resourcePreviewModalEl && resourcePreviewImage){
-            if(!targetUrl){
-              alert('当前资源没有可用的链接');
-              return;
-            }
-            resourcePreviewImage.src = targetUrl;
-            if(resourcePreviewMeta){
-              const parts = [];
-              parts.push(f.exists ? '来源：本地' : (f.ossUrl ? '来源：OSS' : '来源：未知'));
-              if(f.ossUrl && f.exists){
-                parts.push('已同步');
-              }
-              resourcePreviewMeta.textContent = `${f.name}${parts.length ? '（' + parts.join('，') + '）' : ''}`;
-            }
-            if(resourcePreviewOpen){
-              resourcePreviewOpen.href = targetUrl;
-              resourcePreviewOpen.classList.toggle('disabled', !targetUrl);
-            }
-            const modal = bootstrap.Modal.getOrCreateInstance(resourcePreviewModalEl);
-            modal.show();
-          } else {
-            if(targetUrl){
-              window.open(targetUrl, '_blank');
-            } else {
-              alert('当前资源没有可用的链接');
-            }
-          }
-        };
+    const previewBtn = document.createElement('button');
+    previewBtn.className = 'btn btn-sm btn-outline-secondary';
+    previewBtn.textContent = '预览';
+    previewBtn.onclick = function(){
+      if(isImage && resourcePreviewModalEl && resourcePreviewImage){
         if(!targetUrl){
-          previewBtn.disabled = true;
+          alert('当前资源没有可用的链接');
+          return;
         }
+        resourcePreviewImage.src = targetUrl;
+        if(resourcePreviewMeta){
+          const parts = [];
+          parts.push(f.exists ? '来源：本地' : (f.ossUrl ? '来源：OSS' : '来源：未知'));
+          if(f.ossUrl && f.exists){
+            parts.push('已同步');
+          }
+          resourcePreviewMeta.textContent = `${f.name}${parts.length ? '（' + parts.join('，') + '）' : ''}`;
+        }
+        if(resourcePreviewOpen){
+          resourcePreviewOpen.href = targetUrl;
+          resourcePreviewOpen.classList.toggle('disabled', !targetUrl);
+        }
+        const modal = bootstrap.Modal.getOrCreateInstance(resourcePreviewModalEl);
+        modal.show();
+      } else {
+        if(targetUrl){
+          window.open(targetUrl, '_blank');
+        } else {
+          alert('当前资源没有可用的链接');
+        }
+      }
+    };
+    if(!targetUrl){
+      previewBtn.disabled = true;
+    }
 
-        const openBtn = document.createElement('button');
-        openBtn.className = 'btn btn-sm btn-outline-secondary me-2';
-        openBtn.textContent = '打开';
-        openBtn.onclick = function(){
-          if(preferredUrl){
-            window.open(preferredUrl, '_blank');
+    const openBtn = document.createElement('button');
+    openBtn.className = 'btn btn-sm btn-outline-secondary';
+    openBtn.textContent = '打开';
+    openBtn.onclick = function(){
+      if(preferredUrl){
+        window.open(preferredUrl, '_blank');
+      } else {
+        alert('当前资源没有可用的链接');
+      }
+    };
+    if(!preferredUrl){
+      openBtn.disabled = true;
+    }
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn btn-sm btn-outline-primary';
+    copyBtn.textContent = '复制链接';
+    copyBtn.onclick = function(){
+      if(!preferredUrl){ alert('当前资源没有可用的链接'); return; }
+      navigator.clipboard.writeText(preferredUrl).then(()=>{
+        copyBtn.textContent = '已复制';
+        setTimeout(()=>{ copyBtn.textContent = '复制链接'; }, 2000);
+      }).catch(()=>alert('复制失败，请手动复制链接'));
+    };
+
+    const renameBtn = document.createElement('button');
+    renameBtn.className = 'btn btn-sm btn-outline-secondary';
+    renameBtn.textContent = '重命名';
+    renameBtn.onclick = function(){
+      if(!resourceRenameModalEl || !resourceRenameInput){
+        alert('当前界面不支持重命名');
+        return;
+      }
+      resourceRenameTarget = f.name;
+      resourceRenameInput.value = f.name || '';
+      if(resourceRenamePreview) resourceRenamePreview.textContent = f.name ? `完整名称：${f.name}` : '';
+      if(f.name){
+        resourceRenameInput.title = f.name;
+      } else {
+        resourceRenameInput.removeAttribute('title');
+      }
+      const modal = bootstrap.Modal.getOrCreateInstance(resourceRenameModalEl);
+      modal.show();
+    };
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn btn-sm btn-outline-danger';
+    deleteBtn.textContent = '删除';
+    deleteBtn.onclick = async function(){
+      if(!confirm('确认删除此资源吗？')) return;
+      try{
+        const res = await fetch('/resources/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: f.name})});
+        const parsed = await parseJsonSafe(res);
+        if(res.ok){
+          if(parsed.json && parsed.json.success === false){
+            alert('删除失败：' + (parsed.json.error || (parsed.text ? parsed.text : '未知错误')));
           } else {
-            alert('当前资源没有可用的链接');
-          }
-        };
-        if(!preferredUrl){
-          openBtn.disabled = true;
-        }
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'btn btn-sm btn-outline-primary me-2';
-        copyBtn.textContent = '复制链接';
-        copyBtn.onclick = function(){
-          if(!preferredUrl){ alert('当前资源没有可用的链接'); return; }
-          navigator.clipboard.writeText(preferredUrl).then(()=>{
-            copyBtn.textContent = '已复制';
-            setTimeout(()=>{ copyBtn.textContent = '复制链接'; }, 2000);
-          }).catch(()=>alert('复制失败，请手动复制链接'));
-        };
-        const renameBtn = document.createElement('button');
-        renameBtn.className = 'btn btn-sm btn-outline-secondary me-2';
-        renameBtn.textContent = '重命名';
-        renameBtn.onclick = function(){
-          if(!resourceRenameModalEl || !resourceRenameInput){
-            alert('当前界面不支持重命名');
-            return;
-          }
-          resourceRenameTarget = f.name;
-          resourceRenameInput.value = f.name;
-          const modal = bootstrap.Modal.getOrCreateInstance(resourceRenameModalEl);
-          modal.show();
-        };
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'btn btn-sm btn-outline-danger';
-        deleteBtn.textContent = '删除';
-        deleteBtn.onclick = async function(){
-          if(!confirm('确认删除此资源吗？')) return;
-          try{
-            const res = await fetch('/resources/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: f.name})});
-            const parsed = await parseJsonSafe(res);
-            if(res.ok){
-              if(parsed.json && parsed.json.success === false){
-                alert('删除失败：' + (parsed.json.error || (parsed.text ? parsed.text : '未知错误')));
-              } else {
-                globalResources = globalResources.filter(name => name !== f.name);
-                pagesData.forEach(p => {
-                  if(Array.isArray(p.resources)) {
-                    p.resources = p.resources.filter(name => name !== f.name);
-                  }
-                });
-                await loadResourcesModal();
-                await refreshResourceLists();
-                queueCompile();
+            globalResources = globalResources.filter(name => name !== f.name);
+            pagesData.forEach(p => {
+              if(Array.isArray(p.resources)) {
+                p.resources = p.resources.filter(name => name !== f.name);
               }
-            } else {
-              const message = parsed.json && parsed.json.error ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
-              alert('删除失败：' + message);
-            }
-          }catch(e){ console.error(e); alert('删除失败：' + e.message); }
-        };
-      actions.appendChild(previewBtn);
-      actions.appendChild(openBtn);
-      actions.appendChild(copyBtn);
-      actions.appendChild(renameBtn);
-      actions.appendChild(deleteBtn);
-        item.appendChild(left);
-        item.appendChild(actions);
-        resList.appendChild(item);
-      });
-      if((data.files||[]).length === 0) resList.innerHTML = '<div class="text-muted p-2">没有资源</div>';
+            });
+            await loadResourcesModal();
+            await refreshResourceLists();
+            queueCompile();
+          }
+        } else {
+          const message = parsed.json && parsed.json.error ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
+          alert('删除失败：' + message);
+        }
+      }catch(e){ console.error(e); alert('删除失败：' + e.message); }
+    };
 
-    }catch(e){ modalList.innerHTML = '<div class="text-danger p-2">加载失败</div>'; }
+    actions.appendChild(previewBtn);
+    actions.appendChild(openBtn);
+    actions.appendChild(copyBtn);
+    actions.appendChild(renameBtn);
+    actions.appendChild(deleteBtn);
+
+    item.appendChild(left);
+    item.appendChild(actions);
+    return item;
   }
 
-  const refreshResourcesBtn = document.getElementById('refresh-resources');
-  if(refreshResourcesBtn) refreshResourcesBtn.addEventListener('click', loadResourcesModal);
-  const resourcesScopeEl = document.getElementById('resources-scope');
-  if(resourcesScopeEl) resourcesScopeEl.addEventListener('change', loadResourcesModal);
+  function renderResourceList(container, files){
+    if(!container) return;
+    container.innerHTML = '';
+    const list = Array.isArray(files) ? files : [];
+    if(list.length === 0){
+      container.innerHTML = '<div class="text-muted p-2">没有资源</div>';
+      return;
+    }
+    list.forEach(f => {
+      container.appendChild(createResourceListItem(f));
+    });
+  }
+
+  async function loadResourcesModal(){
+    const pageListEl = document.getElementById('resources-page-list');
+    const globalListEl = document.getElementById('resources-global-list');
+    const pageCountEl = document.getElementById('resources-page-count');
+    const globalCountEl = document.getElementById('resources-global-count');
+    if(pageListEl) pageListEl.innerHTML = '<div class="text-muted p-2">加载中...</div>';
+    if(globalListEl) globalListEl.innerHTML = '<div class="text-muted p-2">加载中...</div>';
+    const pageIdx = getCurrentPageIndex();
+    const cpEl = document.getElementById('resources-current-page');
+    if(cpEl) cpEl.textContent = pageIdx + 1;
+    try{
+      const [pageRes, globalRes] = await Promise.all([
+        fetch(`/resources/list?page=${pageIdx}`),
+        fetch('/resources/list')
+      ]);
+      const pageData = pageRes.ok ? await pageRes.json() : {files: []};
+      const globalData = globalRes.ok ? await globalRes.json() : {files: []};
+      if(pageData.ossError || globalData.ossError){
+        console.warn('资源 OSS 状态:', pageData.ossError || globalData.ossError);
+      }
+      const pageFiles = Array.isArray(pageData.files) ? pageData.files : [];
+      const globalFiles = Array.isArray(globalData.files) ? globalData.files : [];
+      const pageNames = pageFiles.map(f => f && f.name).filter(Boolean);
+      const globalNames = globalFiles.map(f => f && f.name).filter(Boolean);
+      if(pagesData[pageIdx]) {
+        pagesData[pageIdx].resources = pageNames.slice();
+      }
+      globalResources = globalNames.slice();
+      renderResourceList(pageListEl, pageFiles);
+      renderResourceList(globalListEl, globalFiles);
+      if(pageCountEl) pageCountEl.textContent = pageFiles.length ? `${pageFiles.length} 个` : '暂无';
+      if(globalCountEl) globalCountEl.textContent = globalFiles.length ? `${globalFiles.length} 个` : '暂无';
+    } catch (e){
+      console.error(e);
+      if(pageListEl) pageListEl.innerHTML = '<div class="text-danger p-2">加载失败</div>';
+      if(globalListEl) globalListEl.innerHTML = '<div class="text-danger p-2">加载失败</div>';
+      if(pageCountEl) pageCountEl.textContent = '--';
+      if(globalCountEl) globalCountEl.textContent = '--';
+    }
+  }
 
   // modal upload handlers
   const modalUploadBtn = document.getElementById('modal-resource-upload-btn');

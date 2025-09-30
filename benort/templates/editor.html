@@ -79,6 +79,112 @@
     body.theme-dark .list-group-item-action:focus {
       background-color: #1f2937;
     }
+    #page-status {
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+    }
+    .btn-theme {
+      --btn-bg: #2563eb;
+      --btn-hover: #1d4ed8;
+      --btn-text: #ffffff;
+      --btn-border: #2563eb;
+      --btn-outline-hover: rgba(15, 23, 42, 0.06);
+      min-height: 34px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-weight: 600;
+      transition: transform 0.15s ease, background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+      border-width: 1px;
+    }
+    .btn-theme[data-theme-variant="solid"] {
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      border-color: transparent;
+    }
+    .btn-theme[data-theme-variant="solid"]:hover,
+    .btn-theme[data-theme-variant="solid"]:focus {
+      background: var(--btn-hover);
+      color: var(--btn-text);
+    }
+    .btn-theme[data-theme-variant="outline"] {
+      background: transparent;
+      color: var(--btn-text);
+      border-color: var(--btn-border);
+    }
+    .btn-theme[data-theme-variant="outline"]:hover,
+    .btn-theme[data-theme-variant="outline"]:focus {
+      background: var(--btn-outline-hover);
+      color: var(--btn-border);
+    }
+    .btn-theme:hover {
+      transform: translateY(-1px);
+    }
+    .btn-theme:active {
+      transform: translateY(0);
+    }
+    body.theme-dark .btn-theme {
+      box-shadow: none;
+    }
+    body.theme-dark .btn-theme[data-theme-variant="outline"] {
+      border-color: var(--btn-border);
+      color: var(--btn-border);
+    }
+    body.theme-dark .btn-theme[data-theme-variant="outline"]:hover,
+    body.theme-dark .btn-theme[data-theme-variant="outline"]:focus {
+      background: var(--btn-outline-hover);
+    }
+    body.theme-dark .btn-theme[data-theme-variant="solid"] {
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.06);
+    }
+    .btn-theme:focus-visible {
+      outline: 2px solid rgba(59,130,246,0.65);
+      outline-offset: 1px;
+    }
+    body.theme-dark .btn-theme:focus-visible {
+      outline-color: rgba(148, 163, 184, 0.65);
+    }
+    .btn-theme .badge {
+      font-weight: 500;
+    }
+    body.theme-dark .CodeMirror {
+      background: #0b1120;
+      color: #e2e8f0;
+    }
+    body.theme-dark .CodeMirror-gutters {
+      background: #0b1120;
+      border-right: 1px solid #1f2937;
+      color: #64748b;
+    }
+    body.theme-dark .CodeMirror-linenumber {
+      color: #475569;
+    }
+    body.theme-dark .CodeMirror-cursor {
+      border-left: 2px solid #f8fafc;
+    }
+    body.theme-dark .CodeMirror-selected {
+      background: rgba(59, 130, 246, 0.25) !important;
+    }
+    body.theme-dark .markdown-preview-content {
+      color: #e2e8f0;
+    }
+    body.theme-dark .markdown-preview-content a {
+      color: #93c5fd;
+    }
+    body.theme-dark #markdown-preview {
+      background: #0b1120;
+      border-color: #1e293b;
+    }
+    body.theme-dark #pdf-container {
+      background: #0b1120;
+      border-color: #1e293b;
+    }
+    body.theme-dark .modal-header,
+    body.theme-dark .modal-footer {
+      border-color: #1f2937;
+    }
     body.theme-dark .btn-outline-light {
       color: #f8fafc;
       border-color: #f8fafc;
@@ -1882,11 +1988,36 @@
   function applyNavbarTheme() {
     const theme = window.BENORT_UI_THEME || {};
     const config = theme.navbar_buttons || {};
+    const colorMode = (theme.color_mode || 'light').toLowerCase();
     const style = (config.style || 'uniform').toLowerCase();
     const variant = (config.variant || 'outline').toLowerCase() === 'solid' ? 'solid' : 'outline';
-    const palette = Array.isArray(config.palette) && config.palette.length ? config.palette : ['primary', 'success', 'warning', 'danger', 'info'];
+    const palette = Array.isArray(config.palette) && config.palette.length ? config.palette : ['primary', 'success', 'warning', 'danger', 'info', 'secondary'];
     const uniformColor = (config.color || palette[0] || 'primary').toLowerCase();
     const colorClassPattern = /^btn(?:-outline)?-(primary|secondary|success|danger|warning|info|light|dark)$/;
+    const paletteLight = {
+      primary: { bg: '#2563eb', hover: '#1d4ed8', text: '#ffffff', border: '#1d4ed8', outlineHover: 'rgba(37, 99, 235, 0.12)' },
+      success: { bg: '#16a34a', hover: '#15803d', text: '#ffffff', border: '#15803d', outlineHover: 'rgba(34, 197, 94, 0.12)' },
+      warning: { bg: '#f59e0b', hover: '#d97706', text: '#1f2937', border: '#d97706', outlineHover: 'rgba(245, 158, 11, 0.18)' },
+      danger: { bg: '#ef4444', hover: '#dc2626', text: '#ffffff', border: '#dc2626', outlineHover: 'rgba(248, 113, 113, 0.18)' },
+      info: { bg: '#0ea5e9', hover: '#0284c7', text: '#ffffff', border: '#0284c7', outlineHover: 'rgba(14, 165, 233, 0.15)' },
+      secondary: { bg: '#64748b', hover: '#475569', text: '#ffffff', border: '#475569', outlineHover: 'rgba(100, 116, 139, 0.18)' },
+      dark: { bg: '#1f2937', hover: '#111827', text: '#f8fafc', border: '#111827', outlineHover: 'rgba(15, 23, 42, 0.12)' }
+    };
+    const paletteDark = {
+      primary: { bg: '#1e3a8a', hover: '#2a4fc7', text: '#e0eaff', border: '#3b82f6', outlineHover: 'rgba(59, 130, 246, 0.18)' },
+      success: { bg: '#166534', hover: '#15803d', text: '#d1fae5', border: '#34d399', outlineHover: 'rgba(52, 211, 153, 0.22)' },
+      warning: { bg: '#9a4f06', hover: '#c97a0e', text: '#fef3c7', border: '#fbbf24', outlineHover: 'rgba(251, 191, 36, 0.24)' },
+      danger: { bg: '#991b1b', hover: '#c81e1e', text: '#fee2e2', border: '#f87171', outlineHover: 'rgba(248, 113, 113, 0.24)' },
+      info: { bg: '#0f4c81', hover: '#1f6ad9', text: '#dbeafe', border: '#60a5fa', outlineHover: 'rgba(96, 165, 250, 0.26)' },
+      secondary: { bg: '#2b3446', hover: '#3b465e', text: '#f8fafc', border: '#94a3b8', outlineHover: 'rgba(148, 163, 184, 0.22)' },
+      dark: { bg: '#111827', hover: '#1f2937', text: '#e2e8f0', border: '#334155', outlineHover: 'rgba(148, 163, 184, 0.2)' }
+    };
+    const paletteTokens = colorMode === 'dark' ? paletteDark : paletteLight;
+    const fallbackTokens = paletteTokens.primary;
+    const resolveTokens = name => {
+      const key = name && paletteTokens[name] ? name : 'primary';
+      return paletteTokens[key] || fallbackTokens;
+    };
     const buttons = document.querySelectorAll('.js-nav-btn');
     if (!buttons.length) return;
     buttons.forEach((btn, idx) => {
@@ -1898,8 +2029,17 @@
       });
       const color = style === 'palette' ? (palette[idx % palette.length] || uniformColor) : uniformColor;
       const normalized = color.trim().toLowerCase() || 'primary';
-      const toneClass = variant === 'solid' ? `btn-${normalized}` : `btn-outline-${normalized}`;
-      btn.classList.add(toneClass);
+      const tokens = resolveTokens(normalized);
+      const textColor = variant === 'solid' ? tokens.text : tokens.border;
+      const outlineHover = tokens.outlineHover || (colorMode === 'dark' ? 'rgba(148, 163, 184, 0.2)' : 'rgba(15, 23, 42, 0.08)');
+      btn.classList.add('btn-theme');
+      btn.dataset.themeVariant = variant;
+      btn.dataset.themeColor = normalized;
+      btn.style.setProperty('--btn-bg', tokens.bg);
+      btn.style.setProperty('--btn-hover', tokens.hover);
+      btn.style.setProperty('--btn-text', textColor);
+      btn.style.setProperty('--btn-border', tokens.border);
+      btn.style.setProperty('--btn-outline-hover', outlineHover);
     });
   }
 

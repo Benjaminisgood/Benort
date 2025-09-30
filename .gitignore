@@ -3,6 +3,7 @@ __pycache__/
 *.pyo
 *.pyd
 *.so
+.pytest_cache/
 
 # 虚拟环境
 venv/

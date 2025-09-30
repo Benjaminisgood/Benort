@@ -20,7 +20,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from .config import DEFAULT_PROJECT_NAME
 from .latex import normalize_latex_content
-from .template_store import get_default_header, get_default_template
+from .template_store import (
+    get_default_header,
+    get_default_markdown_template,
+    get_default_template,
+)
 from .oss_client import is_configured as oss_is_configured, upload_file as oss_upload_file
 
 
@@ -251,6 +255,7 @@ def _default_project_data(project_name: str) -> dict:
             },
         ],
         'template': dict(get_default_template()),
+        'markdownTemplate': dict(get_default_markdown_template()),
         'resources': [],
         'project': project_name,
         'ossSyncEnabled': False,
@@ -591,6 +596,15 @@ def _clean_template_text(value: str, default: str) -> str:
     return cleaned or default
 
 
+def _clean_markdown_text(value, default: str) -> str:
+    """Normalize Markdown template text fields (CSS/head)."""
+
+    if not isinstance(value, str):
+        value = ''
+    text = value.replace('\r\n', '\n').strip()
+    return text or default
+
+
 def _canonicalize_project_structure(data):
     """统一项目结构，补齐模板/资源字段，便于后续处理。"""
 
@@ -601,6 +615,7 @@ def _canonicalize_project_structure(data):
     default_header = default_template.get('header', get_default_header())
     default_before = default_template.get('beforePages', '\\begin{document}')
     default_footer = default_template.get('footer', '\\end{document}')
+    default_markdown = get_default_markdown_template()
 
     pages = data.get('pages', [])
     if not isinstance(pages, list):
@@ -624,6 +639,25 @@ def _canonicalize_project_structure(data):
     template['beforePages'] = _clean_template_text(template.get('beforePages'), default_before)
     template['footer'] = _clean_template_text(template.get('footer'), default_footer)
     data['template'] = template
+
+    md_template = data.get('markdownTemplate')
+    if isinstance(md_template, str):
+        md_template = {'css': md_template}
+    if not isinstance(md_template, dict):
+        md_template = {}
+    css_default = default_markdown.get('css', '')
+    wrapper_default = default_markdown.get('wrapperClass', '')
+    head_default = default_markdown.get('customHead', '')
+    css_value = _clean_markdown_text(md_template.get('css'), css_default)
+    wrapper_value = str(md_template.get('wrapperClass') or wrapper_default).strip()
+    head_value = _clean_markdown_text(md_template.get('customHead'), head_default)
+    sanitized_md = {
+        'css': css_value,
+        'wrapperClass': wrapper_value,
+    }
+    if head_value:
+        sanitized_md['customHead'] = head_value
+    data['markdownTemplate'] = sanitized_md
 
     global_resources = _sanitize_resource_list(data.get('resources', []))
     if global_resources:

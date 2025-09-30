@@ -698,14 +698,24 @@
                 <select id="template-select" class="form-select mb-2">
                   <option value="">自定义（当前模板）</option>
                 </select>
-                <div class="form-text">选择后仍可在下方文本框中补充或修改内容。</div>
+                <div class="form-text" id="template-helper-text">选择后仍可在下方继续调整。</div>
               </div>
-              <label class="form-label">文档头部（第一页前）</label>
-              <textarea id="template-header" class="form-control mb-2" rows="4"></textarea>
-              <label class="form-label">文档主体（每页前）</label>
-              <textarea id="template-before-pages" class="form-control mb-2" rows="2"></textarea>
-              <label class="form-label">文档结尾（最后一页后）</label>
-              <textarea id="template-footer" class="form-control" rows="2"></textarea>
+              <div id="template-latex-fields">
+                <label class="form-label">文档头部（第一页前）</label>
+                <textarea id="template-header" class="form-control mb-2" rows="4"></textarea>
+                <label class="form-label">文档主体（每页前）</label>
+                <textarea id="template-before-pages" class="form-control mb-2" rows="2"></textarea>
+                <label class="form-label">文档结尾（最后一页后）</label>
+                <textarea id="template-footer" class="form-control" rows="2"></textarea>
+              </div>
+              <div id="template-markdown-fields" class="d-none">
+                <label class="form-label">Markdown 全局 CSS</label>
+                <textarea id="template-markdown-css" class="form-control mb-2" rows="10" placeholder="为预览页面定义全局样式"></textarea>
+                <div class="form-text">CSS 会实时应用于右侧预览，同时随项目一同保存。</div>
+                <label class="form-label">预览容器附加 class（可选）</label>
+                <input type="text" id="template-markdown-wrapper" class="form-control mb-2" placeholder="例如：markdown-note prose">
+                <div class="form-text">指定多个 class 时使用空格分隔，将添加在 Markdown 预览根节点上。</div>
+              </div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
@@ -954,6 +964,10 @@
     beforePages: '\\begin{document}',
     footer: '\\end{document}'
   };
+  let markdownTemplate = {
+    css: '',
+    wrapperClass: ''
+  };
 
   
   let currentPageIdx = 0;
@@ -963,9 +977,9 @@
   let compileTimer = null;
   let isCompiling = false;
   let compilePending = false;
-  let availableTemplates = [];
+  let availableTemplates = { latex: [], markdown: [] };
   let templatesLoaded = false;
-  let selectedTemplateName = '';
+  let selectedTemplateName = { latex: '', markdown: '' };
   let saveProjectTimer = null;
   let saveRequestQueue = Promise.resolve();
   let pendingSaveCallbacks = [];
@@ -1679,17 +1693,37 @@
     return (text || '').replace(/\r\n/g, '\n').trim();
   }
 
-  function detectCurrentTemplate() {
+  function normalizeCssText(text) {
+    return (text || '').replace(/\r\n/g, '\n').trim();
+  }
+
+  function detectCurrentTemplate(mode) {
     if (!templatesLoaded) return;
+    if (mode === 'markdown') {
+      const css = normalizeCssText(markdownTemplate.css);
+      const wrapper = (markdownTemplate.wrapperClass || '').trim();
+      const match = (availableTemplates.markdown || []).find(t =>
+        normalizeCssText(t.css) === css &&
+        (t.wrapperClass || '') === wrapper
+      );
+      selectedTemplateName.markdown = match ? match.name : '';
+      return;
+    }
+
     const header = normalizeTemplateText(latexTemplate.header);
     const before = normalizeTemplateText(latexTemplate.beforePages);
     const footer = normalizeTemplateText(latexTemplate.footer);
-    const match = availableTemplates.find(t =>
+    const match = (availableTemplates.latex || []).find(t =>
       normalizeTemplateText(t.header) === header &&
       normalizeTemplateText(t.beforePages) === before &&
       normalizeTemplateText(t.footer) === footer
     );
-    selectedTemplateName = match ? match.name : '';
+    selectedTemplateName.latex = match ? match.name : '';
+  }
+
+  function detectAllTemplates() {
+    detectCurrentTemplate('latex');
+    detectCurrentTemplate('markdown');
   }
 
   function ensureTemplatesLoaded() {
@@ -1697,9 +1731,22 @@
     return fetch('/templates/list')
       .then(res => res.json())
       .then(data => {
-        availableTemplates = Array.isArray(data.templates) ? data.templates : [];
+        const templates = data.templates;
+        if (templates && typeof templates === 'object') {
+          availableTemplates = {
+            latex: Array.isArray(templates.latex) ? templates.latex : [],
+            markdown: Array.isArray(templates.markdown) ? templates.markdown : [],
+          };
+        } else {
+          // 兼容旧结构
+          const fallbackList = Array.isArray(templates) ? templates : [];
+          availableTemplates = {
+            latex: fallbackList,
+            markdown: [],
+          };
+        }
         templatesLoaded = true;
-        detectCurrentTemplate();
+        detectAllTemplates();
         return availableTemplates;
       })
       .catch(err => {
@@ -1708,16 +1755,17 @@
       });
   }
 
-  function populateTemplateSelect() {
+  function populateTemplateSelect(mode) {
     const select = document.getElementById('template-select');
     if (!select) return;
-    const currentValue = selectedTemplateName || '';
+    const groups = mode === 'markdown' ? (availableTemplates.markdown || []) : (availableTemplates.latex || []);
+    const currentValue = selectedTemplateName[mode] || '';
     select.innerHTML = '';
     const customOption = document.createElement('option');
     customOption.value = '';
     customOption.textContent = '自定义（当前模板）';
     select.appendChild(customOption);
-    availableTemplates.forEach(t => {
+    groups.forEach(t => {
       const opt = document.createElement('option');
       opt.value = t.name;
       opt.textContent = t.name;
@@ -1726,13 +1774,44 @@
     select.value = currentValue;
   }
 
-  function applyTemplateByName(name) {
-    const tmpl = availableTemplates.find(t => t.name === name);
+  function applyTemplateByName(name, mode) {
+    const list = mode === 'markdown' ? (availableTemplates.markdown || []) : (availableTemplates.latex || []);
+    const tmpl = list.find(t => t.name === name);
     if (!tmpl) return;
-    document.getElementById('template-header').value = tmpl.header || '';
-    document.getElementById('template-before-pages').value = tmpl.beforePages || '';
-    document.getElementById('template-footer').value = tmpl.footer || '';
-    selectedTemplateName = name;
+    if (mode === 'markdown') {
+      document.getElementById('template-markdown-css').value = tmpl.css || '';
+      document.getElementById('template-markdown-wrapper').value = tmpl.wrapperClass || '';
+      selectedTemplateName.markdown = name;
+    } else {
+      document.getElementById('template-header').value = tmpl.header || '';
+      document.getElementById('template-before-pages').value = tmpl.beforePages || '';
+      document.getElementById('template-footer').value = tmpl.footer || '';
+      selectedTemplateName.latex = name;
+    }
+  }
+
+  function applyMarkdownStyles() {
+    const styleId = 'markdown-template-style';
+    const head = document.head || document.getElementsByTagName('head')[0];
+    if (head) {
+      let styleEl = document.getElementById(styleId);
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = styleId;
+        head.appendChild(styleEl);
+      }
+      styleEl.textContent = markdownTemplate.css || '';
+    }
+    const previewRoot = document.getElementById('markdown-preview-content');
+    if (previewRoot) {
+      const baseClasses = ['markdown-preview-content', 'mt-4'];
+      const extra = (markdownTemplate.wrapperClass || '').trim();
+      const classSet = new Set(baseClasses);
+      if (extra) {
+        extra.split(/\s+/).filter(Boolean).forEach(cls => classSet.add(cls));
+      }
+      previewRoot.className = Array.from(classSet).join(' ');
+    }
   }
 
   function renderMarkdownPreview() {
@@ -1740,6 +1819,7 @@
     const preview = document.getElementById('markdown-preview-content') || wrapper;
     if (!wrapper || !preview) return;
     const md = pagesData[currentPageIdx]?.notes || '';
+    applyMarkdownStyles();
     if (md.trim()) {
       preview.innerHTML = marked.parse(md);
     } else {
@@ -2063,44 +2143,98 @@
   updateModeToggleUI();
   
   document.getElementById('edit-template').onclick = function() {
-    document.getElementById('template-header').value = latexTemplate.header || '';
-    document.getElementById('template-before-pages').value = latexTemplate.beforePages || '';
-    document.getElementById('template-footer').value = latexTemplate.footer || '';
+    const mode = currentEditMode === 'markdown' ? 'markdown' : 'latex';
+    const latexFields = document.getElementById('template-latex-fields');
+    const markdownFields = document.getElementById('template-markdown-fields');
+    const helper = document.getElementById('template-helper-text');
+
+    if (mode === 'markdown') {
+      latexFields?.classList.add('d-none');
+      markdownFields?.classList.remove('d-none');
+      if (helper) helper.textContent = 'CSS 将实时作用于 Markdown 预览区域。';
+      document.getElementById('template-markdown-css').value = markdownTemplate.css || '';
+      document.getElementById('template-markdown-wrapper').value = markdownTemplate.wrapperClass || '';
+    } else {
+      markdownFields?.classList.add('d-none');
+      latexFields?.classList.remove('d-none');
+      if (helper) helper.textContent = '选择后仍可在下方继续调整。';
+      document.getElementById('template-header').value = latexTemplate.header || '';
+      document.getElementById('template-before-pages').value = latexTemplate.beforePages || '';
+      document.getElementById('template-footer').value = latexTemplate.footer || '';
+    }
+
     ensureTemplatesLoaded().finally(() => {
-      detectCurrentTemplate();
-      populateTemplateSelect();
+      detectCurrentTemplate(mode);
+      populateTemplateSelect(mode);
     });
     var modal = new bootstrap.Modal(document.getElementById('templateModal'));
     modal.show();
   };
   document.getElementById('save-template').onclick = function() {
-    const headerVal = document.getElementById('template-header').value;
-    const beforeVal = document.getElementById('template-before-pages').value;
-    const footerVal = document.getElementById('template-footer').value;
-    latexTemplate.header = headerVal;
-    latexTemplate.beforePages = beforeVal;
-    latexTemplate.footer = footerVal;
+    const mode = currentEditMode === 'markdown' ? 'markdown' : 'latex';
     const selectEl = document.getElementById('template-select');
-    const chosen = selectEl ? selectEl.value : '';
-    if (chosen) {
-      const tmpl = availableTemplates.find(t => t.name === chosen);
-      if (
-        tmpl &&
-        normalizeTemplateText(tmpl.header) === normalizeTemplateText(headerVal) &&
-        normalizeTemplateText(tmpl.beforePages) === normalizeTemplateText(beforeVal) &&
-        normalizeTemplateText(tmpl.footer) === normalizeTemplateText(footerVal)
-      ) {
-        selectedTemplateName = chosen;
-      } else {
-        selectedTemplateName = '';
-        if (selectEl) selectEl.value = '';
+
+    if (mode === 'markdown') {
+      const cssVal = document.getElementById('template-markdown-css').value;
+      const wrapperVal = document.getElementById('template-markdown-wrapper').value.trim();
+      markdownTemplate.css = cssVal;
+      markdownTemplate.wrapperClass = wrapperVal;
+      if (typeof markdownTemplate.customHead === 'string' && !markdownTemplate.customHead.trim()) {
+        delete markdownTemplate.customHead;
       }
+      const chosen = selectEl ? selectEl.value : '';
+      let matchedTemplate = null;
+      if (chosen) {
+        const tmpl = (availableTemplates.markdown || []).find(t => t.name === chosen);
+        if (
+          tmpl &&
+          normalizeCssText(tmpl.css) === normalizeCssText(cssVal) &&
+          (tmpl.wrapperClass || '') === wrapperVal
+        ) {
+          selectedTemplateName.markdown = chosen;
+          matchedTemplate = tmpl;
+        } else {
+          selectedTemplateName.markdown = '';
+          if (selectEl) selectEl.value = '';
+        }
+      } else {
+        selectedTemplateName.markdown = '';
+      }
+      if (matchedTemplate && matchedTemplate.customHead) {
+        markdownTemplate.customHead = matchedTemplate.customHead;
+      }
+      detectCurrentTemplate('markdown');
+      saveProject();
+      applyMarkdownStyles();
+      renderMarkdownPreview();
     } else {
-      selectedTemplateName = '';
+      const headerVal = document.getElementById('template-header').value;
+      const beforeVal = document.getElementById('template-before-pages').value;
+      const footerVal = document.getElementById('template-footer').value;
+      latexTemplate.header = headerVal;
+      latexTemplate.beforePages = beforeVal;
+      latexTemplate.footer = footerVal;
+      const chosen = selectEl ? selectEl.value : '';
+      if (chosen) {
+        const tmpl = (availableTemplates.latex || []).find(t => t.name === chosen);
+        if (
+          tmpl &&
+          normalizeTemplateText(tmpl.header) === normalizeTemplateText(headerVal) &&
+          normalizeTemplateText(tmpl.beforePages) === normalizeTemplateText(beforeVal) &&
+          normalizeTemplateText(tmpl.footer) === normalizeTemplateText(footerVal)
+        ) {
+          selectedTemplateName.latex = chosen;
+        } else {
+          selectedTemplateName.latex = '';
+          if (selectEl) selectEl.value = '';
+        }
+      } else {
+        selectedTemplateName.latex = '';
+      }
+      detectCurrentTemplate('latex');
+      saveProject();
+      queueCompile();
     }
-    detectCurrentTemplate();
-    saveProject();
-    queueCompile();
     var modal = bootstrap.Modal.getInstance(document.getElementById('templateModal'));
     modal.hide();
   };
@@ -2124,10 +2258,14 @@
   const templateSelectEl = document.getElementById('template-select');
   if (templateSelectEl) templateSelectEl.addEventListener('change', function(){
     const name = this.value;
+    const mode = currentEditMode === 'markdown' ? 'markdown' : 'latex';
     if (name) {
-      applyTemplateByName(name);
+      applyTemplateByName(name, mode);
     } else {
-      selectedTemplateName = '';
+      selectedTemplateName[mode] = '';
+      if (mode === 'markdown') {
+        applyMarkdownStyles();
+      }
     }
   });
 
@@ -2199,7 +2337,8 @@
   
   function flushProjectSave(callbacks) {
     const payload = {
-      template: latexTemplate,
+      template: {...latexTemplate},
+      markdownTemplate: {...markdownTemplate},
       pages: pagesData,
       resources: globalResources,
     };
@@ -2283,6 +2422,22 @@
           beforePages: '\\begin{document}',
           footer: '\\end{document}'
         } : (data.template || latexTemplate);
+        const mdTemplate = data.markdownTemplate;
+        if (typeof mdTemplate === 'string') {
+          markdownTemplate = { css: mdTemplate, wrapperClass: '' };
+        } else if (mdTemplate && typeof mdTemplate === 'object') {
+          markdownTemplate = {
+            css: mdTemplate.css || '',
+            wrapperClass: mdTemplate.wrapperClass || '',
+          };
+          if (mdTemplate.customHead) {
+            markdownTemplate.customHead = mdTemplate.customHead;
+          } else if ('customHead' in markdownTemplate) {
+            delete markdownTemplate.customHead;
+          }
+        } else {
+          markdownTemplate = { css: '', wrapperClass: '' };
+        }
 
         pagesData = (data.pages || []).map(p => {
           if(typeof p === 'string') return {content: p, script: '', notes: '', bib: [], resources: []};
@@ -2299,7 +2454,8 @@
         updateProjectButtonLabel();
         renderSingleEditor();
         updatePageNumLabel();
-        ensureTemplatesLoaded().then(() => detectCurrentTemplate()).catch(() => {});
+        ensureTemplatesLoaded().then(() => detectAllTemplates()).catch(() => {});
+        applyMarkdownStyles();
         resetSearchState();
         if(cb) cb();
       })

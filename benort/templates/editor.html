@@ -9,6 +9,9 @@
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+  <script>
+    window.BENORT_COMPONENT_LIBRARY = {{ (component_library or {})|tojson }};
+  </script>
   <style>
     #editor-preview-wrapper {
       display: flex;
@@ -858,99 +861,90 @@
   }
   
   
-  const COMPONENTS = [
+  const COMPONENT_LIBRARY = window.BENORT_COMPONENT_LIBRARY || {};
 
-    { group: '结构', items: [
-      { name: '章节（Section）', code: '\\section{章节标题}' },
-      { name: '小节（Subsection）', code: '\\subsection{小节标题}' },
-      { name: '幻灯片标题', code: '\\frametitle{幻灯片标题}' },
-      { name: '摘要（Abstract）', code: '\\begin{abstract}\n这里是摘要内容。\n  \\end{abstract}' },
-      { name: '目录（Table of Contents）', code: '\\tableofcontents' }
-    ]},
+  function getComponentGroups(mode) {
+    if (mode === 'markdown') {
+      return Array.isArray(COMPONENT_LIBRARY.markdown) ? COMPONENT_LIBRARY.markdown : [];
+    }
+    return Array.isArray(COMPONENT_LIBRARY.latex) ? COMPONENT_LIBRARY.latex : [];
+  }
 
-    { group: '排版', items: [
-      { name: '两栏排版', code: '\\begin{columns}\n  \\column{0.5\\textwidth}\n  左侧内容\n  \\column{0.5\\textwidth}\n  右侧内容\n\\end{columns}' },
-      { name: '左右两列上下分块', code: '\\begin{columns}[T,onlytextwidth]\n  \\column{0.48\\textwidth}\n  % 左侧内容\n  这里是左侧一整块内容\n  \\column{0.48\\textwidth}\n  % 右侧上块\n  \\textbf{右上块标题}\n  右上块内容\\\\[1em]\n  % 右侧下块\n  \\textbf{右下块标题}\n  右下块内容\n\\end{columns}' },
-      { name: '田字格（2x2分栏）', code: '\\begin{columns}\n  \\column{0.5\\textwidth}\n    \\begin{block}{左上}\n    内容1\n    \\end{block}\n    \\begin{block}{左下}\n    内容2\n    \\end{block}\n  \\column{0.5\\textwidth}\n    \\begin{block}{右上}\n    内容3\n    \\end{block}\n    \\begin{block}{右下}\n    内容4\n    \\end{block}\n\\end{columns}' },
-      { name: '分段（Paragraph）', code: '\\paragraph{段落标题} 这里是段落内容。' },
-      { name: '引用块（Quote）', code: '\\begin{quote}\n引用内容。\n\\end{quote}' }
-    ]},
-
-    { group: '组件', items: [
-      { name: '项目符号列表', code: '\\begin{itemize}\n  \\item 第一项\n  \\item 第二项\n\\end{itemize}' },
-      { name: '编号列表', code: '\\begin{enumerate}\n  \\item 第一项\n  \\item 第二项\n\\end{enumerate}' },
-      { name: '表格', code: '\\begin{tabular}{|c|c|c|}\n  \\hline\nA & B & C \\\\ \\hline\n1 & 2 & 3 \\\\ \\hline\n\\end{tabular}' },
-      { name: '浮动表格（table）', code: '\\begin{table}[htbp]\n  \\centering\n  \\begin{tabular}{ccc}\n    A & B & C \\\\ \n    1 & 2 & 3 \\\\ \n  \\end{tabular}\n  \\caption{表格标题}\n  \\label{tab:label}\n\\end{table}' },
-      { name: '代码块（verbatim）', code: '\\begin{verbatim}\n这里是代码内容\n\\end{verbatim}' },
-      { name: '交叉引用', code: '见图\\ref{fig:label}，表\\ref{tab:label}，公式\\eqref{eq:label}' }
-    ]},
-
-    { group: '数学/定理', items: [
-      { name: '公式（有编号）', code: '\\begin{equation}\n  E=mc^2\n  \\end{equation}' },
-      { name: '公式（无编号）', code: '\\[ E^2 = p^2c^2 + m^2c^4 \]' },
-      { name: '定理（theorem）', code: '\\begin{theorem}\n  定理内容。\n  \\end{theorem}' },
-      { name: '证明（proof）', code: '\\begin{proof}\n  证明过程。\n  \\end{proof}' }
-    ]},
-
-    { group: '卡片', items: [
-      { name: '普通卡片（block）', code: '\\begin{block}{卡片标题}\n  这里是卡片内容，可用于强调信息。\n  \\end{block}' },
-      { name: '警告卡片（alertblock）', code: '\\begin{alertblock}{警告/高亮}\n  这里是高亮警告内容。\n  \\end{alertblock}' },
-      { name: '示例卡片（exampleblock）', code: '\\begin{exampleblock}{示例}\n  这里是示例内容。\n  \\end{exampleblock}' }
-    ]},
-
-    { group: '图片', items: [
-      { name: '插入图片', code: '\\begin{center}\n  \\includegraphics[width=0.7\\textwidth]{example-image}\n  \\end{center}' },
-      { name: '浮动图片（figure）', code: '\\begin{figure}[htbp]\n  \\centering\n  \\includegraphics[width=0.6\\textwidth]{example-image}\n  \\caption{图片标题}\n  \\label{fig:label}\n  \\end{figure}' }
-    ]}
-  ];
-  
-  
   document.getElementById('insert-component').onclick = function() {
     const list = document.getElementById('component-list');
     list.innerHTML = '';
+    const mode = currentEditMode === 'markdown' ? 'markdown' : 'latex';
+    const groups = getComponentGroups(mode);
+    const modalLabel = document.getElementById('componentModalLabel');
+    if (modalLabel) {
+      modalLabel.textContent = mode === 'markdown' ? '插入 Markdown 片段' : '插入 LaTeX 组件';
+    }
+    if (!groups.length) {
+      list.innerHTML = '<div class="text-center text-muted py-3">暂无可用组件</div>';
+      const fallbackModal = new bootstrap.Modal(document.getElementById('componentModal'));
+      fallbackModal.show();
+      return;
+    }
+
     const container = document.createElement('div');
     container.className = 'd-flex';
     const nav = document.createElement('div');
     nav.className = 'list-group me-3';
-    nav.style.minWidth = '120px';
+    nav.style.minWidth = '140px';
     const compArea = document.createElement('div');
     compArea.style.flex = '1';
-    let currentGroupIdx = 0;
+
     function renderCompList(idx) {
       compArea.innerHTML = '';
-      COMPONENTS[idx].items.forEach(comp => {
+      const currentGroup = groups[idx];
+      if (!currentGroup || !Array.isArray(currentGroup.items)) {
+        compArea.innerHTML = '<div class="text-muted">该分类暂无片段</div>';
+        return;
+      }
+      currentGroup.items.forEach(comp => {
         const btn = document.createElement('button');
-        btn.className = 'list-group-item list-group-item-action mb-1';
+        btn.type = 'button';
+        btn.className = 'list-group-item list-group-item-action mb-1 text-start';
         btn.textContent = comp.name;
         btn.onclick = function() {
           if(singleEditor) {
             const doc = singleEditor.getDoc();
             const cursor = doc.getCursor();
-            doc.replaceRange(comp.code + '\n', cursor);
+            const snippet = typeof comp.code === 'string' ? comp.code : '';
+            let extra = '';
+            if (!snippet.endsWith('\n')) {
+              extra += '\n';
+            }
+            if (mode === 'markdown') {
+              extra += '\n';
+            }
+            doc.replaceRange(snippet + extra, cursor);
           }
-          var modal = bootstrap.Modal.getInstance(document.getElementById('componentModal'));
-          modal.hide();
+          const modalInstance = bootstrap.Modal.getInstance(document.getElementById('componentModal'));
+          if (modalInstance) modalInstance.hide();
         };
         compArea.appendChild(btn);
       });
     }
-    COMPONENTS.forEach((group, idx) => {
+
+    groups.forEach((group, idx) => {
       const navBtn = document.createElement('button');
+      navBtn.type = 'button';
       navBtn.className = 'list-group-item list-group-item-action' + (idx === 0 ? ' active' : '');
       navBtn.textContent = group.group;
       navBtn.onclick = function() {
-        currentGroupIdx = idx;
         Array.from(nav.children).forEach(btn => btn.classList.remove('active'));
         navBtn.classList.add('active');
         renderCompList(idx);
       };
       nav.appendChild(navBtn);
     });
+
     renderCompList(0);
     container.appendChild(nav);
     container.appendChild(compArea);
     list.appendChild(container);
-    var modal = new bootstrap.Modal(document.getElementById('componentModal'));
+    const modal = new bootstrap.Modal(document.getElementById('componentModal'));
     modal.show();
   };
   let pagesData = [];

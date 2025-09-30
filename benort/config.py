@@ -120,6 +120,220 @@ AI_BIB_PROMPT = {
     ),
 }
 
+COMPONENT_LIBRARY = {
+    "latex": [
+        {
+            "group": "结构",
+            "items": [
+                {"name": "章节（Section）", "code": "\\section{章节标题}"},
+                {"name": "小节（Subsection）", "code": "\\subsection{小节标题}"},
+                {"name": "幻灯片标题", "code": "\\frametitle{幻灯片标题}"},
+                {
+                    "name": "摘要（Abstract）",
+                    "code": "\\begin{abstract}\n这里是摘要内容。\n\\end{abstract}",
+                },
+                {
+                    "name": "目录（Table of Contents）",
+                    "code": "\\tableofcontents",
+                },
+                {
+                    "name": "过渡页",
+                    "code": "\\begin{frame}[plain]\n  \\centering\\Huge 章节标题\n\\end{frame}",
+                },
+            ],
+        },
+        {
+            "group": "排版",
+            "items": [
+                {
+                    "name": "两栏排版",
+                    "code": "\\begin{columns}\n  \\column{0.5\\textwidth}\n  左侧内容\n  \\column{0.5\\textwidth}\n  右侧内容\n\\end{columns}",
+                },
+                {
+                    "name": "左右两列上下分块",
+                    "code": "\\begin{columns}[T,onlytextwidth]\n  \\column{0.48\\textwidth}\n  % 左侧内容\n  这里是左侧一整块内容\n  \\column{0.48\\textwidth}\n  % 右侧上块\n  \\textbf{右上块标题}\n  右上块内容\\\\[1em]\n  % 右侧下块\n  \\textbf{右下块标题}\n  右下块内容\n\\end{columns}",
+                },
+                {
+                    "name": "田字格（2x2分栏）",
+                    "code": "\\begin{columns}\n  \\column{0.5\\textwidth}\n    \\begin{block}{左上}\n    内容1\n    \\end{block}\n    \\begin{block}{左下}\n    内容2\n    \\end{block}\n  \\column{0.5\\textwidth}\n    \\begin{block}{右上}\n    内容3\n    \\end{block}\n    \\begin{block}{右下}\n    内容4\n    \\end{block}\n\\end{columns}",
+                },
+                {
+                    "name": "三列关键点",
+                    "code": "\\begin{columns}[onlytextwidth]\n  \\column{0.32\\textwidth}\n  \\begin{block}{要点一}\n  内容 A\n  \\end{block}\n  \\column{0.32\\textwidth}\n  \\begin{block}{要点二}\n  内容 B\n  \\end{block}\n  \\column{0.32\\textwidth}\n  \\begin{block}{要点三}\n  内容 C\n  \\end{block}\n\\end{columns}",
+                },
+                {
+                    "name": "引用块（Quote）",
+                    "code": "\\begin{quote}\n引用内容。\n\\end{quote}",
+                },
+            ],
+        },
+        {
+            "group": "组件",
+            "items": [
+                {
+                    "name": "项目符号列表",
+                    "code": "\\begin{itemize}\n  \\item 第一项\n  \\item 第二项\n\\end{itemize}",
+                },
+                {
+                    "name": "编号列表",
+                    "code": "\\begin{enumerate}\n  \\item 第一项\n  \\item 第二项\n\\end{enumerate}",
+                },
+                {
+                    "name": "表格",
+                    "code": "\\begin{tabular}{|c|c|c|}\n  \\hline\nA & B & C \\\\ \\hline\n1 & 2 & 3 \\\\ \\hline\n\\end{tabular}",
+                },
+                {
+                    "name": "浮动表格（table）",
+                    "code": "\\begin{table}[htbp]\n  \\centering\n  \\begin{tabular}{ccc}\n    A & B & C \\\\ \n    1 & 2 & 3 \\\\ \n  \\end{tabular}\n  \\caption{表格标题}\n  \\label{tab:label}\n\\end{table}",
+                },
+                {
+                    "name": "代码块（verbatim）",
+                    "code": "\\begin{verbatim}\n这里是代码内容\n\\end{verbatim}",
+                },
+                {
+                    "name": "交叉引用",
+                    "code": "见图\\ref{fig:label}，表\\ref{tab:label}，公式\\eqref{eq:label}",
+                },
+            ],
+        },
+        {
+            "group": "数学/定理",
+            "items": [
+                {
+                    "name": "公式（有编号）",
+                    "code": "\\begin{equation}\n  E=mc^2\n  \\end{equation}",
+                },
+                {
+                    "name": "公式（无编号）",
+                    "code": "\\[ E^2 = p^2c^2 + m^2c^4 \]",
+                },
+                {
+                    "name": "定理（theorem）",
+                    "code": "\\begin{theorem}\n  定理内容。\n  \\end{theorem}",
+                },
+                {
+                    "name": "证明（proof）",
+                    "code": "\\begin{proof}\n  证明过程。\n  \\end{proof}",
+                },
+                {
+                    "name": "公式排列（align）",
+                    "code": "\\begin{align}\n  f(x) &= x^2 + 1 \\ \\n  f'(x) &= 2x\\,.\n\\end{align}",
+                },
+            ],
+        },
+        {
+            "group": "卡片",
+            "items": [
+                {
+                    "name": "普通卡片（block）",
+                    "code": "\\begin{block}{卡片标题}\n  这里是卡片内容，可用于强调信息。\n  \\end{block}",
+                },
+                {
+                    "name": "警告卡片（alertblock）",
+                    "code": "\\begin{alertblock}{警告/高亮}\n  这里是高亮警告内容。\n  \\end{alertblock}",
+                },
+                {
+                    "name": "示例卡片（exampleblock）",
+                    "code": "\\begin{exampleblock}{示例}\n  这里是示例内容。\n  \\end{exampleblock}",
+                },
+            ],
+        },
+        {
+            "group": "图片",
+            "items": [
+                {
+                    "name": "插入图片",
+                    "code": "\\begin{center}\n  \\includegraphics[width=0.7\\textwidth]{example-image}\n\\end{center}",
+                },
+                {
+                    "name": "浮动图片（figure）",
+                    "code": "\\begin{figure}[htbp]\n  \\centering\n  \\includegraphics[width=0.6\\textwidth]{example-image}\n  \\caption{图片标题}\n  \\label{fig:label}\n\\end{figure}",
+                },
+                {
+                    "name": "双图对比",
+                    "code": "\\begin{figure}[htbp]\n  \\centering\n  \\begin{subfigure}{0.48\\textwidth}\n    \\includegraphics[width=\\linewidth]{example-image-a}\n    \\caption{左图}\n  \\end{subfigure}\n  \\hfill\n  \\begin{subfigure}{0.48\\textwidth}\n    \\includegraphics[width=\\linewidth]{example-image-b}\n    \\caption{右图}\n  \\end{subfigure}\n\\end{figure}",
+                },
+            ],
+        },
+    ],
+    "markdown": [
+        {
+            "group": "基础",
+            "items": [
+                {"name": "二级标题", "code": "## 小节标题\n\n这里是内容简介。"},
+                {
+                    "name": "任务清单",
+                    "code": "- [ ] 待办事项一\n- [x] 已完成事项",
+                },
+                {
+                    "name": "引用块",
+                    "code": "> 引用内容，可用于强调某句文字。",
+                },
+                {
+                    "name": "分割线",
+                    "code": "---\n",
+                },
+            ],
+        },
+        {
+            "group": "布局",
+            "items": [
+                {
+                    "name": "两列对比",
+                    "code": "<table>\n  <tr>\n    <th>优势</th>\n    <th>劣势</th>\n  </tr>\n  <tr>\n    <td>内容 A</td>\n    <td>内容 B</td>\n  </tr>\n</table>\n",
+                },
+                {
+                    "name": "信息卡片",
+                    "code": ":::info\n标题\n\n说明内容。\n:::\n",
+                },
+            ],
+        },
+        {
+            "group": "列表与表格",
+            "items": [
+                {
+                    "name": "嵌套列表",
+                    "code": "- 一级要点\n  - 二级要点\n    - 三级要点",
+                },
+                {
+                    "name": "简单表格",
+                    "code": "| 项目 | 指标 | 说明 |\n| ---- | ---- | ---- |\n| A    | 95   | 描述A |\n| B    | 88   | 描述B |",
+                },
+            ],
+        },
+        {
+            "group": "代码与提示",
+            "items": [
+                {
+                    "name": "代码块",
+                    "code": "```python\nprint('Hello World')\n```",
+                },
+                {
+                    "name": "提示块",
+                    "code": ":::tip\n关键提示写在这里。\n:::\n",
+                },
+                {
+                    "name": "警告块",
+                    "code": ":::warning\n需要注意的内容。\n:::\n",
+                },
+            ],
+        },
+        {
+            "group": "媒体",
+            "items": [
+                {
+                    "name": "插入图片",
+                    "code": "![图片说明](path/to/image.png)",
+                },
+                {
+                    "name": "嵌入链接",
+                    "code": "[相关链接](https://example.com)",
+                },
+            ],
+        },
+    ],
+}
+
 
 def template_library_root(app: object | None = None) -> str:
     """确定可复用 LaTeX 模板所在目录。"""
@@ -173,6 +387,7 @@ __all__ = [
     "OPENAI_TTS_SPEED",
     "AI_PROMPTS",
     "AI_BIB_PROMPT",
+    "COMPONENT_LIBRARY",
     "init_app_config",
     "template_library_root",
 ]

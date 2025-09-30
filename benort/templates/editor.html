@@ -115,16 +115,8 @@
         flex-direction: row;
         justify-content: flex-start;
       }
-      #project-search-group {
-        flex: 1 1 220px;
-        min-width: 200px;
-      }
     }
     @media (max-width: 575.98px) {
-      #project-search-group {
-        flex-basis: 100%;
-        min-width: 100%;
-      }
       .navbar-nav {
         gap: 0.4rem;
       }
@@ -161,10 +153,7 @@
           <button class="btn btn-outline-primary btn-sm me-2" id="next-page" title="下一页">下</button>
         </li>
         <li class="nav-item d-flex align-items-center">
-          <div class="input-group input-group-sm me-2" id="project-search-group" style="min-width: 220px;">
-            <input type="search" class="form-control" id="project-search-input" placeholder="检索当前项目" aria-label="检索当前项目" autocomplete="off">
-            <button class="btn btn-outline-primary" type="button" id="project-search-btn">检索</button>
-          </div>
+          <button class="btn btn-outline-primary btn-sm me-2" id="project-search-btn" title="检索当前项目">检索</button>
         </li>
         <li class="nav-item"><button class="btn btn-outline-primary me-2" id="mode-switch-btn" title="切换LaTeX/Markdown">模式</button></li>
         <li class="nav-item"><button class="btn btn-outline-secondary me-2" id="add-page" title="添加新页">加页</button></li>
@@ -384,6 +373,10 @@
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
+              <div class="input-group input-group-sm mb-3">
+                <input type="search" class="form-control" id="search-modal-input" placeholder="输入关键词检索当前项目" autocomplete="off">
+                <button class="btn btn-outline-primary" type="button" id="search-modal-submit">检索</button>
+              </div>
               <div class="mb-3 text-muted" id="search-summary">请输入关键词后检索当前项目。</div>
               <div id="search-results" class="list-group"></div>
             </div>
@@ -988,6 +981,7 @@
   let searchQueryCache = '';
   let searchAbortController = null;
   let searchRequestId = 0;
+  let searchDebounceTimer = null;
 
   let resourceRenameTarget = null;
   let attachmentRenameTarget = null;
@@ -1031,6 +1025,8 @@
   const ossSyncYaml = document.getElementById('oss-sync-yaml');
   const ossSyncStatusBox = document.getElementById('oss-sync-status');
   const ossSyncRunBtn = document.getElementById('oss-sync-run');
+  const searchInputEl = document.getElementById('search-modal-input');
+  const searchSubmitBtn = document.getElementById('search-modal-submit');
   let projectMetadata = {};
   let projectRenameTarget = '';
   let projectDeleteTarget = '';
@@ -1210,10 +1206,23 @@
     const modalEl = document.getElementById('searchModal');
     if (!modalEl) return null;
     searchModalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modalEl.addEventListener('shown.bs.modal', () => {
+      if (searchInputEl) {
+        searchInputEl.focus();
+        searchInputEl.select();
+      }
+    });
     modalEl.addEventListener('hidden.bs.modal', () => {
       const resultsEl = document.getElementById('search-results');
       if (resultsEl) {
         resultsEl.scrollTop = 0;
+      }
+      if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = null;
+      }
+      if (searchInputEl) {
+        searchInputEl.removeAttribute('data-loading');
       }
     });
     return searchModalInstance;
@@ -1349,9 +1358,15 @@
   }
 
   function performProjectSearch(rawQuery) {
-    const input = document.getElementById('project-search-input');
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = null;
+    }
     const button = document.getElementById('project-search-btn');
     const query = (rawQuery || '').trim();
+    if (searchInputEl && searchInputEl.value !== query) {
+      searchInputEl.value = query;
+    }
 
     const modal = ensureSearchModal();
     if (modal) modal.show();
@@ -1365,7 +1380,10 @@
 
     if (!query) {
       resetSearchState();
-      if (input) input.focus();
+      if (searchInputEl) {
+        searchInputEl.focus();
+        searchInputEl.removeAttribute('data-loading');
+      }
       return;
     }
 
@@ -1374,7 +1392,7 @@
     renderSearchResults([], query);
 
     if (button) button.disabled = true;
-    if (input) input.setAttribute('data-loading', 'true');
+    if (searchInputEl) searchInputEl.setAttribute('data-loading', 'true');
 
     const controller = new AbortController();
     searchAbortController = controller;
@@ -1388,7 +1406,7 @@
     }).then(async res => {
       if (requestToken !== searchRequestId) return;
       if (button) button.disabled = false;
-      if (input) input.removeAttribute('data-loading');
+      if (searchInputEl) searchInputEl.removeAttribute('data-loading');
 
       if (res.status === 401) {
         handleProjectLocked();
@@ -1419,7 +1437,7 @@
     }).catch(err => {
       if (requestToken !== searchRequestId) return;
       if (button) button.disabled = false;
-      if (input) input.removeAttribute('data-loading');
+      if (searchInputEl) searchInputEl.removeAttribute('data-loading');
       if (err && err.name === 'AbortError') return;
       handleSearchError(err?.message || '检索失败，请稍后再试。');
     });
@@ -2112,24 +2130,48 @@
     });
   };
 
-  const projectSearchInput = document.getElementById('project-search-input');
   const projectSearchBtn = document.getElementById('project-search-btn');
-  if (projectSearchBtn && projectSearchInput) {
+  if (projectSearchBtn) {
     projectSearchBtn.addEventListener('click', () => {
-      performProjectSearch(projectSearchInput.value);
+      const modal = ensureSearchModal();
+      if (modal) modal.show();
+      if (searchInputEl) {
+        searchInputEl.focus();
+        searchInputEl.select();
+      }
     });
-    projectSearchInput.addEventListener('keydown', (event) => {
+  }
+
+  if (searchSubmitBtn) {
+    searchSubmitBtn.addEventListener('click', () => {
+      performProjectSearch(searchInputEl ? searchInputEl.value : '');
+    });
+  }
+
+  if (searchInputEl) {
+    searchInputEl.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
-        performProjectSearch(projectSearchInput.value);
+        performProjectSearch(searchInputEl.value);
       } else if (event.key === 'Escape') {
-        if (projectSearchInput.value) {
-          projectSearchInput.value = '';
-        } else {
-          const modal = ensureSearchModal();
-          if (modal) modal.hide();
-        }
+        event.preventDefault();
+        const modal = ensureSearchModal();
+        if (modal) modal.hide();
       }
+    });
+    searchInputEl.addEventListener('input', () => {
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        const value = searchInputEl.value;
+        const trimmed = value.trim();
+        const cached = (searchQueryCache || '').trim();
+        if (!trimmed && !cached) {
+          performProjectSearch('');
+          return;
+        }
+        if (trimmed === cached) return;
+        performProjectSearch(value);
+      }, 350);
     });
   }
 

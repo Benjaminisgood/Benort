@@ -730,10 +730,10 @@ def ai_optimize():
     """调用 OpenAI ChatCompletion 优化讲稿、笔记或 LaTeX 内容。"""
 
     data = request.json or {}
-    content = data.get("content", "")
+    script_text = data.get("script", "")
     opt_type = data.get("type", "latex")
-    page_tex = data.get("page_tex", "")
-    page_note = data.get("note", "")
+    latex_text = data.get("latex", "")
+    markdown_text = data.get("markdown", "")
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -742,10 +742,17 @@ def ai_optimize():
     default_header = get_default_header()
 
     if opt_type == "script":
-        prompt = AI_PROMPTS["script"]["template"].format(page_tex=page_tex, content=content)
+        prompt = AI_PROMPTS["script"]["template"].format(
+            latex=latex_text,
+            markdown=markdown_text or "（无笔记内容）",
+            script=script_text,
+        )
         system_prompt = AI_PROMPTS["script"]["system"]
     elif opt_type == "note":
-        prompt = AI_PROMPTS["note"]["template"].format(page_tex=page_tex, content=content)
+        prompt = AI_PROMPTS["note"]["template"].format(
+            latex=latex_text,
+            markdown=markdown_text,
+        )
         system_prompt = AI_PROMPTS["note"]["system"]
     else:
         project = load_project()
@@ -772,10 +779,10 @@ def ai_optimize():
 
         allowed_str = ", ".join(allowed_packages) if allowed_packages else "无可用宏包"
         prompt = AI_PROMPTS["latex"]["template"].format(
-            content=content,
+            latex=latex_text,
             allowed_packages=allowed_str,
             custom_macros=custom_macro_list,
-            notes=page_note or "（无笔记内容）",
+            markdown=markdown_text or "（无笔记内容）",
         )
         system_prompt = AI_PROMPTS["latex"]["system"]
 

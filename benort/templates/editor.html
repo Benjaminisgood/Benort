@@ -2977,7 +2977,7 @@ loadProjects().then(()=>{
     fetch('/ai_optimize', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({content: content, type: 'latex', note: note})
+      body: JSON.stringify({latex: content, markdown: note, type: 'latex'})
     }).then(res => res.json()).then(data => {
       if(data.success && data.result) {
         document.getElementById('ai-result').value = data.result;
@@ -3008,12 +3008,13 @@ loadProjects().then(()=>{
   if(aiScriptBtn) aiScriptBtn.addEventListener('click', function(){
     const content = pagesData[currentPageIdx]?.script || '';
     const page_tex = pagesData[currentPageIdx]?.content || '';
+    const note = pagesData[currentPageIdx]?.notes || '';
     this.disabled = true;
     this.textContent = '优化中...';
     fetch('/ai_optimize', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({content: content, type: 'script', page_tex: page_tex})
+      body: JSON.stringify({script: content, latex: page_tex, markdown: note, type: 'script'})
     }).then(res => res.json()).then(data => {
       if(data.success && data.result) {
         document.getElementById('ai-script-result').value = data.result;
@@ -3048,7 +3049,7 @@ loadProjects().then(()=>{
     fetch('/ai_optimize', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({content: note, type: 'note', page_tex: page_tex})
+      body: JSON.stringify({markdown: note, latex: page_tex, type: 'note'})
   }).then(res => res.json()).then(data => {
       if(data.success && data.result) {
         document.getElementById('ai-note-result').value = data.result;

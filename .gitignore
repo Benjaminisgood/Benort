@@ -20,7 +20,7 @@ dist/
 benort/projects/
 benort/attachments_store/
 benort/resources_store/
-temps/
+
 flask.log
 flask.pid
 flask.log.*

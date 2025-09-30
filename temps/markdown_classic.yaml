@@ -1,0 +1,36 @@
+type: markdown
+css: |
+  .md-classic {
+    font-family: "Georgia", "Songti SC", serif;
+    font-size: 17px;
+    color: #2d3748;
+    line-height: 1.75;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .md-classic h1,
+  .md-classic h2 {
+    font-family: "Palatino", "STXinwei", serif;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 2em;
+    margin-bottom: 0.7em;
+  }
+  .md-classic blockquote {
+    font-style: italic;
+    background: #f7fafc;
+    border-left: 6px solid #cbd5e0;
+    padding: 1em 1.4em;
+    margin: 1.6em 0;
+  }
+  .md-classic table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1.5em 0;
+  }
+  .md-classic th,
+  .md-classic td {
+    border: 1px solid #cbd5e0;
+    padding: 0.6em 0.8em;
+  }
+wrapperClass: md-classic

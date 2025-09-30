@@ -1,0 +1,32 @@
+type: markdown
+css: |
+  :root {
+    color-scheme: dark;
+  }
+  .md-dark {
+    background: #111827;
+    color: #e5e7eb;
+    font-family: "Inter", "PingFang SC", sans-serif;
+    line-height: 1.7;
+  }
+  .md-dark a {
+    color: #38bdf8;
+  }
+  .md-dark blockquote {
+    border-left: 4px solid #38bdf8;
+    background: rgba(59, 130, 246, 0.1);
+    padding: 0.8em 1.1em;
+    margin: 1.4em 0;
+  }
+  .md-dark code {
+    background: rgba(148, 163, 184, 0.2);
+    padding: 0.2em 0.4em;
+    border-radius: 0.25rem;
+  }
+  .md-dark pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 1em;
+    border-radius: 0.5rem;
+  }
+wrapperClass: md-dark

@@ -237,13 +237,40 @@
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
             </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade" id="bibEntryModal" tabindex="-1" aria-labelledby="bibEntryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="bibEntryModalLabel">编辑文献信息</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="bib-edit-label" class="form-label">文献名称</label>
+            <input type="text" class="form-control" id="bib-edit-label" placeholder="输入显示名称">
+          </div>
+          <div class="mb-3">
+            <label for="bib-edit-note" class="form-label">备注</label>
+            <textarea class="form-control" id="bib-edit-note" rows="3" placeholder="补充这篇文献的重点"></textarea>
+          </div>
+          <div class="border rounded p-3 bg-light" id="bib-edit-details">
+            <div class="text-muted">暂无文献信息</div>
           </div>
         </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-primary" id="bib-edit-save">保存</button>
+        </div>
       </div>
-      
-          <!-- Resources Modal -->
-          <div class="modal fade" id="resourcesModal" tabindex="-1" aria-labelledby="resourcesModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
+    </div>
+  </div>
+  
+      <!-- Resources Modal -->
+      <div class="modal fade" id="resourcesModal" tabindex="-1" aria-labelledby="resourcesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
               <div class="modal-content">
                 <div class="modal-header">
                   <h5 class="modal-title" id="resourcesModalLabel">资源管理</h5>
@@ -3110,6 +3137,7 @@ loadProjects().then(()=>{
     let label = '';
     let link = '';
     let id = '';
+    let metadata = null;
 
     if (typeof raw === 'string') {
       entryText = raw;
@@ -3119,10 +3147,18 @@ loadProjects().then(()=>{
       label = (raw.label || raw.name || raw.title || '').trim();
       link = (raw.link || '').trim();
       id = (raw.id || '').trim();
+      if (raw.metadata && typeof raw.metadata === 'object' && !Array.isArray(raw.metadata)) {
+        try {
+          metadata = JSON.parse(JSON.stringify(raw.metadata));
+        } catch (e) {
+          metadata = {...raw.metadata};
+        }
+      }
     }
 
     entryText = (entryText || '').trim();
-    if (!entryText) return null;
+    const hasInfo = entryText || note || label || link || (metadata && Object.keys(metadata).length);
+    if (!hasInfo) return null;
 
     const keyMatch = entryText.match(/@\w+\s*\{\s*([^,\s]+)/);
     if (!id) {
@@ -3155,6 +3191,7 @@ loadProjects().then(()=>{
       label,
       note,
       link,
+      metadata: metadata || null,
     };
   }
 
@@ -3181,7 +3218,8 @@ loadProjects().then(()=>{
     const doc = singleEditor.getDoc();
     const cursor = doc.getCursor();
     const label = entry.label || entry.id;
-    if (mode === 'markdown') {
+    const format = mode || (currentEditMode === 'markdown' ? 'markdown' : 'latex');
+    if (format === 'markdown') {
       let snippet = entry.link ? `[${label}](${entry.link})` : `[${label}]`;
       if (entry.note) snippet += ` (${entry.note})`;
       doc.replaceRange(snippet + ' ', cursor);
@@ -3195,6 +3233,88 @@ loadProjects().then(()=>{
   }
 
   let bibData = [];
+  const bibEditState = { entry: null, scope: 'page' };
+  let bibEditModalInstance = null;
+
+  function getBibEditModal() {
+    const modalEl = document.getElementById('bibEntryModal');
+    if (!modalEl) return null;
+    if (!bibEditModalInstance) {
+      bibEditModalInstance = new bootstrap.Modal(modalEl);
+      modalEl.addEventListener('hidden.bs.modal', () => {
+        bibEditState.entry = null;
+        bibEditState.scope = 'page';
+        const labelInput = document.getElementById('bib-edit-label');
+        const noteInput = document.getElementById('bib-edit-note');
+        const infoEl = document.getElementById('bib-edit-details');
+        if (labelInput) labelInput.value = '';
+        if (noteInput) noteInput.value = '';
+        if (infoEl) infoEl.innerHTML = '<div class="text-muted">暂无文献信息</div>';
+      });
+    }
+    return bibEditModalInstance;
+  }
+
+  function buildBibMetadataHtml(entry, scope) {
+    const infoChunks = [];
+    if (scope) {
+      const scopeLabel = scope === 'page' ? '所属：本页' : '所属：全局';
+      infoChunks.push(`<div class="mb-2 text-muted small">${scopeLabel}</div>`);
+    }
+    const idText = entry.id ? escapeHtml(entry.id) : '—';
+    infoChunks.push(`<div class="mb-2"><div class="text-muted small">引用标识</div><div>${idText}</div></div>`);
+    if (entry.link) {
+      const safeLink = escapeHtml(entry.link);
+      infoChunks.push(`<div class="mb-2"><div class="text-muted small">链接</div><div><a href="${safeLink}" target="_blank" rel="noopener">${safeLink}</a></div></div>`);
+    }
+    const metadata = entry.metadata && typeof entry.metadata === 'object' ? entry.metadata : null;
+    if (metadata) {
+      if (Array.isArray(metadata.authors) && metadata.authors.length) {
+        infoChunks.push(`<div class="mb-2"><div class="text-muted small">作者</div><div>${escapeHtml(metadata.authors.join(', '))}</div></div>`);
+      }
+      if (metadata.venue) {
+        infoChunks.push(`<div class="mb-2"><div class="text-muted small">发表</div><div>${escapeHtml(metadata.venue)}</div></div>`);
+      }
+      if (metadata.year) {
+        infoChunks.push(`<div class="mb-2"><div class="text-muted small">年份</div><div>${escapeHtml(String(metadata.year))}</div></div>`);
+      }
+      if (metadata.doi) {
+        const trimmedDoi = String(metadata.doi).trim();
+        const doiLink = trimmedDoi ? `https://doi.org/${trimmedDoi}` : '';
+        const doiHtml = trimmedDoi ? `<a href="${escapeHtml(doiLink)}" target="_blank" rel="noopener">${escapeHtml(trimmedDoi)}</a>` : '—';
+        infoChunks.push(`<div class="mb-2"><div class="text-muted small">DOI</div><div>${doiHtml}</div></div>`);
+      }
+      const extraKeys = Object.keys(metadata).filter(k => !['authors', 'venue', 'year', 'doi'].includes(k));
+      extraKeys.forEach(key => {
+        const value = metadata[key];
+        if (value === undefined || value === null) return;
+        const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+        infoChunks.push(`<div class="mb-2"><div class="text-muted small">${escapeHtml(key)}</div><div>${escapeHtml(text)}</div></div>`);
+      });
+    }
+    if (entry.entry) {
+      const raw = escapeHtml(entry.entry);
+      infoChunks.push(`<div class="mb-0"><div class="text-muted small">原始 BibTeX</div><pre class="mb-0 small bg-white border rounded p-2">${raw}</pre></div>`);
+    }
+    if (!infoChunks.length) {
+      infoChunks.push('<div class="text-muted">暂无文献信息</div>');
+    }
+    return infoChunks.join('');
+  }
+
+  function openBibEditModal(entry, scope) {
+    const modal = getBibEditModal();
+    if (!modal || !entry) return;
+    bibEditState.entry = entry;
+    bibEditState.scope = scope;
+    const labelInput = document.getElementById('bib-edit-label');
+    const noteInput = document.getElementById('bib-edit-note');
+    if (labelInput) labelInput.value = entry.label || '';
+    if (noteInput) noteInput.value = entry.note || '';
+    const infoEl = document.getElementById('bib-edit-details');
+    if (infoEl) infoEl.innerHTML = buildBibMetadataHtml(entry, scope);
+    modal.show();
+  }
 
   function currentPageBib() {
     if (!pagesData[currentPageIdx]) {
@@ -3270,50 +3390,41 @@ loadProjects().then(()=>{
       idLine.textContent = scope === 'page' ? `本页 · ${entry.id}` : `全局 · ${entry.id}`;
       meta.appendChild(idLine);
 
-      const body = document.createElement('pre');
-      body.className = 'small bg-light rounded border mt-2 mb-0 p-2';
-      body.style.whiteSpace = 'pre-wrap';
-      body.style.wordBreak = 'break-all';
-      body.textContent = entry.entry;
-      meta.appendChild(body);
+      if (entry.metadata) {
+        const infoParts = [];
+        const authors = Array.isArray(entry.metadata.authors) ? entry.metadata.authors : [];
+        if (authors.length) {
+          const shortAuthors = authors.slice(0, 3).join(', ');
+          infoParts.push(authors.length > 3 ? `${shortAuthors} 等` : shortAuthors);
+        }
+        if (entry.metadata.venue) infoParts.push(entry.metadata.venue);
+        if (entry.metadata.year) infoParts.push(entry.metadata.year);
+        if (entry.metadata.doi) infoParts.push(entry.metadata.doi);
+        if (infoParts.length) {
+          const metaLine = document.createElement('div');
+          metaLine.className = 'text-muted small';
+          metaLine.textContent = infoParts.join(' · ');
+          meta.appendChild(metaLine);
+        }
+      }
 
       header.appendChild(meta);
 
       const actions = document.createElement('div');
       actions.className = 'd-flex flex-column gap-1';
 
-      const mdBtn = document.createElement('button');
-      mdBtn.type = 'button';
-      mdBtn.className = 'btn btn-sm btn-outline-primary';
-      mdBtn.textContent = '插入 Markdown';
-      mdBtn.onclick = () => insertBibIntoEditor(entry, 'markdown');
-      actions.appendChild(mdBtn);
-
-      const texBtn = document.createElement('button');
-      texBtn.type = 'button';
-      texBtn.className = 'btn btn-sm btn-outline-primary';
-      texBtn.textContent = '插入 LaTeX';
-      texBtn.onclick = () => insertBibIntoEditor(entry, 'latex');
-      actions.appendChild(texBtn);
+      const insertBtn = document.createElement('button');
+      insertBtn.type = 'button';
+      insertBtn.className = 'btn btn-sm btn-outline-primary';
+      insertBtn.textContent = '插入引用';
+      insertBtn.onclick = () => insertBibIntoEditor(entry);
+      actions.appendChild(insertBtn);
 
       const editBtn = document.createElement('button');
       editBtn.type = 'button';
       editBtn.className = 'btn btn-sm btn-outline-secondary';
-      editBtn.textContent = '编辑备注';
-      editBtn.onclick = () => {
-        const newLabel = prompt('输入文献名字（留空保持不变）', entry.label || '');
-        if (newLabel === null) return;
-        const newNote = prompt('输入备注（留空可清空）', entry.note || '');
-        if (newLabel !== null) entry.label = newLabel.trim() || entry.id;
-        if (newNote !== null) entry.note = newNote.trim();
-        if (scope === 'page') {
-          saveProject();
-          queueCompile();
-        } else {
-          saveGlobalBib();
-        }
-        renderBibList();
-      };
+      editBtn.textContent = '编辑信息';
+      editBtn.onclick = () => openBibEditModal(entry, scope);
       actions.appendChild(editBtn);
 
       const deleteBtn = document.createElement('button');
@@ -3365,6 +3476,33 @@ loadProjects().then(()=>{
     });
   };
 
+  const bibEditSaveBtn = document.getElementById('bib-edit-save');
+  if (bibEditSaveBtn) {
+    bibEditSaveBtn.addEventListener('click', () => {
+      const entry = bibEditState.entry;
+      if (!entry) return;
+      const labelInput = document.getElementById('bib-edit-label');
+      const noteInput = document.getElementById('bib-edit-note');
+      const newLabel = labelInput ? labelInput.value.trim() : '';
+      const newNote = noteInput ? noteInput.value.trim() : '';
+      entry.label = newLabel || entry.id;
+      if (newNote) {
+        entry.note = newNote;
+      } else {
+        delete entry.note;
+      }
+      if (bibEditState.scope === 'page') {
+        saveProject();
+        queueCompile();
+      } else {
+        saveGlobalBib();
+      }
+      renderBibList();
+      const modal = getBibEditModal();
+      if (modal) modal.hide();
+    });
+  }
+
   document.getElementById('add-bib-btn').onclick = function() {
     const val = document.getElementById('bib-input').value.trim();
     if(!val) return;
@@ -3378,12 +3516,12 @@ loadProjects().then(()=>{
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ref: val})
     }).then(res=>res.json()).then(data=>{
-      if(data.success && data.bib) {
-        const entry = normalizeBibEntry({
-          entry: data.bib,
-          label: labelInput.value,
-          note: noteInput.value,
-        });
+      if(data.success && (data.entry || data.bib)) {
+        const payload = data.entry ? {...data.entry} : {entry: data.bib};
+        if (labelInput.value.trim()) payload.label = labelInput.value.trim();
+        if (noteInput.value.trim()) payload.note = noteInput.value.trim();
+        if (!payload.link && val.startsWith('http')) payload.link = val;
+        const entry = normalizeBibEntry(payload);
         if(entry){
           if(scope === 'page') {
             const pageEntries = currentPageBib();
@@ -3428,6 +3566,10 @@ loadProjects().then(()=>{
       label: labelInput.value,
       note: noteInput.value,
       link: cleanVal,
+      metadata: {
+        type: 'web',
+        source: 'manual',
+      },
     });
     if(entry){
       if(scope === 'page') {

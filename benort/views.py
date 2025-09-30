@@ -3,10 +3,12 @@
 import base64
 import hashlib
 import io
+import json
 import os
 import re
 import subprocess
 import zipfile
+from typing import Optional, Tuple
 
 import requests
 from flask import Blueprint, current_app, jsonify, render_template, request, send_file, send_from_directory
@@ -41,6 +43,7 @@ from .oss_client import (
     upload_file as oss_upload_file,
 )
 from .config import (
+    AI_BIB_PROMPT,
     AI_PROMPTS,
     OPENAI_CHAT_COMPLETIONS_MODEL,
     OPENAI_TTS_MODEL,
@@ -50,6 +53,55 @@ from .config import (
 )
 from .template_store import get_default_header, get_default_template, list_templates
 from .responses import api_error, api_success
+
+
+_DOI_PATTERN = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", flags=re.IGNORECASE)
+
+
+def _extract_json_object(text: str) -> dict:
+    """尽量从模型输出中解析出 JSON 对象。"""
+
+    if not text:
+        return {}
+
+    text = text.strip()
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            return parsed
+    except json.JSONDecodeError:
+        pass
+
+    match = re.search(r"\{[\s\S]*\}", text)
+    if match:
+        snippet = match.group(0)
+        try:
+            parsed = json.loads(snippet)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _normalize_reference_link(ref: str, link: Optional[str], doi: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    """返回规范化后的链接和 DOI。"""
+
+    found_doi = doi
+    if not found_doi:
+        match = _DOI_PATTERN.search(ref)
+        if match:
+            found_doi = match.group(0).strip().rstrip('.')
+
+    normalized_link = link.strip() if link else ""
+    if not normalized_link and _DOI_PATTERN.match(ref):
+        normalized_link = f"https://doi.org/{ref.strip()}"
+    if not normalized_link and ref.lower().startswith("http"):
+        normalized_link = ref
+    if not normalized_link and found_doi:
+        normalized_link = f"https://doi.org/{found_doi}"
+
+    return normalized_link or None, found_doi
 
 
 _SEARCH_FIELD_LABELS = {
@@ -813,7 +865,7 @@ def ai_optimize():
 
 @bp.route("/ai_bib", methods=["POST"])
 def ai_bib():
-    """基于 DOI 或链接调用 OpenAI 生成 bibtex 条目。"""
+    """调用 OpenAI 获取文献的记忆标签与备注摘要。"""
 
     data = request.json or {}
     ref = str(data.get("ref", "")).strip()
@@ -824,11 +876,8 @@ def ai_bib():
     if not api_key:
         return jsonify({"success": False, "error": "未设置OPENAI_API_KEY环境变量"}), 500
 
-    prompt = (
-        "请根据下方输入的DOI或文献链接，自动补全并生成标准的bibtex条目（包含作者、标题、期刊、年份等），"
-        "不要出现```bibtex等无关信息，只返回bibtex内容：\n"
-        f"{ref}"
-    )
+    system_prompt = AI_BIB_PROMPT["system"]
+    user_prompt = AI_BIB_PROMPT["user"].format(ref=ref)
 
     try:
         resp = requests.post(
@@ -840,19 +889,94 @@ def ai_bib():
             json={
                 "model": OPENAI_CHAT_COMPLETIONS_MODEL,
                 "messages": [
-                    {"role": "system", "content": "你是一个bibtex文献专家，只返回bibtex条目。"},
-                    {"role": "user", "content": prompt},
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
                 ],
-                "temperature": 0.2,
+                "temperature": 0.1,
             },
             timeout=60,
         )
-        if resp.status_code == 200:
-            bib = resp.json()["choices"][0]["message"]["content"]
-            return jsonify({"success": True, "bib": bib})
-        return jsonify({"success": False, "error": f"OpenAI API错误: {resp.text}"}), 500
     except Exception as exc:  # pragma: no cover
         return jsonify({"success": False, "error": str(exc)}), 500
+
+    if resp.status_code != 200:
+        return jsonify({"success": False, "error": f"OpenAI API错误: {resp.text}"}), 500
+
+    try:
+        content = resp.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, ValueError) as exc:  # pragma: no cover
+        return jsonify({"success": False, "error": f"解析OpenAI响应失败: {exc}"}), 500
+
+    parsed = _extract_json_object(content)
+    if not parsed:
+        parsed = {"note": content.strip() or ""}
+
+    metadata = parsed.get("metadata") or {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    label = str(parsed.get("label") or "").strip()
+    note = str(parsed.get("note") or parsed.get("summary") or "").strip()
+    suggested_id = str(parsed.get("id") or "").strip()
+    link = parsed.get("link") or parsed.get("url") or ""
+    doi = parsed.get("doi") or metadata.get("doi") or ""
+
+    link, doi = _normalize_reference_link(ref, str(link or "") or None, str(doi or "") or None)
+    if doi:
+        metadata.setdefault("doi", doi)
+
+    bibtex = parsed.get("bibtex") or parsed.get("entry") or ""
+
+    authors = parsed.get("authors")
+    if authors and isinstance(authors, list):
+        metadata.setdefault("authors", authors)
+    venue = parsed.get("venue") or parsed.get("journal")
+    if venue:
+        metadata.setdefault("venue", venue)
+    year = parsed.get("year") or parsed.get("date")
+    if year:
+        metadata.setdefault("year", year)
+    resource_type = parsed.get("type")
+    if resource_type:
+        metadata.setdefault("type", resource_type)
+    title = parsed.get("title")
+    if title and "title" not in metadata:
+        metadata["title"] = title
+
+    if not label:
+        if metadata.get("title"):
+            label = str(metadata["title"]).strip()
+        elif metadata.get("venue") and metadata.get("year"):
+            label = f"{metadata['venue']} {metadata['year']}".strip()
+        elif link:
+            label = link.split("//")[-1][:50]
+    if not label:
+        label = suggested_id or "参考资料"
+
+    label = label[:60]
+
+    if not note:
+        note = metadata.get("summary") or metadata.get("abstract") or ""
+    note = note[:200]
+
+    cite_id = suggested_id
+    if not cite_id and doi:
+        cite_id = re.sub(r"[^a-zA-Z0-9]+", "_", doi).strip("_")[:50]
+    if not cite_id and label:
+        cite_id = re.sub(r"[^a-zA-Z0-9]+", "_", label).strip("_")[:50]
+    if not cite_id:
+        cite_id = f"ref{hashlib.md5((ref or label).encode('utf-8')).hexdigest()[:8]}"
+
+    entry_payload = {
+        "id": cite_id,
+        "label": label,
+        "note": note,
+        "link": link,
+        "entry": str(bibtex or ""),
+        "metadata": metadata,
+    }
+
+    return jsonify({"success": True, "entry": entry_payload})
 
 
 @bp.route("/static/<path:filename>")

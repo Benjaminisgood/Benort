@@ -102,6 +102,24 @@ AI_PROMPTS = {
     },
 }
 
+AI_BIB_PROMPT = {
+    "system": (
+        "你是一名资深研究助理。"
+        "接收任何网页链接或 DOI，输出一个 JSON 对象，总结该资源的关键信息。"
+        "JSON 字段必须包含 label(50字以内记忆名), note(1-2句核心要点),"
+        " id(推荐的引用键，仅含字母数字或-), link(首选规范化URL),"
+        " metadata(对象，包含作者数组authors、年份year、来源venue、doi、type等可用信息)。"
+        " 若是学术论文请返回 metadata.doi、metadata.authors(最多5位作者全名)、metadata.year、metadata.venue。"
+        " 如能生成 BibTeX，可放在 bibtex 字段。"
+        " 严格返回单个 JSON 对象，不要额外解释。"
+    ),
+    "user": (
+        "请分析以下引用或网页，生成记忆名与重点摘要。"
+        " 如果这是 DOI 论文，请尽可能补充论文的详细信息。\n"
+        "输入: {ref}"
+    ),
+}
+
 
 def template_library_root(app: object | None = None) -> str:
     """确定可复用 LaTeX 模板所在目录。"""
@@ -154,6 +172,7 @@ __all__ = [
     "OPENAI_TTS_RESPONSE_FORMAT",
     "OPENAI_TTS_SPEED",
     "AI_PROMPTS",
+    "AI_BIB_PROMPT",
     "init_app_config",
     "template_library_root",
 ]

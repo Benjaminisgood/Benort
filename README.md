@@ -23,10 +23,20 @@ pip install --upgrade pip
 pip install .              # 根据 pyproject.toml 安装依赖
 ```
 
-配置 OpenAI API 密钥：在项目根目录创建 `.env`，写入：
+配置 OpenAI API 密钥与界面主题：在项目根目录创建 `.env`，例如：
 
 ```
 OPENAI_API_KEY=你的OpenAI密钥
+
+# UI 主题配置（可选）
+BENORT_COLOR_MODE=dark            # light 或 dark
+BENORT_NAVBAR_PRESET=modern       # modern 自定义柔和风格；bootstrap 使用原生 Bootstrap
+BENORT_NAVBAR_STYLE=palette       # uniform 固定色；palette 使用多彩色
+BENORT_NAVBAR_VARIANT=solid       # solid 实心；outline 描边
+# BENORT_NAVBAR_COLOR=primary    # uniform 模式下的主色
+# BENORT_NAVBAR_PALETTE=primary,success,warning,danger,info,secondary
+
+说明：`BENORT_NAVBAR_PRESET=modern` 使用优化后的圆角按钮（支持柔和 hover 动效）；设为 `bootstrap` 则完全沿用 Bootstrap 原生色系，方便与既有设计保持一致。页码、项目切换按钮等都会随配置统一更新。
 ```
 
 启动开发服务器：
@@ -81,7 +91,7 @@ Benort/
 
 同步开关默认关闭，仅在需要向 OSS 同步时再启用，可有效节省流量成本并兼顾本地部署体验。
 
-### `.env` 示例（阿里云华东 2 上海）
+### `.env` 示例（阿里云华东 2 上海 + UI 配置）
 
 ```bash
 # OSS 基本配置
@@ -97,6 +107,12 @@ ALIYUN_OSS_PREFIX=attachments
 # 可选：覆盖默认附件/资源存储位置
 #LOCAL_ATTACHMENTS_ROOT=/data/benort/attachments
 #LOCAL_RESOURCES_ROOT=/data/benort/resources
+
+# UI 主题（可选）
+BENORT_COLOR_MODE=dark
+BENORT_NAVBAR_PRESET=modern
+BENORT_NAVBAR_STYLE=palette
+BENORT_NAVBAR_VARIANT=solid
 ```
 
 ## 常用命令

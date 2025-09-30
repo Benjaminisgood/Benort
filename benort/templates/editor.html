@@ -81,6 +81,23 @@
     body.theme-dark .list-group-item-action:focus {
       background-color: #1f2937;
     }
+    .js-nav-btn {
+      min-height: 34px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.25;
+      transition: transform 0.15s ease, background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+    .js-nav-btn:hover {
+      transform: translateY(-1px);
+    }
+    .js-nav-btn:active {
+      transform: translateY(0);
+    }
     body.theme-dark .dropdown-menu {
       background: #101b33;
       border: 1px solid rgba(148, 163, 184, 0.18);
@@ -102,16 +119,7 @@
       --btn-text: #ffffff;
       --btn-border: #2563eb;
       --btn-outline-hover: rgba(15, 23, 42, 0.06);
-      min-height: 34px;
-      padding: 6px 14px;
-      border-radius: 999px;
-      font-weight: 600;
-      transition: transform 0.15s ease, background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
       border-width: 1px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      line-height: 1.25;
     }
     .btn-theme[data-theme-variant="solid"] {
       background: var(--btn-bg);
@@ -2002,6 +2010,7 @@
   function applyNavbarTheme() {
     const theme = window.BENORT_UI_THEME || {};
     const config = theme.navbar_buttons || {};
+    const preset = (config.preset || 'modern').toLowerCase();
     const colorMode = (theme.color_mode || 'light').toLowerCase();
     const style = (config.style || 'uniform').toLowerCase();
     const variant = (config.variant || 'outline').toLowerCase() === 'solid' ? 'solid' : 'outline';
@@ -2041,6 +2050,11 @@
           btn.classList.remove(cls);
         }
       });
+      btn.classList.remove('btn-theme');
+      ['--btn-bg', '--btn-hover', '--btn-text', '--btn-border', '--btn-outline-hover'].forEach(prop => btn.style.removeProperty(prop));
+      btn.style.removeProperty('color');
+      btn.style.removeProperty('background');
+      btn.style.removeProperty('border-color');
       const explicitVariant = (btn.dataset.themeVariant || '').toLowerCase();
       const resolvedVariant = explicitVariant === 'solid' || explicitVariant === 'outline' ? explicitVariant : variant;
       const sourceColor = btn.dataset.themeColor || (style === 'palette' ? palette[idx % palette.length] : uniformColor) || 'primary';
@@ -2048,14 +2062,22 @@
       const tokens = resolveTokens(normalized);
       const textColor = resolvedVariant === 'solid' ? tokens.text : tokens.border;
       const outlineHover = tokens.outlineHover || (colorMode === 'dark' ? 'rgba(148, 163, 184, 0.16)' : 'rgba(15, 23, 42, 0.08)');
-      btn.classList.add('btn-theme');
-      btn.dataset.themeVariant = resolvedVariant;
-      btn.dataset.themeColor = normalized;
-      btn.style.setProperty('--btn-bg', tokens.bg);
-      btn.style.setProperty('--btn-hover', tokens.hover);
-      btn.style.setProperty('--btn-text', textColor);
-      btn.style.setProperty('--btn-border', tokens.border);
-      btn.style.setProperty('--btn-outline-hover', outlineHover);
+      const applyModern = preset === 'modern' || preset === 'neo';
+      if (applyModern) {
+        btn.classList.add('btn', 'btn-theme');
+        btn.style.setProperty('--btn-bg', tokens.bg);
+        btn.style.setProperty('--btn-hover', tokens.hover);
+        btn.style.setProperty('--btn-text', textColor);
+        btn.style.setProperty('--btn-border', tokens.border);
+        btn.style.setProperty('--btn-outline-hover', outlineHover);
+        btn.dataset.themeActiveVariant = resolvedVariant;
+        btn.dataset.themeActiveColor = normalized;
+      } else {
+        btn.removeAttribute('data-theme-active-variant');
+        btn.removeAttribute('data-theme-active-color');
+        const bootstrapClass = resolvedVariant === 'solid' ? `btn-${normalized}` : `btn-outline-${normalized}`;
+        btn.classList.add('btn', bootstrapClass);
+      }
     });
   }
 

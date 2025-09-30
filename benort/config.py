@@ -428,6 +428,7 @@ COMPONENT_LIBRARY = {
 UI_THEME = {
     "color_mode": os.environ.get("BENORT_COLOR_MODE", "light"),  # light | dark
     "navbar_buttons": {
+        "preset": os.environ.get("BENORT_NAVBAR_PRESET", "modern"),
         "style": os.environ.get("BENORT_NAVBAR_STYLE", "uniform"),  # uniform | palette
         "variant": os.environ.get("BENORT_NAVBAR_VARIANT", "outline"),  # outline | solid
         "color": os.environ.get("BENORT_NAVBAR_COLOR", "primary"),

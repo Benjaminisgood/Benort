@@ -5,11 +5,10 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 
-from .config import DEFAULT_PROJECT_NAME, init_app_config
-
-
 # 读取 .env 配置以加载 OPENAI_API_KEY 等敏感信息
 load_dotenv()
+
+from .config import DEFAULT_PROJECT_NAME, init_app_config
 
 
 def create_app(config: dict | None = None) -> Flask:

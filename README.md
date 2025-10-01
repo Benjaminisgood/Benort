@@ -109,10 +109,10 @@ ALIYUN_OSS_PREFIX=attachments
 #LOCAL_RESOURCES_ROOT=/data/benort/resources
 
 # UI 主题（可选）
-BENORT_COLOR_MODE=dark
-BENORT_NAVBAR_PRESET=modern
-BENORT_NAVBAR_STYLE=palette
-BENORT_NAVBAR_VARIANT=solid
+BENORT_COLOR_MODE=dark      # 或 light
+BENORT_NAVBAR_PRESET=modern # 或 bootstrap
+BENORT_NAVBAR_STYLE=palette # 或 uniform
+BENORT_NAVBAR_VARIANT=solid # 或 outline
 ```
 
 ## 常用命令

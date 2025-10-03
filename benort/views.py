@@ -1879,15 +1879,28 @@ def list_resources():
         local_url = local_map.get(sanitized)
         oss_url = remote_map.get(sanitized)
         preferred = local_url or oss_url or ''
-        files.append({
-            'name': sanitized,
-            'url': preferred,
-            'preferredUrl': preferred,
-            'localUrl': local_url,
-            'ossUrl': oss_url,
-            'exists': bool(local_url),
-            'remote': bool(oss_url),
-        })
+        if local_url and oss_url:
+            location = 'synced'
+        elif local_url and not oss_url:
+            location = 'local'
+        elif not local_url and oss_url:
+            location = 'oss'
+        else:
+            location = 'missing'
+        files.append(
+            {
+                'name': sanitized,
+                'path': sanitized,
+                'url': preferred,
+                'preferredUrl': preferred,
+                'localUrl': local_url,
+                'ossUrl': oss_url,
+                'exists': bool(local_url),
+                'remote': bool(oss_url),
+                'local': bool(local_url),
+                'location': location,
+            }
+        )
 
     payload = {'files': files, 'ossConfigured': configured}
     if oss_error:

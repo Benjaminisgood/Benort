@@ -23,12 +23,68 @@ class OSSSettings:
     prefix: str
     public_base_url: Optional[str]
 
+DEFAULT_CATEGORY = "attachments"
+
 
 def _clean_prefix(prefix: str) -> str:
     if not prefix:
-        return "attachments"
+        return DEFAULT_CATEGORY
     cleaned = prefix.strip().strip("/")
-    return cleaned or "attachments"
+    return cleaned or DEFAULT_CATEGORY
+
+
+def _normalize_category(category: Optional[str]) -> str:
+    if category is None:
+        return DEFAULT_CATEGORY
+    normalized = category.strip().strip("/")
+    return normalized or DEFAULT_CATEGORY
+
+
+def _category_segments(category: str) -> list[str]:
+    if category == "yaml":
+        return [".yaml"]
+    if category in {"attachments", "resources"}:
+        return [category]
+    return [category]
+
+
+def _base_segments(settings: OSSSettings, project_name: str) -> list[str]:
+    prefix = settings.prefix.strip("/")
+    project = project_name.strip().strip("/")
+    segments: list[str] = []
+    if prefix:
+        segments.append(prefix)
+    if project:
+        segments.append(project)
+    return segments
+
+
+def _legacy_object_keys(
+    settings: OSSSettings, project_name: str, filename: str, category: Optional[str]
+) -> list[str]:
+    name = filename.strip().lstrip("/")
+    if not name:
+        return []
+    normalized_category = _normalize_category(category)
+    prefix = settings.prefix.strip("/")
+    project = project_name.strip().strip("/")
+
+    segments: list[str] = []
+    if prefix:
+        segments.append(prefix)
+
+    legacy_category = None if normalized_category == "attachments" else normalized_category
+    if legacy_category == "yaml":
+        legacy_category = "yaml"
+
+    if legacy_category:
+        segments.append(legacy_category)
+    if project:
+        segments.append(project)
+    segments.append(name)
+
+    key = "/".join(filter(None, segments))
+    return [key] if key else []
 
 
 def get_settings() -> Optional[OSSSettings]:
@@ -71,20 +127,19 @@ def _get_bucket(settings: OSSSettings):
     return oss2.Bucket(auth, settings.endpoint, settings.bucket_name)
 
 
-def _category_root(settings: OSSSettings, category: Optional[str]) -> str:
-    base = settings.prefix.strip("/")
-    parts = [base] if base else []
-    if category:
-        parts.append(category.strip("/"))
-    return "/".join([p for p in parts if p])
-
-
-def _object_key(settings: OSSSettings, project_name: str, filename: str, category: Optional[str] = None) -> str:
-    project = project_name.strip().strip("/")
+def _object_key(
+    settings: OSSSettings,
+    project_name: str,
+    filename: str,
+    category: Optional[str] = None,
+) -> str:
     name = filename.strip().lstrip("/")
-    root = _category_root(settings, category)
-    segments = [segment for segment in [root, project, name] if segment]
-    key = "/".join(segments)
+    normalized_category = _normalize_category(category)
+    segments = _base_segments(settings, project_name)
+    segments.extend(_category_segments(normalized_category))
+    if name:
+        segments.append(name)
+    key = "/".join(filter(None, segments))
     return key
 
 
@@ -114,6 +169,14 @@ def upload_file(project_name: str, filename: str, local_path: str, category: Opt
 
     with open(local_path, "rb") as fh:
         bucket.put_object(key, fh)
+
+    for legacy_key in _legacy_object_keys(settings, project_name, filename, category):
+        if legacy_key == key:
+            continue
+        try:  # pragma: no cover - best effort cleanup
+            bucket.delete_object(legacy_key)
+        except Exception:
+            pass
     return build_public_url(settings, key)
 
 
@@ -126,6 +189,13 @@ def delete_file(project_name: str, filename: str, category: Optional[str] = None
     bucket = _get_bucket(settings)
     key = _object_key(settings, project_name, filename, category)
     bucket.delete_object(key)
+    for legacy_key in _legacy_object_keys(settings, project_name, filename, category):
+        if legacy_key == key:
+            continue
+        try:  # pragma: no cover - best effort cleanup
+            bucket.delete_object(legacy_key)
+        except Exception:
+            pass
 
 
 def list_files(project_name: str, category: Optional[str] = None) -> Dict[str, str]:
@@ -178,6 +248,13 @@ def sync_directory(project_name: str, local_dir: str, delete_remote_extras: bool
             with open(os.path.join(local_dir, rel_path.replace("/", os.sep)), "rb") as fh:
                 bucket.put_object(key, fh)
             uploaded.append(rel_path)
+            for legacy_key in _legacy_object_keys(settings, project_name, rel_path, category):
+                if legacy_key == key:
+                    continue
+                try:  # pragma: no cover - best effort cleanup
+                    bucket.delete_object(legacy_key)
+                except Exception:
+                    pass
         except Exception:  # pragma: no cover - best effort logging handled by caller
             failed.append(rel_path)
 

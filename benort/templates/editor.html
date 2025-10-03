@@ -4143,12 +4143,14 @@ loadProjects().then(()=>{
     const f = file || {};
     const item = document.createElement('div');
     item.className = 'list-group-item resource-item';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'd-flex flex-column flex-md-row justify-content-between align-items-start gap-2';
     const left = document.createElement('div');
-    left.className = 'resource-name';
+    left.className = 'resource-name me-md-3 flex-grow-1';
     const name = document.createElement('a');
     const localUrl = f.localUrl || '';
     const ossUrl = f.ossUrl || '';
-    const preferredUrl = f.url || localUrl || ossUrl || '';
+    const preferredUrl = f.url || f.preferredUrl || localUrl || ossUrl || '';
     const hasLocal = !!localUrl && f.exists !== false ? true : !!localUrl;
     const hasRemote = !!ossUrl;
     name.href = preferredUrl || '#';
@@ -4163,20 +4165,50 @@ loadProjects().then(()=>{
       name.title = hasRemote ? '本地缺失，仅 OSS 可用' : '文件缺失';
     }
     left.appendChild(name);
-    if(!hasLocal){
+
+    if(f.location){
       const badge = document.createElement('span');
-      badge.className = 'badge bg-warning text-dark ms-2';
-      badge.textContent = '缺失';
+      badge.className = 'badge rounded-pill ms-2';
+      if(f.location === 'synced'){
+        badge.classList.add('bg-success');
+        badge.textContent = '已同步';
+      } else if(f.location === 'local'){
+        badge.classList.add('bg-secondary');
+        badge.textContent = '仅本地';
+      } else if(f.location === 'oss'){
+        badge.classList.add('bg-info');
+        badge.textContent = '仅 OSS';
+      } else {
+        badge.classList.add('bg-warning');
+        badge.textContent = '缺失';
+      }
+      left.appendChild(badge);
+    } else if(!hasLocal || hasRemote){
+      const badge = document.createElement('span');
+      badge.className = 'badge rounded-pill ms-2';
+      if(!hasLocal && hasRemote){
+        badge.classList.add('bg-info', 'text-dark');
+        badge.textContent = '仅 OSS';
+      } else if(!hasLocal){
+        badge.classList.add('bg-warning', 'text-dark');
+        badge.textContent = '缺失';
+      } else {
+        badge.classList.add('bg-secondary');
+        badge.textContent = '仅本地';
+      }
       left.appendChild(badge);
     }
-    if(hasRemote && !hasLocal){
-      const ossBadge = document.createElement('span');
-      ossBadge.className = 'badge bg-info text-dark ms-2';
-      ossBadge.textContent = 'OSS';
-      left.appendChild(ossBadge);
+
+    if(ossUrl){
+      const remoteLink = document.createElement('div');
+      remoteLink.className = 'small text-muted';
+      const label = hasLocal ? '远程：' : 'OSS：';
+      remoteLink.innerHTML = `${label}<a href="${ossUrl}" target="_blank">${ossUrl}</a>`;
+      left.appendChild(remoteLink);
     }
+
     const actions = document.createElement('div');
-    actions.className = 'resource-actions d-flex flex-wrap';
+    actions.className = 'resource-actions d-flex flex-wrap gap-1';
     const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test((f.name || '').toString());
     const targetUrl = f.localUrl || f.ossUrl || preferredUrl;
 
@@ -4241,6 +4273,20 @@ loadProjects().then(()=>{
       }).catch(()=>alert('复制失败，请手动复制链接'));
     };
 
+    const copyOssBtn = document.createElement('button');
+    copyOssBtn.className = 'btn btn-sm btn-outline-primary';
+    copyOssBtn.textContent = '拷贝 OSS 链接';
+    copyOssBtn.onclick = function(){
+      if(!ossUrl){ alert('当前资源没有 OSS 链接'); return; }
+      navigator.clipboard.writeText(ossUrl).then(()=>{
+        copyOssBtn.textContent = '已复制';
+        setTimeout(()=>{ copyOssBtn.textContent = '拷贝 OSS 链接'; }, 2000);
+      }).catch(()=>alert('复制失败，请手动复制链接'));
+    };
+    if(!ossUrl){
+      copyOssBtn.disabled = true;
+    }
+
     const renameBtn = document.createElement('button');
     renameBtn.className = 'btn btn-sm btn-outline-secondary';
     renameBtn.textContent = '重命名';
@@ -4293,11 +4339,13 @@ loadProjects().then(()=>{
     actions.appendChild(previewBtn);
     actions.appendChild(openBtn);
     actions.appendChild(copyBtn);
+    actions.appendChild(copyOssBtn);
     actions.appendChild(renameBtn);
     actions.appendChild(deleteBtn);
 
-    item.appendChild(left);
-    item.appendChild(actions);
+    wrapper.appendChild(left);
+    wrapper.appendChild(actions);
+    item.appendChild(wrapper);
     return item;
   }
 
@@ -4563,6 +4611,37 @@ loadProjects().then(()=>{
           doc.replaceRange(snippet, cursor);
         };
 
+        const insertOssBtn = document.createElement('button');
+        insertOssBtn.type = 'button';
+        insertOssBtn.className = 'btn btn-sm btn-outline-primary';
+        insertOssBtn.textContent = '插入为 OSS 链接';
+        if(!f.ossUrl){
+          insertOssBtn.disabled = true;
+        }
+        insertOssBtn.onclick = function(){
+          if(!singleEditor) return;
+          if(!f.ossUrl){
+            alert('当前附件没有 OSS 链接');
+            return;
+          }
+          const doc = singleEditor.getDoc();
+          const cursor = doc.getCursor();
+          const mode = typeof currentEditMode === 'string' && currentEditMode === 'markdown' ? 'markdown' : 'latex';
+          const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test(f.name || '');
+          const ossUrl = f.ossUrl;
+          let snippet = '';
+          if(mode === 'latex'){
+            if(isImage){
+              snippet = `\\href{${ossUrl}}{${f.name}}\n`;
+            } else {
+              snippet = `\\textbf{附件:} \\href{${ossUrl}}{${f.name}}\n`;
+            }
+          } else {
+            snippet = isImage ? `![${f.name}](${ossUrl})\n` : `[${f.name}](${ossUrl})\n`;
+          }
+          doc.replaceRange(snippet, cursor);
+        };
+
         const previewBtn = document.createElement('button');
         previewBtn.type = 'button';
         previewBtn.className = 'btn btn-sm btn-outline-secondary';
@@ -4671,6 +4750,7 @@ loadProjects().then(()=>{
         };
 
         actions.appendChild(insertBtn);
+        actions.appendChild(insertOssBtn);
         actions.appendChild(previewBtn);
         actions.appendChild(openBtn);
         actions.appendChild(copyNameBtn);

@@ -139,6 +139,75 @@ FALLBACK_MARKDOWN_TEMPLATE: dict[str, str] = {
           font-size: 0.9rem;
           color: #6b7280;
         }
+        .markdown-note .markdown-preview-table-wrapper {
+          position: relative;
+          margin: 1.5rem 0;
+          border: 1px solid #cbd5f5;
+          border-radius: 0.9rem;
+          background: rgba(248, 249, 253, 0.94);
+          overflow: auto;
+          max-width: 100%;
+          max-height: clamp(320px, 62vh, 720px);
+          box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+          padding: 2.25rem 1rem 1.6rem;
+        }
+        .markdown-note .markdown-preview-table-wrapper table {
+          width: max-content;
+          min-width: min(960px, 100%);
+          max-width: none;
+          margin: 0;
+          border-collapse: collapse;
+          background: rgba(255, 255, 255, 0.92);
+        }
+        .markdown-note .markdown-preview-table-wrapper caption {
+          caption-side: top;
+          text-align: left;
+          font-weight: 600;
+          margin-bottom: 0.75rem;
+          color: #1f2937;
+        }
+        .markdown-note .markdown-preview-table-wrapper thead th {
+          position: sticky;
+          top: 0;
+          z-index: 5;
+          background: rgba(224, 231, 255, 0.96);
+          color: #111827;
+          box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.45);
+        }
+        .markdown-note .markdown-preview-table-wrapper tbody tr:nth-child(odd) {
+          background: rgba(226, 232, 255, 0.45);
+        }
+        .markdown-note .markdown-preview-table-wrapper th,
+        .markdown-note .markdown-preview-table-wrapper td {
+          border: 1px solid rgba(148, 163, 184, 0.45);
+          padding: 0.65rem 0.85rem;
+          text-align: left;
+          vertical-align: middle;
+        }
+        .markdown-note .markdown-table-expand-btn {
+          position: absolute;
+          top: 0.75rem;
+          right: 0.75rem;
+          z-index: 10;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          padding: 0.3rem 0.75rem;
+          font-size: 0.8rem;
+          font-weight: 600;
+          background: rgba(99, 102, 241, 0.12);
+          border: 1px solid rgba(99, 102, 241, 0.35);
+          border-radius: 999px;
+          color: #3730a3;
+          cursor: pointer;
+        }
+        .markdown-note .markdown-table-expand-btn:hover,
+        .markdown-note .markdown-table-expand-btn:focus {
+          background: rgba(99, 102, 241, 0.22);
+          border-color: rgba(67, 56, 202, 0.55);
+          color: #1e1b4b;
+          outline: none;
+        }
         .markdown-note table {
           width: 100%;
           border-collapse: collapse;

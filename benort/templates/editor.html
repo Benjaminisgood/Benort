@@ -232,6 +232,34 @@
     body.theme-dark .markdown-preview-content figcaption {
       color: #94a3b8;
     }
+    body.theme-dark .markdown-preview-table-wrapper {
+      border-color: #1f2a44;
+      background: rgba(15, 23, 42, 0.56);
+      box-shadow: 0 28px 60px rgba(7, 26, 60, 0.55);
+    }
+    body.theme-dark .markdown-preview-table-wrapper table {
+      color: #e2e8f0;
+    }
+    body.theme-dark .markdown-preview-table-wrapper caption {
+      color: #e2e8f0;
+    }
+    body.theme-dark .markdown-preview-table-wrapper thead th {
+      background: rgba(30, 41, 59, 0.95);
+      color: #f8fafc;
+      box-shadow: inset 0 -1px 0 rgba(59, 130, 246, 0.45);
+    }
+    body.theme-dark .markdown-preview-table-wrapper tbody tr:nth-child(odd) {
+      background: rgba(30, 41, 59, 0.32);
+    }
+    body.theme-dark .markdown-table-expand-btn {
+      background: rgba(37, 99, 235, 0.18);
+      border-color: rgba(59, 130, 246, 0.5);
+      color: #dbeafe;
+    }
+    body.theme-dark .markdown-table-expand-btn:hover {
+      background: rgba(37, 99, 235, 0.28);
+      color: #fff;
+    }
     body.theme-dark #markdown-preview {
       background: #0b1120;
       border-color: #1e293b;
@@ -302,6 +330,93 @@
       margin-top: 0.75rem;
       font-size: 0.9rem;
       color: #6b7280;
+    }
+    .markdown-preview-table-wrapper {
+      position: relative;
+      margin: 1.5rem 0;
+      border: 1px solid #cbd5f5;
+      border-radius: 0.9rem;
+      background: rgba(248, 249, 253, 0.94);
+      overflow: auto;
+      max-width: 100%;
+      max-height: clamp(320px, 62vh, 720px);
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+      padding: 2.25rem 1rem 1.6rem;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(99, 102, 241, 0.45) transparent;
+    }
+    .markdown-preview-table-wrapper::-webkit-scrollbar {
+      height: 8px;
+      width: 8px;
+    }
+    .markdown-preview-table-wrapper::-webkit-scrollbar-thumb {
+      background: rgba(99, 102, 241, 0.35);
+      border-radius: 4px;
+    }
+    .markdown-preview-table-wrapper::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .markdown-preview-table-wrapper table {
+      width: max-content;
+      min-width: min(960px, 100%);
+      max-width: none;
+      margin: 0;
+      border-collapse: collapse;
+      background: rgba(255, 255, 255, 0.92);
+    }
+    .markdown-preview-table-wrapper caption {
+      caption-side: top;
+      text-align: left;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: #1f2937;
+    }
+    .markdown-preview-table-wrapper thead th {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: rgba(224, 231, 255, 0.96);
+      color: #111827;
+      box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.45);
+    }
+    .markdown-preview-table-wrapper tbody tr:nth-child(odd) {
+      background: rgba(226, 232, 255, 0.45);
+    }
+    .markdown-preview-table-wrapper th,
+    .markdown-preview-table-wrapper td {
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      padding: 0.65rem 0.85rem;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .markdown-table-expand-btn {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      z-index: 10;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      border-radius: 999px;
+      color: #3730a3;
+      backdrop-filter: blur(6px);
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+    .markdown-table-expand-btn:hover,
+    .markdown-table-expand-btn:focus {
+      background: rgba(99, 102, 241, 0.22);
+      border-color: rgba(67, 56, 202, 0.55);
+      color: #1e1b4b;
+      outline: none;
+    }
+    .markdown-table-expand-btn:focus-visible {
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.35);
     }
     .copy-trigger-wrapper {
       position: relative;
@@ -417,6 +532,88 @@
     }
     body:not(.theme-dark) #markdownImageCaption {
       color: rgba(30, 41, 59, 0.78);
+    }
+    #markdownTableModal .modal-dialog {
+      max-width: min(95vw, 1280px);
+    }
+    #markdownTableModal .modal-content {
+      border-radius: 1rem;
+      border: none;
+      background: rgba(248, 249, 253, 0.96);
+      box-shadow: 0 32px 80px rgba(15, 23, 42, 0.35);
+    }
+    body.theme-dark #markdownTableModal .modal-content {
+      background: rgba(15, 23, 42, 0.94);
+      color: #e2e8f0;
+    }
+    #markdownTableModal .modal-body {
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    #markdownTableModalBody {
+      max-height: 80vh;
+      overflow: auto;
+      border-radius: 0.9rem;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: #ffffff;
+      padding: 1.25rem;
+      box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.65);
+    }
+    body.theme-dark #markdownTableModalBody {
+      background: rgba(15, 23, 42, 0.82);
+      border-color: rgba(59, 130, 246, 0.35);
+      box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.18);
+    }
+    #markdownTableModalBody table {
+      width: max-content;
+      min-width: min(1080px, 100%);
+      max-width: none;
+      border-collapse: collapse;
+      margin: 0 auto;
+    }
+    #markdownTableModalBody th,
+    #markdownTableModalBody td {
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      padding: 0.65rem 0.85rem;
+      text-align: left;
+      vertical-align: middle;
+    }
+    #markdownTableModalBody tbody tr:nth-child(odd) {
+      background: rgba(226, 232, 255, 0.45);
+    }
+    #markdownTableModalBody caption {
+      caption-side: top;
+      text-align: left;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: #1f2937;
+    }
+    #markdownTableModalBody thead th {
+      position: sticky;
+      top: 0;
+      background: rgba(224, 231, 255, 0.95);
+      z-index: 3;
+    }
+    body.theme-dark #markdownTableModalBody thead th {
+      background: rgba(30, 41, 59, 0.94);
+      color: #f8fafc;
+      box-shadow: inset 0 -1px 0 rgba(59, 130, 246, 0.45);
+    }
+    body.theme-dark #markdownTableModalBody tbody tr:nth-child(odd) {
+      background: rgba(30, 41, 59, 0.32);
+    }
+    body.theme-dark #markdownTableModalBody caption {
+      color: #e2e8f0;
+    }
+    #markdownTableModalCaption {
+      font-size: 0.95rem;
+      text-align: right;
+      color: rgba(100, 116, 139, 0.95);
+    }
+    body.theme-dark #markdownTableModalCaption {
+      color: rgba(203, 213, 225, 0.86);
     }
   </style>
 </head>
@@ -1083,6 +1280,17 @@
     </div>
   </div>
 </div>
+<div class="modal fade" id="markdownTableModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal-content">
+      <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="关闭表格"></button>
+      <div class="modal-body">
+        <div id="markdownTableModalBody"></div>
+        <div id="markdownTableModalCaption" class="d-none"></div>
+      </div>
+    </div>
+  </div>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/stex/stex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/markdown/markdown.min.js"></script>
@@ -1173,6 +1381,7 @@
   
   const COMPONENT_LIBRARY = window.BENORT_COMPONENT_LIBRARY || {};
   let markdownImageModalInstance = null;
+  let markdownTableModalInstance = null;
 
   function getComponentGroups(mode) {
     if (mode === 'markdown') {
@@ -2192,6 +2401,59 @@
     return markdownImageModalInstance;
   }
 
+  function getMarkdownTableModal() {
+    const modalEl = document.getElementById('markdownTableModal');
+    if (!modalEl || !window.bootstrap || !window.bootstrap.Modal) {
+      return null;
+    }
+    if (!markdownTableModalInstance) {
+      markdownTableModalInstance = new window.bootstrap.Modal(modalEl);
+    }
+    if (!modalEl.dataset.markdownTableBound) {
+      modalEl.addEventListener('hidden.bs.modal', () => {
+        const body = document.getElementById('markdownTableModalBody');
+        const caption = document.getElementById('markdownTableModalCaption');
+        if (body) {
+          body.innerHTML = '';
+        }
+        if (caption) {
+          caption.textContent = '';
+          caption.classList.add('d-none');
+        }
+      });
+      modalEl.dataset.markdownTableBound = '1';
+    }
+    return markdownTableModalInstance;
+  }
+
+  function openTableInModal(table) {
+    if (!table) return;
+    const modalInstance = getMarkdownTableModal();
+    const body = document.getElementById('markdownTableModalBody');
+    const captionEl = document.getElementById('markdownTableModalCaption');
+    if (!modalInstance || !body) return;
+    body.innerHTML = '';
+    const clonedTable = table.cloneNode(true);
+    clonedTable.removeAttribute('id');
+    clonedTable.removeAttribute('data-markdown-preview-table-enhanced');
+    Array.from(clonedTable.querySelectorAll('[data-markdown-preview-table-enhanced]')).forEach(node => {
+      node.removeAttribute('data-markdown-preview-table-enhanced');
+    });
+    Array.from(clonedTable.querySelectorAll('button.markdown-table-expand-btn')).forEach(btn => btn.remove());
+    body.appendChild(clonedTable);
+    if (captionEl) {
+      const caption = table.querySelector('caption');
+      if (caption && caption.textContent.trim()) {
+        captionEl.textContent = caption.textContent.trim();
+        captionEl.classList.remove('d-none');
+      } else {
+        captionEl.textContent = '';
+        captionEl.classList.add('d-none');
+      }
+    }
+    modalInstance.show();
+  }
+
   function enhanceMarkdownImages(container) {
     if (!container) return;
     const modalEl = document.getElementById('markdownImageModal');
@@ -2264,6 +2526,56 @@
             openModal(event);
           }
         });
+      }
+    });
+  }
+
+  function enhanceMarkdownTables(container) {
+    if (!container) return;
+    container.querySelectorAll('table').forEach(table => {
+      if (!(table instanceof HTMLTableElement)) return;
+      if (table.dataset.markdownPreviewTableEnhanced === '1') {
+        return;
+      }
+      table.dataset.markdownPreviewTableEnhanced = '1';
+      let wrapper = table.closest('.markdown-preview-table-wrapper');
+      if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.className = 'markdown-preview-table-wrapper';
+        table.parentNode.insertBefore(wrapper, table);
+        wrapper.appendChild(table);
+      }
+      if (!wrapper.getAttribute('tabindex')) {
+        wrapper.setAttribute('tabindex', '0');
+      }
+      if (!wrapper.hasAttribute('role')) {
+        wrapper.setAttribute('role', 'region');
+      }
+      if (!wrapper.hasAttribute('aria-label')) {
+        wrapper.setAttribute('aria-label', '表格预览区域，可滚动，按 Enter 放大查看');
+      }
+      if (!wrapper.dataset.markdownTableHotkeyBound) {
+        wrapper.addEventListener('keydown', event => {
+          if ((event.key === 'Enter' || event.key === ' ') && event.target === wrapper) {
+            event.preventDefault();
+            openTableInModal(table);
+          }
+        });
+        wrapper.dataset.markdownTableHotkeyBound = '1';
+      }
+      let expandBtn = wrapper.querySelector('.markdown-table-expand-btn');
+      if (!expandBtn) {
+        expandBtn = document.createElement('button');
+        expandBtn.type = 'button';
+        expandBtn.className = 'markdown-table-expand-btn';
+        expandBtn.innerHTML = '<span class="fw-semibold">放大表格</span>';
+        expandBtn.title = '放大查看完整表格 (Enter)';
+        expandBtn.setAttribute('aria-label', '放大查看完整表格');
+        expandBtn.addEventListener('click', event => {
+          event.preventDefault();
+          openTableInModal(table);
+        });
+        wrapper.appendChild(expandBtn);
       }
     });
   }
@@ -2354,6 +2666,7 @@
       preview.innerHTML = '<p class="text-muted mb-0">暂无 Markdown 内容</p>';
     }
     enhanceMarkdownImages(preview);
+    enhanceMarkdownTables(preview);
     if (window.hljs && preview.querySelectorAll) {
       preview.querySelectorAll('pre code').forEach(block => {
         hljs.highlightElement(block);

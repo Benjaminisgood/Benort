@@ -235,7 +235,7 @@
     body.theme-dark .markdown-preview-table-wrapper {
       border-color: #1f2a44;
       background: rgba(15, 23, 42, 0.56);
-      box-shadow: 0 28px 60px rgba(7, 26, 60, 0.55);
+      box-shadow: 0 24px 52px rgba(7, 26, 60, 0.48);
     }
     body.theme-dark .markdown-preview-table-wrapper table {
       color: #e2e8f0;
@@ -333,15 +333,15 @@
     }
     .markdown-preview-table-wrapper {
       position: relative;
-      margin: 1.5rem 0;
+      margin: 1.25rem 0;
       border: 1px solid #cbd5f5;
       border-radius: 0.9rem;
       background: rgba(248, 249, 253, 0.94);
       overflow: auto;
       max-width: 100%;
-      max-height: clamp(320px, 62vh, 720px);
+      max-height: clamp(320px, 58vh, 640px);
       box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
-      padding: 2.25rem 1rem 1.6rem;
+      padding: 1.75rem 1rem 1.4rem;
       scrollbar-width: thin;
       scrollbar-color: rgba(99, 102, 241, 0.45) transparent;
     }
@@ -357,12 +357,11 @@
       background: transparent;
     }
     .markdown-preview-table-wrapper table {
-      width: max-content;
-      min-width: min(960px, 100%);
-      max-width: none;
-      margin: 0;
+      width: 100%;
+      min-width: 100%;
       border-collapse: collapse;
       background: rgba(255, 255, 255, 0.92);
+      table-layout: auto;
     }
     .markdown-preview-table-wrapper caption {
       caption-side: top;
@@ -385,9 +384,11 @@
     .markdown-preview-table-wrapper th,
     .markdown-preview-table-wrapper td {
       border: 1px solid rgba(148, 163, 184, 0.45);
-      padding: 0.65rem 0.85rem;
+      padding: 0.6rem 0.75rem;
       text-align: left;
       vertical-align: middle;
+      word-break: break-word;
+      white-space: normal;
     }
     .markdown-table-expand-btn {
       position: absolute;

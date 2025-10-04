@@ -226,6 +226,12 @@
     body.theme-dark .markdown-preview-content a {
       color: #93c5fd;
     }
+    body.theme-dark .markdown-preview-content img {
+      box-shadow: 0 24px 60px rgba(8, 47, 73, 0.55);
+    }
+    body.theme-dark .markdown-preview-content figcaption {
+      color: #94a3b8;
+    }
     body.theme-dark #markdown-preview {
       background: #0b1120;
       border-color: #1e293b;
@@ -269,6 +275,33 @@
       border-radius: 4px;
       padding: 0.75rem;
       overflow: auto;
+    }
+    .markdown-preview-content img {
+      max-width: min(100%, 720px);
+      height: auto;
+      display: block;
+      margin: 1.25rem auto;
+      border-radius: 0.75rem;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+      cursor: zoom-in;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .markdown-preview-content img:hover {
+      transform: translateY(-2px) scale(1.01);
+      box-shadow: 0 24px 55px rgba(15, 23, 42, 0.24);
+    }
+    .markdown-preview-content img:focus {
+      outline: 3px solid rgba(59, 130, 246, 0.45);
+      outline-offset: 4px;
+    }
+    .markdown-preview-content figure {
+      margin: 1.5rem auto;
+      text-align: center;
+    }
+    .markdown-preview-content figcaption {
+      margin-top: 0.75rem;
+      font-size: 0.9rem;
+      color: #6b7280;
     }
     .copy-trigger-wrapper {
       position: relative;
@@ -332,6 +365,58 @@
       .preview-pane {
         min-height: 60vh;
       }
+    }
+    #markdownImageModal .modal-dialog {
+      max-width: min(92vw, 1080px);
+    }
+    #markdownImageModal .modal-content {
+      background: rgba(15, 23, 42, 0.92);
+      color: #f8fafc;
+      border: none;
+      border-radius: 1rem;
+      backdrop-filter: blur(12px);
+      position: relative;
+      overflow: hidden;
+    }
+    body.theme-dark #markdownImageModal .modal-content {
+      background: rgba(15, 23, 42, 0.9);
+    }
+    body:not(.theme-dark) #markdownImageModal .modal-content {
+      background: rgba(15, 23, 42, 0.94);
+    }
+    #markdownImageModal .modal-body {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      background: transparent;
+    }
+    #markdownImageModal .image-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.82);
+      border-radius: 0.75rem;
+      padding: 1rem;
+    }
+    body:not(.theme-dark) #markdownImageModal .image-wrapper {
+      background: rgba(241, 245, 249, 0.9);
+    }
+    #markdownImageModal .image-wrapper img {
+      max-width: 100%;
+      max-height: 80vh;
+      width: auto;
+      height: auto;
+      border-radius: 0.5rem;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.45);
+    }
+    #markdownImageCaption {
+      font-size: 0.95rem;
+      text-align: center;
+      color: rgba(248, 250, 252, 0.78);
+    }
+    body:not(.theme-dark) #markdownImageCaption {
+      color: rgba(30, 41, 59, 0.78);
     }
   </style>
 </head>
@@ -985,6 +1070,19 @@
     </div>
   </div>
 </div>
+<div class="modal fade" id="markdownImageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal-content">
+      <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="关闭预览"></button>
+      <div class="modal-body">
+        <div class="image-wrapper">
+          <img id="markdownImageModalImg" class="img-fluid" alt="">
+        </div>
+        <div id="markdownImageCaption" class="d-none"></div>
+      </div>
+    </div>
+  </div>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/stex/stex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/markdown/markdown.min.js"></script>
@@ -1071,9 +1169,10 @@
     document.getElementById('page-num').textContent = currentPageIdx+1;
     document.getElementById('page-count').textContent = pagesData.length;
   }
-  
+
   
   const COMPONENT_LIBRARY = window.BENORT_COMPONENT_LIBRARY || {};
+  let markdownImageModalInstance = null;
 
   function getComponentGroups(mode) {
     if (mode === 'markdown') {
@@ -2066,6 +2165,109 @@
     }
   }
 
+  function getMarkdownImageModal() {
+    const modalEl = document.getElementById('markdownImageModal');
+    if (!modalEl || !window.bootstrap || !window.bootstrap.Modal) {
+      return null;
+    }
+    if (!markdownImageModalInstance) {
+      markdownImageModalInstance = new window.bootstrap.Modal(modalEl);
+    }
+    if (!modalEl.dataset.markdownModalBound) {
+      modalEl.addEventListener('hidden.bs.modal', () => {
+        const modalImg = document.getElementById('markdownImageModalImg');
+        const captionEl = document.getElementById('markdownImageCaption');
+        if (modalImg) {
+          modalImg.removeAttribute('src');
+          modalImg.removeAttribute('srcset');
+          modalImg.alt = '';
+        }
+        if (captionEl) {
+          captionEl.textContent = '';
+          captionEl.classList.add('d-none');
+        }
+      });
+      modalEl.dataset.markdownModalBound = '1';
+    }
+    return markdownImageModalInstance;
+  }
+
+  function enhanceMarkdownImages(container) {
+    if (!container) return;
+    const modalEl = document.getElementById('markdownImageModal');
+    const modalImg = document.getElementById('markdownImageModalImg');
+    const captionEl = document.getElementById('markdownImageCaption');
+    if (!modalEl || !modalImg) return;
+    container.querySelectorAll('img').forEach(img => {
+      if (!(img instanceof HTMLImageElement)) return;
+      if (img.dataset.markdownPreviewEnhanced === '1') return;
+      img.dataset.markdownPreviewEnhanced = '1';
+      if (!img.getAttribute('loading')) {
+        img.setAttribute('loading', 'lazy');
+      }
+      if (!img.getAttribute('decoding')) {
+        img.setAttribute('decoding', 'async');
+      }
+      img.classList.add('markdown-preview-image');
+      if (!img.hasAttribute('tabindex')) {
+        img.setAttribute('tabindex', '0');
+      }
+      if (!img.hasAttribute('role')) {
+        img.setAttribute('role', 'button');
+      }
+      const openModal = event => {
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        const modalInstance = getMarkdownImageModal();
+        if (!modalInstance) return;
+        const source = img.currentSrc || img.src || img.getAttribute('data-src');
+        if (source) {
+          modalImg.src = source;
+        } else {
+          modalImg.removeAttribute('src');
+        }
+        if (img.srcset) {
+          modalImg.srcset = img.srcset;
+        } else {
+          modalImg.removeAttribute('srcset');
+        }
+        const altText = img.getAttribute('alt') || img.getAttribute('title') || '';
+        modalImg.alt = altText || '';
+        if (captionEl) {
+          if (altText) {
+            captionEl.textContent = altText;
+            captionEl.classList.remove('d-none');
+          } else {
+            captionEl.textContent = '';
+            captionEl.classList.add('d-none');
+          }
+        }
+        modalInstance.show();
+      };
+      img.addEventListener('click', openModal);
+      img.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          openModal(event);
+        }
+      });
+      const parentLink = img.closest('a');
+      if (parentLink) {
+        parentLink.addEventListener('click', event => {
+          if (event.target === img || event.currentTarget === event.target) {
+            openModal(event);
+          }
+        });
+        parentLink.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            openModal(event);
+          }
+        });
+      }
+    });
+  }
+
   function applyNavbarTheme() {
     const theme = window.BENORT_UI_THEME || {};
     const config = theme.navbar_buttons || {};
@@ -2151,6 +2353,7 @@
     } else {
       preview.innerHTML = '<p class="text-muted mb-0">暂无 Markdown 内容</p>';
     }
+    enhanceMarkdownImages(preview);
     if (window.hljs && preview.querySelectorAll) {
       preview.querySelectorAll('pre code').forEach(block => {
         hljs.highlightElement(block);

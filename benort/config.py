@@ -112,6 +112,33 @@ FALLBACK_MARKDOWN_TEMPLATE: dict[str, str] = {
           border-radius: 0.5rem;
           overflow-x: auto;
         }
+        .markdown-note img {
+          max-width: min(100%, 720px);
+          height: auto;
+          display: block;
+          margin: 1.25rem auto;
+          border-radius: 0.75rem;
+          box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+          cursor: zoom-in;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .markdown-note img:hover {
+          transform: translateY(-2px) scale(1.01);
+          box-shadow: 0 24px 55px rgba(15, 23, 42, 0.24);
+        }
+        .markdown-note img:focus {
+          outline: 3px solid rgba(59, 130, 246, 0.45);
+          outline-offset: 4px;
+        }
+        .markdown-note figure {
+          margin: 1.5rem auto;
+          text-align: center;
+        }
+        .markdown-note figcaption {
+          margin-top: 0.75rem;
+          font-size: 0.9rem;
+          color: #6b7280;
+        }
         .markdown-note table {
           width: 100%;
           border-collapse: collapse;

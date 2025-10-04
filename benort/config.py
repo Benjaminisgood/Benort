@@ -142,9 +142,9 @@ FALLBACK_MARKDOWN_TEMPLATE: dict[str, str] = {
         .markdown-note .markdown-preview-table-wrapper {
           position: relative;
           margin: 1.25rem 0;
-          border: 1px solid #cbd5f5;
+          border: 1px solid #c0ccf4;
           border-radius: 0.9rem;
-          background: rgba(248, 249, 253, 0.94);
+          background: rgba(241, 244, 255, 0.94);
           overflow: auto;
           max-width: 100%;
           max-height: clamp(320px, 58vh, 640px);
@@ -155,7 +155,7 @@ FALLBACK_MARKDOWN_TEMPLATE: dict[str, str] = {
           width: 100%;
           min-width: 100%;
           border-collapse: collapse;
-          background: rgba(255, 255, 255, 0.92);
+          background: rgba(235, 239, 255, 0.96);
           table-layout: auto;
         }
         .markdown-note .markdown-preview-table-wrapper caption {
@@ -169,16 +169,16 @@ FALLBACK_MARKDOWN_TEMPLATE: dict[str, str] = {
           position: sticky;
           top: 0;
           z-index: 5;
-          background: rgba(224, 231, 255, 0.96);
+          background: rgba(210, 219, 255, 0.98);
           color: #111827;
-          box-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.45);
+          box-shadow: inset 0 -1px 0 rgba(131, 146, 199, 0.45);
         }
         .markdown-note .markdown-preview-table-wrapper tbody tr:nth-child(odd) {
-          background: rgba(226, 232, 255, 0.45);
+          background: rgba(206, 214, 255, 0.58);
         }
         .markdown-note .markdown-preview-table-wrapper th,
         .markdown-note .markdown-preview-table-wrapper td {
-          border: 1px solid rgba(148, 163, 184, 0.45);
+          border: 1px solid rgba(138, 151, 199, 0.45);
           padding: 0.6rem 0.75rem;
           text-align: left;
           vertical-align: middle;

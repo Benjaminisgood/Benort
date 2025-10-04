@@ -521,6 +521,14 @@ COMPONENT_LIBRARY = {
                     "code": "![图片说明](path/to/image.png)",
                 },
                 {
+                    "name": "插入视频",
+                    "code": "<video controls width=\"640\">\n  <source src=\"path/to/video.mp4\" type=\"video/mp4\">\n  您的浏览器不支持 HTML5 视频。\n</video>\n",
+                },
+                {
+                    "name": "插入音频",
+                    "code": "<audio controls>\n  <source src=\"path/to/audio.mp3\" type=\"audio/mpeg\">\n  您的浏览器不支持音频播放。\n</audio>\n",
+                },
+                {
                     "name": "嵌入链接",
                     "code": "[相关链接](https://example.com)",
                 },

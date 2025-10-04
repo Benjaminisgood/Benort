@@ -1259,6 +1259,10 @@
             <label class="form-check-label" for="exportPageNotesOption">导出 当前页 Markdown</label>
           </div>
           <div class="form-check">
+            <input class="form-check-input" type="radio" name="exportOption" id="exportPageAudioOption" value="page_audio">
+            <label class="form-check-label" for="exportPageAudioOption">导出 当前页讲稿语音 (MP3)</label>
+          </div>
+          <div class="form-check">
             <input class="form-check-input" type="radio" name="exportOption" id="exportNotesOption" value="notes">
             <label class="form-check-label" for="exportNotesOption">导出 全部笔记 (Markdown)</label>
           </div>
@@ -1272,7 +1276,7 @@
           </div>
           <div class="form-check">
             <input class="form-check-input" type="radio" name="exportOption" id="exportAudioOption" value="audio">
-            <label class="form-check-label" for="exportAudioOption">导出 讲稿为语音 (MP3)</label>
+            <label class="form-check-label" for="exportAudioOption">导出 全部讲稿语音 (MP3)</label>
           </div>
         </div>
         <div class="modal-footer">
@@ -3179,6 +3183,18 @@
       }).catch(e=>alert('导出失败：'+e.message));
       return;
     }
+    if(opt === 'page_audio'){
+      const pageNumber = currentPageIdx + 1;
+      fetch(`/export_page_audio?page=${pageNumber}`).then(res => {
+        if(res.ok) return res.blob();
+        return res.json().then(data=>{throw new Error(data.error||'导出失败')});
+      }).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = `page_${pageNumber}_script.mp3`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        showStatus(`第 ${pageNumber} 页讲稿语音已导出`, 'success', 2500);
+      }).catch(e=>alert('导出失败：'+e.message));
+      return;
+    }
     if(opt === 'notes'){
       fetch('/export_notes').then(res => {
         if(res.ok) return res.blob();
@@ -3209,8 +3225,8 @@
         return res.json().then(data=>{throw new Error(data.error||'导出失败')});
       }).then(blob => {
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = 'script.mp3'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-        showStatus('讲稿语音已导出', 'success', 2500);
+        const a = document.createElement('a'); a.href = url; a.download = 'all_notes.mp3'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        showStatus('全部讲稿语音已导出', 'success', 2500);
       }).catch(e=>alert('导出失败：'+e.message));
       return;
     }

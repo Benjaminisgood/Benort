@@ -180,6 +180,71 @@ def _extract_page_label(idx: int, page: dict) -> str:
     return f"第 {idx + 1} 页"
 
 
+def _export_tts_audio_file(text: str, audio_folder: str, base_name: str, download_name: str, empty_error: str):
+    """将讲稿文本转换为语音文件并返回下载响应。"""
+
+    normalized = str(text or "")
+    if not normalized.strip():
+        return jsonify({"success": False, "error": empty_error}), 400
+
+    os.makedirs(audio_folder, exist_ok=True)
+    content_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    audio_path = os.path.join(audio_folder, f"{base_name}.mp3")
+    hash_path = os.path.join(audio_folder, f"{base_name}.hash")
+
+    if os.path.exists(audio_path) and os.path.exists(hash_path):
+        try:
+            with open(hash_path, "r", encoding="utf-8") as hf:
+                if hf.read().strip() == content_hash:
+                    return send_file(
+                        audio_path,
+                        mimetype="audio/mpeg",
+                        as_attachment=True,
+                        download_name=download_name,
+                    )
+        except Exception:
+            pass
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return jsonify({"success": False, "error": "未设置OPENAI_API_KEY环境变量"}), 500
+
+    try:
+        resp = requests.post(
+            "https://api.openai.com/v1/audio/speech",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": OPENAI_TTS_MODEL,
+                "input": normalized,
+                "voice": OPENAI_TTS_VOICE,
+                "response_format": OPENAI_TTS_RESPONSE_FORMAT,
+                "speed": OPENAI_TTS_SPEED,
+            },
+            timeout=120,
+        )
+        if resp.status_code == 200:
+            audio_bytes = resp.content
+            try:
+                with open(audio_path, "wb") as af:
+                    af.write(audio_bytes)
+                with open(hash_path, "w", encoding="utf-8") as hf:
+                    hf.write(content_hash)
+            except Exception as exc:
+                print(f'写入音频失败: {exc}')
+            return send_file(
+                audio_path,
+                mimetype="audio/mpeg",
+                as_attachment=True,
+                download_name=download_name,
+            )
+        return jsonify({"success": False, "error": f"OpenAI TTS错误: {resp.text}"}), 500
+    except Exception as exc:  # pragma: no cover - network errors
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 def _collect_search_matches(pages, query: str, limit: int = 50):
     """在项目页内检索关键词，返回按命中次数排序的结果。"""
 
@@ -255,72 +320,52 @@ def export_audio():
         project = load_project()
     except ProjectLockedError:
         return api_error(_LOCKED_ERROR, 401)
-    pages = project.get("pages", [])
-    # 取出每页讲稿并合并为一段文本
-    scripts = [p.get("script", "") for p in pages if isinstance(p, dict)]
+    pages = project.get("pages", []) if isinstance(project, dict) else []
+    scripts = [str(p.get("script", "")) for p in pages if isinstance(p, dict)]
     merged = "\n\n".join([n.strip() for n in scripts if n and n.strip()])
-    if not merged:
-        return jsonify({"success": False, "error": "没有可用的笔记内容"}), 400
 
     project_name = get_project_from_request()
     _, _, _, _, build_folder = get_project_paths(project_name)
     audio_folder = os.path.join(build_folder, 'audio')
-    os.makedirs(audio_folder, exist_ok=True)
-    content_hash = hashlib.sha256(merged.encode('utf-8')).hexdigest()
-    audio_path = os.path.join(audio_folder, 'all_notes.mp3')
-    hash_path = os.path.join(audio_folder, 'all_notes.hash')
 
-    if os.path.exists(audio_path) and os.path.exists(hash_path):
-        try:
-            with open(hash_path, 'r', encoding='utf-8') as hf:
-                if hf.read().strip() == content_hash:
-                    return send_file(
-                        audio_path,
-                        mimetype='audio/mpeg',
-                        as_attachment=True,
-                        download_name='all_notes.mp3',
-                    )
-        except Exception:
-            pass
+    return _export_tts_audio_file(merged, audio_folder, 'all_notes', 'all_notes.mp3', '没有可用的笔记内容')
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return jsonify({"success": False, "error": "未设置OPENAI_API_KEY环境变量"}), 500
+
+@bp.route("/export_page_audio", methods=["GET"])
+def export_page_audio():
+    """为当前页讲稿生成语音并返回音频文件。"""
 
     try:
-        resp = requests.post(
-            "https://api.openai.com/v1/audio/speech",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": OPENAI_TTS_MODEL,
-                "input": merged,
-                "voice": OPENAI_TTS_VOICE,
-                "response_format": OPENAI_TTS_RESPONSE_FORMAT,
-                "speed": OPENAI_TTS_SPEED,
-            },
-            timeout=120,
-        )
-        if resp.status_code == 200:
-            audio_bytes = resp.content
-            try:
-                with open(audio_path, 'wb') as af:
-                    af.write(audio_bytes)
-                with open(hash_path, 'w', encoding='utf-8') as hf:
-                    hf.write(content_hash)
-            except Exception as exc:
-                print(f'写入音频失败: {exc}')
-            return send_file(
-                audio_path,
-                mimetype="audio/mpeg",
-                as_attachment=True,
-                download_name="all_notes.mp3",
-            )
-        return jsonify({"success": False, "error": f"OpenAI TTS错误: {resp.text}"}), 500
-    except Exception as exc:  # pragma: no cover - network errors
-        return jsonify({"success": False, "error": str(exc)}), 500
+        project = load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
+
+    page_number = request.args.get("page", type=int)
+    if page_number is None:
+        return jsonify({"success": False, "error": "缺少页码参数"}), 400
+
+    pages = project.get("pages", []) if isinstance(project, dict) else []
+    if not pages:
+        return jsonify({"success": False, "error": "项目内没有幻灯片页"}), 404
+
+    page_idx = page_number - 1
+    if page_idx < 0 or page_idx >= len(pages):
+        return jsonify({"success": False, "error": "指定页不存在"}), 404
+
+    page = pages[page_idx]
+    script = ""
+    if isinstance(page, dict):
+        script = str(page.get("script", ""))
+    else:
+        script = str(page)
+
+    project_name = get_project_from_request()
+    _, _, _, _, build_folder = get_project_paths(project_name)
+    audio_folder = os.path.join(build_folder, 'audio')
+    base_name = f'page_{page_idx + 1}_script'
+    download_name = f'{base_name}.mp3'
+
+    return _export_tts_audio_file(script, audio_folder, base_name, download_name, '当前页没有讲稿内容')
 
 
 @bp.route("/add_page", methods=["POST"])

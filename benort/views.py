@@ -337,7 +337,7 @@ def add_page():
     project["pages"].insert(
         idx,
         {
-            "content": "\\begin{frame}\n\\frametitle{Title of the Slide}\n\\framesubtitle{Subtitle}\n内容...\n\\end{frame}",
+            "content": "\\begin{frame}\n...\n\\end{frame}",
             "script": "",
             "notes": "",
             "bib": [],

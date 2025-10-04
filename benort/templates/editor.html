@@ -252,6 +252,10 @@
     body.theme-dark .markdown-preview-table-wrapper tbody tr:nth-child(odd) {
       background: rgba(43, 56, 92, 0.54);
     }
+    body.theme-dark .markdown-preview-table-wrapper th,
+    body.theme-dark .markdown-preview-table-wrapper td {
+      border-color: rgba(79, 99, 149, 0.55);
+    }
     body.theme-dark .markdown-table-expand-btn {
       background: rgba(37, 99, 235, 0.18);
       border-color: rgba(59, 130, 246, 0.5);
@@ -384,7 +388,7 @@
     }
     .markdown-preview-table-wrapper th,
     .markdown-preview-table-wrapper td {
-      border: 1px solid rgba(148, 163, 184, 0.45);
+      border: 1px solid rgba(138, 151, 199, 0.45);
       padding: 0.6rem 0.75rem;
       text-align: left;
       vertical-align: middle;
@@ -568,6 +572,10 @@
       border-color: rgba(59, 130, 246, 0.35);
       box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.18);
     }
+    body.theme-dark #markdownTableModalBody table {
+      background: rgba(17, 26, 46, 0.88);
+      color: #e2e8f0;
+    }
     #markdownTableModalBody table {
       width: max-content;
       min-width: min(1080px, 100%);
@@ -578,10 +586,14 @@
     }
     #markdownTableModalBody th,
     #markdownTableModalBody td {
-      border: 1px solid rgba(148, 163, 184, 0.45);
+      border: 1px solid rgba(138, 151, 199, 0.45);
       padding: 0.65rem 0.85rem;
       text-align: left;
       vertical-align: middle;
+    }
+    body.theme-dark #markdownTableModalBody th,
+    body.theme-dark #markdownTableModalBody td {
+      border-color: rgba(79, 99, 149, 0.55);
     }
     #markdownTableModalBody tbody tr:nth-child(odd) {
       background: rgba(205, 214, 255, 0.58);
@@ -605,7 +617,7 @@
       box-shadow: inset 0 -1px 0 rgba(59, 130, 246, 0.45);
     }
     body.theme-dark #markdownTableModalBody tbody tr:nth-child(odd) {
-      background: rgba(30, 41, 59, 0.32);
+      background: rgba(43, 56, 92, 0.54);
     }
     body.theme-dark #markdownTableModalBody caption {
       color: #e2e8f0;

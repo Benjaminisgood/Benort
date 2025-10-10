@@ -862,6 +862,7 @@
                 <input id="modal-attachment-upload-input" type="file" class="form-control" />
                 <button id="modal-attachment-upload-btn" class="btn btn-primary">上传附件</button>
               </div>
+              <div id="attachments-usage-hint" class="alert alert-warning d-none small py-2 px-3"></div>
               <div id="attachments-list-modal" class="list-group"></div>
             </div>
             <div class="modal-footer">
@@ -1486,6 +1487,14 @@
     modal.show();
   };
   let pagesData = [];
+
+  function generatePageId() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    const rand = Math.random().toString(16).slice(2);
+    return 'pg_' + rand + Date.now().toString(16);
+  }
   let globalResources = [];
   let latexTemplate = {
     header: '\\documentclass{beamer}\n\\usepackage[utf8]{inputenc}\n\\usetheme{Madrid}',
@@ -2898,7 +2907,7 @@
     wrapper.innerHTML = `<textarea id="page-single" class="form-control"></textarea>`;
     list.appendChild(wrapper);
     if (!pagesData[currentPageIdx]) {
-      pagesData[currentPageIdx] = {content: '', script: '', notes: '', bib: [], resources: []};
+      pagesData[currentPageIdx] = {content: '', script: '', notes: '', bib: [], resources: [], pageId: generatePageId()};
     }
     const page = pagesData[currentPageIdx];
     singleEditor = CodeMirror.fromTextArea(wrapper.querySelector('textarea'), {
@@ -2954,16 +2963,20 @@
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({idx: currentPageIdx+1})
     }).then(res => res.json()).then(data => {
-      pagesData = (data.pages || []).map(p => {
-        if (typeof p !== 'object') {
-          return {content: String(p || ''), script: '', notes: '', bib: [], resources: []};
+      pagesData = (data.pages || []).map((p) => {
+        if (typeof p !== 'object' || p === null) {
+          return {content: String(p || ''), script: '', notes: '', bib: [], resources: [], pageId: generatePageId()};
         }
-        p.content = p.content || '';
-        p.script = p.script || '';
-        p.notes = p.notes || '';
-        p.bib = normalizeBibList(p.bib);
-        p.resources = Array.isArray(p.resources) ? p.resources : [];
-        return p;
+        const pageObj = {...p};
+        pageObj.content = pageObj.content || '';
+        pageObj.script = pageObj.script || '';
+        pageObj.notes = pageObj.notes || '';
+        pageObj.bib = normalizeBibList(pageObj.bib);
+        pageObj.resources = Array.isArray(pageObj.resources) ? pageObj.resources : [];
+        const pidSource = (typeof pageObj.pageId === 'string' && pageObj.pageId) || (typeof pageObj.id === 'string' && pageObj.id);
+        pageObj.pageId = pidSource && pidSource.trim() ? pidSource.trim() : generatePageId();
+        delete pageObj.id;
+        return pageObj;
       });
       currentPageIdx++;
       renderSingleEditor();
@@ -3336,15 +3349,22 @@
           markdownTemplate = { css: '', wrapperClass: '' };
         }
 
-        pagesData = (data.pages || []).map(p => {
-          if(typeof p === 'string') return {content: p, script: '', notes: '', bib: [], resources: []};
-          p.script = p.script || '';
-          p.notes = p.notes || '';
-          p.bib = normalizeBibList(p.bib);
-          p.resources = Array.isArray(p.resources) ? p.resources : [];
-          return p;
+        pagesData = (data.pages || []).map((p, index) => {
+          if (typeof p !== 'object' || p === null) {
+            return {content: String(p || ''), script: '', notes: '', bib: [], resources: [], pageId: generatePageId()};
+          }
+          const pageObj = {...p};
+          pageObj.content = pageObj.content || '';
+          pageObj.script = pageObj.script || '';
+          pageObj.notes = pageObj.notes || '';
+          pageObj.bib = normalizeBibList(pageObj.bib);
+          pageObj.resources = Array.isArray(pageObj.resources) ? pageObj.resources : [];
+          const pidSource = (typeof pageObj.pageId === 'string' && pageObj.pageId) || (typeof pageObj.id === 'string' && pageObj.id);
+          pageObj.pageId = pidSource && pidSource.trim() ? pidSource.trim() : generatePageId();
+          delete pageObj.id;
+          return pageObj;
         });
-        if(pagesData.length === 0) pagesData = [{content: '', script: '', notes: '', bib: [], resources: []}];
+        if(pagesData.length === 0) pagesData = [{content: '', script: '', notes: '', bib: [], resources: [], pageId: generatePageId()}];
         globalResources = Array.isArray(data.resources) ? data.resources.slice() : [];
         bibData = normalizeBibList(data.bib || []);
         currentPageIdx = Math.min(currentPageIdx, pagesData.length - 1);
@@ -4365,7 +4385,7 @@ loadProjects().then(()=>{
 
   function currentPageBib() {
     if (!pagesData[currentPageIdx]) {
-      pagesData[currentPageIdx] = {content: '', script: '', notes: '', bib: [], resources: []};
+      pagesData[currentPageIdx] = {content: '', script: '', notes: '', bib: [], resources: [], pageId: generatePageId()};
     }
     if (!Array.isArray(pagesData[currentPageIdx].bib)) {
       pagesData[currentPageIdx].bib = [];
@@ -4685,8 +4705,11 @@ loadProjects().then(()=>{
     modal.show();
   });
 
-  function createResourceListItem(file){
+  function createResourceListItem(file, options){
     const f = file || {};
+    const opts = options || {};
+    const scope = typeof opts.scope === 'string' ? opts.scope : '';
+    const pageIndex = typeof opts.pageIndex === 'number' ? opts.pageIndex : null;
     const item = document.createElement('div');
     item.className = 'list-group-item resource-item';
     const wrapper = document.createElement('div');
@@ -4751,6 +4774,40 @@ loadProjects().then(()=>{
       const label = hasLocal ? '远程：' : 'OSS：';
       remoteLink.innerHTML = `${label}<a href="${ossUrl}" target="_blank">${ossUrl}</a>`;
       left.appendChild(remoteLink);
+    }
+
+    if(typeof f.refCount === 'number'){
+      const usageBadge = document.createElement('span');
+      usageBadge.className = 'badge rounded-pill ms-2 ' + (f.refCount > 0 ? 'bg-primary' : 'bg-secondary');
+      usageBadge.textContent = f.refCount > 0 ? `引用 ${f.refCount}` : '未引用';
+      const usagePieces = [];
+      if(Array.isArray(f.usedOnPages) && f.usedOnPages.length){
+        usagePieces.push(`页面：${f.usedOnPages.join('、')}`);
+      }
+      if(f.usedGlobally){
+        usagePieces.push('全局资源列表');
+      }
+      if(usagePieces.length){
+        usageBadge.title = usagePieces.join('；');
+      }
+      left.appendChild(usageBadge);
+    }
+
+    if(scope === 'page' && Array.isArray(f.otherPages) && f.otherPages.length){
+      const info = document.createElement('div');
+      info.className = 'small text-muted';
+      info.textContent = `同时用于页面：${f.otherPages.join('、')}`;
+      left.appendChild(info);
+    } else if(scope !== 'page' && Array.isArray(f.usedOnPages) && f.usedOnPages.length){
+      const info = document.createElement('div');
+      info.className = 'small text-muted';
+      info.textContent = `引用页面：${f.usedOnPages.join('、')}`;
+      left.appendChild(info);
+    } else if(scope === 'page' && f.usedGlobally){
+      const info = document.createElement('div');
+      info.className = 'small text-muted';
+      info.textContent = '同时存在于全局资源';
+      left.appendChild(info);
     }
 
     const actions = document.createElement('div');
@@ -4855,22 +4912,58 @@ loadProjects().then(()=>{
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'btn btn-sm btn-outline-danger';
-    deleteBtn.textContent = '删除';
+    deleteBtn.textContent = scope === 'page' ? '移除关联' : (scope === 'global' ? '移除全局' : '删除');
     deleteBtn.onclick = async function(){
-      if(!confirm('确认删除此资源吗？')) return;
+      const confirmText = scope === 'page'
+        ? '确认移除当前页对该资源的关联吗？'
+        : (scope === 'global' ? '确认从全局资源中移除此文件吗？' : '确认删除此资源及其文件吗？');
+      if(!confirm(confirmText)) return;
       try{
-        const res = await fetch('/resources/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name: f.name})});
+        const payload = {name: f.name};
+        if(scope === 'page' && pageIndex !== null){
+          payload.scope = 'page';
+          payload.page = pageIndex;
+        } else if(scope === 'global'){
+          payload.scope = 'global';
+        }
+        const res = await fetch('/resources/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)});
         const parsed = await parseJsonSafe(res);
         if(res.ok){
           if(parsed.json && parsed.json.success === false){
             alert('删除失败：' + (parsed.json.error || (parsed.text ? parsed.text : '未知错误')));
           } else {
-            globalResources = globalResources.filter(name => name !== f.name);
-            pagesData.forEach(p => {
-              if(Array.isArray(p.resources)) {
-                p.resources = p.resources.filter(name => name !== f.name);
+            const body = parsed.json || {};
+            if(body.globalRemoved){
+              globalResources = globalResources.filter(name => name !== f.name);
+            }
+            if(Array.isArray(body.pagesRemoved)){
+              body.pagesRemoved.forEach(num => {
+                const idx = Number(num) - 1;
+                if(idx >= 0 && pagesData[idx] && Array.isArray(pagesData[idx].resources)){
+                  pagesData[idx].resources = pagesData[idx].resources.filter(name => name !== f.name);
+                }
+              });
+            }
+            if(body.fileRemoved){
+              globalResources = globalResources.filter(name => name !== f.name);
+              pagesData.forEach(p => {
+                if(Array.isArray(p.resources)){
+                  p.resources = p.resources.filter(name => name !== f.name);
+                }
+              });
+            }
+            if(body.stillReferenced && body.stillReferenced.refCount){
+              const refs = [];
+              if(Array.isArray(body.stillReferenced.pages) && body.stillReferenced.pages.length){
+                refs.push(`页面：${body.stillReferenced.pages.join('、')}`);
               }
-            });
+              if(body.stillReferenced.global){
+                refs.push('全局资源列表');
+              }
+              if(refs.length){
+                alert(`资源仍被引用（${refs.join('，')}），文件未删除。`);
+              }
+            }
             await loadResourcesModal();
             await refreshResourceLists();
             queueCompile();
@@ -4895,7 +4988,7 @@ loadProjects().then(()=>{
     return item;
   }
 
-  function renderResourceList(container, files){
+  function renderResourceList(container, files, options){
     if(!container) return;
     container.innerHTML = '';
     const list = Array.isArray(files) ? files : [];
@@ -4904,7 +4997,7 @@ loadProjects().then(()=>{
       return;
     }
     list.forEach(f => {
-      container.appendChild(createResourceListItem(f));
+      container.appendChild(createResourceListItem(f, options));
     });
   }
 
@@ -4936,8 +5029,8 @@ loadProjects().then(()=>{
         pagesData[pageIdx].resources = pageNames.slice();
       }
       globalResources = globalNames.slice();
-      renderResourceList(pageListEl, pageFiles);
-      renderResourceList(globalListEl, globalFiles);
+      renderResourceList(pageListEl, pageFiles, {scope: 'page', pageIndex: pageIdx});
+      renderResourceList(globalListEl, globalFiles, {scope: 'global'});
       if(pageCountEl) pageCountEl.textContent = pageFiles.length ? `${pageFiles.length} 个` : '暂无';
       if(globalCountEl) globalCountEl.textContent = globalFiles.length ? `${globalFiles.length} 个` : '暂无';
     } catch (e){
@@ -5031,6 +5124,20 @@ loadProjects().then(()=>{
   let attachmentsCache = [];
   let attachmentsFilterTerm = '';
 
+  function updateAttachmentsUsageHint(data) {
+    const hintEl = document.getElementById('attachments-usage-hint');
+    if(!hintEl) return;
+    const unused = data && Array.isArray(data.unused) ? data.unused : [];
+    if(unused.length){
+      hintEl.classList.remove('d-none');
+      const preview = unused.slice(0, 5).join('、');
+      hintEl.textContent = unused.length > 5 ? `有 ${unused.length} 个附件未被引用，例如：${preview}` : `有 ${unused.length} 个附件未被引用：${preview}`;
+    } else {
+      hintEl.classList.add('d-none');
+      hintEl.textContent = '';
+    }
+  }
+
   function setAttachmentsFilter(term) {
     attachmentsFilterTerm = (term || '').trim().toLowerCase();
     renderAttachmentsList();
@@ -5107,15 +5214,32 @@ loadProjects().then(()=>{
           } else {
             badge.classList.add('bg-warning');
             badge.textContent = '未知';
-          }
-          left.appendChild(badge);
         }
+        left.appendChild(badge);
+      }
 
-        if(f.ossUrl && f.localUrl && f.ossUrl !== f.localUrl){
-          const remoteLink = document.createElement('div');
-          remoteLink.className = 'small text-muted';
-          remoteLink.innerHTML = `远程：<a href="${f.ossUrl}" target="_blank">${f.ossUrl}</a>`;
-          left.appendChild(remoteLink);
+      if(typeof f.refCount === 'number'){
+        const usageBadge = document.createElement('span');
+        usageBadge.className = 'badge rounded-pill ms-2 ' + (f.refCount > 0 ? 'bg-primary' : 'bg-secondary');
+        usageBadge.textContent = f.refCount > 0 ? `引用 ${f.refCount}` : '未引用';
+        if(Array.isArray(f.references) && f.references.length){
+          usageBadge.title = f.references.join('；');
+        }
+        left.appendChild(usageBadge);
+        if(Array.isArray(f.references) && f.references.length){
+          const info = document.createElement('div');
+          info.className = 'small text-muted';
+          const preview = f.references.slice(0, 3).join('、');
+          info.textContent = f.references.length > 3 ? `引用位置：${preview} 等` : `引用位置：${preview}`;
+          left.appendChild(info);
+        }
+      }
+
+      if(f.ossUrl && f.localUrl && f.ossUrl !== f.localUrl){
+        const remoteLink = document.createElement('div');
+        remoteLink.className = 'small text-muted';
+        remoteLink.innerHTML = `远程：<a href="${f.ossUrl}" target="_blank">${f.ossUrl}</a>`;
+        left.appendChild(remoteLink);
         }
 
         const actions = document.createElement('div');
@@ -5282,6 +5406,11 @@ loadProjects().then(()=>{
         deleteBtn.className = 'btn btn-sm btn-outline-danger';
         deleteBtn.textContent = '删除';
         deleteBtn.onclick = async function(){
+          if(typeof f.refCount === 'number' && f.refCount > 0){
+            const refs = Array.isArray(f.references) && f.references.length ? f.references.join('、') : '';
+            alert(refs ? `该附件仍被引用：${refs}` : '该附件仍被引用，无法删除。');
+            return;
+          }
           if(!confirm('确认删除此附件吗？')) return;
           try{
             const res = await fetch('/attachments/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({path: f.path})});
@@ -5347,6 +5476,7 @@ loadProjects().then(()=>{
       const res = await fetch('/attachments/list');
       const data = res.ok ? await res.json() : {files: []};
       attachmentsCache = Array.isArray(data.files) ? data.files : [];
+      updateAttachmentsUsageHint(data);
       if(attachmentFilterInput && typeof attachmentFilterInput.value === 'string'){
         setAttachmentsFilter(attachmentFilterInput.value);
       } else {
@@ -5355,6 +5485,7 @@ loadProjects().then(()=>{
     }catch(e){
       console.warn('加载附件失败', e);
       listEl.innerHTML = '<div class="text-danger p-2">加载失败</div>';
+      updateAttachmentsUsageHint({unused: []});
     }
   }
 

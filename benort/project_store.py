@@ -562,9 +562,15 @@ def _canonicalize_page(page):
             'script': '',
             'notes': '',
             'bib': [],
+            'pageId': uuid.uuid4().hex,
         }
     if not isinstance(page, dict):
         page = {}
+    page_id = page.get('pageId') or page.get('id') or ''
+    if not isinstance(page_id, str) or not page_id.strip():
+        page_id = uuid.uuid4().hex
+    else:
+        page_id = page_id.strip()
     content = page.get('content') or ''
     script = page.get('script') or ''
     notes = page.get('notes') or ''
@@ -575,6 +581,7 @@ def _canonicalize_page(page):
         'script': script,
         'notes': notes,
         'bib': bib,
+        'pageId': page_id,
     }
     if resources:
         sanitized['resources'] = resources
@@ -853,6 +860,17 @@ def load_project():
     if password_hash and not _has_valid_project_token(project_name, password_hash):
         raise ProjectLockedError(project_name)
 
+    raw_pages = data.get('pages', [])
+    missing_page_ids = False
+    if isinstance(raw_pages, list):
+        for page in raw_pages:
+            if isinstance(page, dict):
+                page_id = page.get('pageId') or page.get('id')
+                if isinstance(page_id, str) and page_id.strip():
+                    continue
+            missing_page_ids = True
+            break
+
     if data and isinstance(data.get('pages'), list) and (not data['pages'] or isinstance(data['pages'][0], str)):
         # 兼容旧版本仅存储字符串列表的项目结构
         old_notes = data.get('notes', [])
@@ -871,6 +889,27 @@ def load_project():
 
     migrated = False
     data = _canonicalize_project_structure(data)
+    if missing_page_ids:
+        migrated = True
+
+    referenced_resources: set[str] = set()
+    for page in data['pages']:
+        if not isinstance(page, dict):
+            continue
+        for res_name in page.get('resources', []) or []:
+            if not isinstance(res_name, str):
+                continue
+            sanitized = os.path.basename(res_name.strip())
+            if sanitized:
+                referenced_resources.add(sanitized)
+    top_resources = data.get('resources', [])
+    if isinstance(top_resources, list):
+        for res_name in top_resources:
+            if not isinstance(res_name, str):
+                continue
+            sanitized = os.path.basename(res_name.strip())
+            if sanitized:
+                referenced_resources.add(sanitized)
 
     for idx, page in enumerate(data['pages']):
         page_dir = os.path.join(resources_folder, f'page_{idx+1}')
@@ -879,6 +918,8 @@ def load_project():
         existing = set(page.get('resources', []))
         added = []
         for fname in sorted(os.listdir(page_dir)):
+            if fname in referenced_resources:
+                continue
             if fname in existing:
                 continue
             added.append(fname)
@@ -886,6 +927,7 @@ def load_project():
             page.setdefault('resources', [])
             page['resources'].extend(added)
             page['resources'] = _sanitize_resource_list(page['resources'])
+            referenced_resources.update(page['resources'])
             migrated = True
 
     global_dir = os.path.join(resources_folder, 'global')
@@ -893,12 +935,15 @@ def load_project():
         existing = set(data.get('resources', []))
         added = []
         for fname in sorted(os.listdir(global_dir)):
+            if fname in referenced_resources:
+                continue
             if fname in existing:
                 continue
             added.append(fname)
         if added:
             combined = data.get('resources', []) + added
             data['resources'] = _sanitize_resource_list(combined)
+            referenced_resources.update(data['resources'])
             migrated = True
 
     data = _canonicalize_project_structure(data)
@@ -912,15 +957,98 @@ def load_project():
 def save_project(data):
     """规范化后写回项目 YAML。"""
 
-    data = _canonicalize_project_structure(dict(data or {}))
+    incoming = dict(data or {})
     project_name = get_project_from_request()
     attachments_folder, _, yaml_path, resources_folder, _ = get_project_paths(project_name)
     existing_raw = _read_project_file(yaml_path)
     existing_hash = existing_raw.get('passwordHash') if isinstance(existing_raw, dict) else None
-    new_hash = data.pop('passwordHash', None)
+    new_hash = incoming.pop('passwordHash', None)
     password_hash = new_hash if new_hash is not None else existing_hash
 
+    existing_clean = _canonicalize_project_structure(dict(existing_raw or {}))
+    existing_pages = existing_clean.get('pages', []) if isinstance(existing_clean, dict) else []
+    existing_by_id: dict[str, dict] = {}
+    existing_fp_map: dict[str, list[str]] = {}
+
+    def _page_fingerprint(page_data: dict) -> str:
+        if not isinstance(page_data, dict):
+            return ''
+        content = str(page_data.get('content') or '')
+        notes = str(page_data.get('notes') or '')
+        script = str(page_data.get('script') or '')
+        blob = '\n'.join((content, '---', notes, '---', script))
+        return hashlib.sha1(blob.encode('utf-8')).hexdigest() if blob.strip() else ''
+
+    for page in existing_pages:
+        if not isinstance(page, dict):
+            continue
+        pid = page.get('pageId')
+        if isinstance(pid, str) and pid.strip():
+            pid = pid.strip()
+            existing_by_id[pid] = page
+            fp = _page_fingerprint(page)
+            if fp:
+                existing_fp_map.setdefault(fp, []).append(pid)
+
+    incoming_pages = incoming.get('pages', [])
+    if not isinstance(incoming_pages, list):
+        incoming_pages = []
+        incoming['pages'] = incoming_pages
+
+    incoming_resources_flag: dict[str, bool] = {}
+    for idx, page in enumerate(incoming_pages):
+        if isinstance(page, dict):
+            pass
+        elif isinstance(page, str):
+            page = {
+                'content': page,
+                'script': '',
+                'notes': '',
+                'bib': [],
+            }
+            incoming_pages[idx] = page
+        else:
+            page = {}
+            incoming_pages[idx] = page
+        page_id = page.get('pageId') or page.get('id')
+        if not isinstance(page_id, str) or not page_id.strip():
+            fingerprint = _page_fingerprint(page)
+            matched = ''
+            if fingerprint:
+                candidates = existing_fp_map.get(fingerprint) or []
+                if candidates:
+                    matched = candidates.pop(0)
+            if not matched and idx < len(existing_pages):
+                candidate = existing_pages[idx]
+                if isinstance(candidate, dict):
+                    cid = candidate.get('pageId')
+                    if isinstance(cid, str) and cid.strip():
+                        matched = cid.strip()
+            if not matched:
+                matched = uuid.uuid4().hex
+            page_id = matched
+        else:
+            page_id = page_id.strip()
+        page['pageId'] = page_id
+        if 'id' in page:
+            try:
+                if page['id'] != page_id:
+                    page.pop('id', None)
+            except Exception:
+                page.pop('id', None)
+        incoming_resources_flag[page_id] = 'resources' in page
+
+    data = _canonicalize_project_structure(incoming)
+
     for page in data['pages']:
+        page_id = page.get('pageId')
+        incoming_had_key = incoming_resources_flag.get(page_id, False) if isinstance(page_id, str) else False
+        if (not incoming_had_key) and isinstance(page_id, str):
+            previous = existing_by_id.get(page_id)
+            if previous and 'resources' not in page and isinstance(previous.get('resources'), list):
+                restored = _sanitize_resource_list(previous.get('resources', []))
+                if restored:
+                    page['resources'] = restored[:]
         page['content'] = normalize_latex_content(page.get('content', ''), attachments_folder, resources_folder) or ''
         page['script'] = page.get('script', '') or ''
         page['notes'] = page.get('notes', '') or ''

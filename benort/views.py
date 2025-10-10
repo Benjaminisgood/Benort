@@ -59,6 +59,125 @@ from .responses import api_error, api_success
 
 _DOI_PATTERN = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", flags=re.IGNORECASE)
 
+_LATEX_INCLUDE_RE = re.compile(r"\\includegraphics(?:\[[^]]*])?\{([^}]+)\}")
+_LATEX_IMG_RE = re.compile(r"\\img(?:\[[^]]*])?\{([^}]+)\}")
+_LATEX_HREF_RE = re.compile(r"\\href\{([^}]+)\}")
+_LATEX_URL_RE = re.compile(r"\\url\{([^}]+)\}")
+_MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+_HTML_SRC_RE = re.compile(r'\bsrc=["\']([^"\']+)["\']', re.IGNORECASE)
+_HTML_HREF_RE = re.compile(r'\bhref=["\']([^"\']+)["\']', re.IGNORECASE)
+
+
+def _normalize_link_target(value: object) -> str:
+    """Clean up a link or path and return a comparable string."""
+
+    if value is None:
+        return ""
+    cleaned = str(value).strip()
+    if not cleaned:
+        return ""
+    cleaned = cleaned.replace("\\", "/")
+    cleaned = cleaned.split("?", 1)[0]
+    cleaned = cleaned.split("#", 1)[0]
+    return cleaned.strip()
+
+
+def _collect_resource_usage(project: dict) -> dict[str, dict[str, object]]:
+    """Map resource filenames to page/global references."""
+
+    usage: dict[str, dict[str, object]] = {}
+    pages = project.get("pages", [])
+    if isinstance(pages, list):
+        for idx, page in enumerate(pages):
+            if not isinstance(page, dict):
+                continue
+            for res_name in page.get("resources", []) or []:
+                if not isinstance(res_name, str):
+                    continue
+                sanitized = os.path.basename(res_name.strip())
+                if not sanitized:
+                    continue
+                entry = usage.setdefault(sanitized, {"pages": set(), "global": False})
+                entry["pages"].add(idx)
+    global_resources = project.get("resources", [])
+    if isinstance(global_resources, list):
+        for res_name in global_resources:
+            if not isinstance(res_name, str):
+                continue
+            sanitized = os.path.basename(res_name.strip())
+            if not sanitized:
+                continue
+            entry = usage.setdefault(sanitized, {"pages": set(), "global": False})
+            entry["global"] = True
+    return usage
+
+
+def _collect_attachment_references(project: dict) -> dict[str, list[str]]:
+    """Scan project content and gather attachment usage contexts."""
+
+    usage: dict[str, set[str]] = {}
+
+    def _register(raw: object, context: str):
+        cleaned = _normalize_link_target(raw)
+        if not cleaned:
+            return
+        base = os.path.basename(cleaned)
+        if not base:
+            return
+        usage.setdefault(base, set()).add(context)
+
+    def _scan_text(text: object, context: str):
+        if text is None:
+            return
+        content = str(text)
+        if not content:
+            return
+        for pattern in (_LATEX_INCLUDE_RE, _LATEX_IMG_RE, _LATEX_HREF_RE, _LATEX_URL_RE):
+            for match in pattern.finditer(content):
+                _register(match.group(1), context)
+        for match in _MARKDOWN_LINK_RE.finditer(content):
+            _register(match.group(1), context)
+        for match in _HTML_SRC_RE.finditer(content):
+            _register(match.group(1), context)
+        for match in _HTML_HREF_RE.finditer(content):
+            _register(match.group(1), context)
+
+    pages = project.get("pages", [])
+    if isinstance(pages, list):
+        for idx, page in enumerate(pages):
+            if not isinstance(page, dict):
+                continue
+            _scan_text(page.get("content", ""), f"第{idx + 1}页内容")
+            _scan_text(page.get("notes", ""), f"第{idx + 1}页笔记")
+            _scan_text(page.get("script", ""), f"第{idx + 1}页讲稿")
+            for entry in page.get("bib", []) or []:
+                if isinstance(entry, dict):
+                    _scan_text(entry.get("entry", ""), f"第{idx + 1}页参考文献")
+                else:
+                    _scan_text(entry, f"第{idx + 1}页参考文献")
+
+    template = project.get("template", {})
+    if isinstance(template, dict):
+        _scan_text(template.get("header"), "模板 header")
+        _scan_text(template.get("beforePages"), "模板 beforePages")
+        _scan_text(template.get("footer"), "模板 footer")
+
+    md_template = project.get("markdownTemplate", {})
+    if isinstance(md_template, dict):
+        _scan_text(md_template.get("css"), "Markdown 模板 CSS")
+        _scan_text(md_template.get("wrapperClass"), "Markdown 模板 wrapperClass")
+        _scan_text(md_template.get("customHead"), "Markdown 模板自定义头部")
+
+    global_bib = project.get("bib", [])
+    if isinstance(global_bib, list):
+        for idx, entry in enumerate(global_bib):
+            if isinstance(entry, dict):
+                _scan_text(entry.get("entry", ""), f"全局参考文献 {idx + 1}")
+            else:
+                _scan_text(entry, f"全局参考文献 {idx + 1}")
+
+    return {name: sorted(contexts) for name, contexts in usage.items()}
+
 
 def _extract_json_object(text: str) -> dict:
     """尽量从模型输出中解析出 JSON 对象。"""
@@ -1312,6 +1431,7 @@ def list_attachments():
         return api_error(_LOCKED_ERROR, 401)
     attachments_folder, _, _, _, _ = get_project_paths(project_name)
     os.makedirs(attachments_folder, exist_ok=True)
+    attachment_refs = _collect_attachment_references(project_data)
 
     local_files: dict[str, str] = {}
     for fname in os.listdir(attachments_folder):
@@ -1356,6 +1476,8 @@ def list_attachments():
                 "local": bool(local_url),
                 "remote": bool(oss_url),
                 "location": location,
+                "refCount": len(attachment_refs.get(name, [])),
+                "references": attachment_refs.get(name, []),
             }
         )
 
@@ -1364,6 +1486,7 @@ def list_attachments():
         "syncEnabled": bool(project_data.get("ossSyncEnabled")),
         "ossConfigured": configured,
         "localPath": attachments_folder,
+        "unused": [item["name"] for item in files if item.get("refCount", 0) == 0],
     }
     if oss_error:
         payload["ossError"] = oss_error
@@ -1390,6 +1513,15 @@ def delete_attachment():
     target = os.path.normpath(os.path.join(attachments_folder, rel))
     if not target.startswith(os.path.normpath(attachments_folder)):
         return api_error('invalid path', 400)
+    attachment_name = os.path.basename(rel)
+    refs_map = _collect_attachment_references(project_data)
+    contexts = refs_map.get(attachment_name, [])
+    if contexts:
+        preview = contexts[:5]
+        detail = '，'.join(preview)
+        if len(contexts) > len(preview):
+            detail += '，等'
+        return api_error(f'附件仍被引用，涉及：{detail}', 409)
 
     local_removed = False
     if os.path.exists(target):
@@ -1820,26 +1952,107 @@ def delete_resource():
     if not name or name in ('.', '..') or '/' in name or '\\' in name:
         return api_error('invalid name', 400)
 
+    scope = str(data.get('scope') or '').strip().lower()
+    page_idx_raw = data.get('page')
+    try:
+        page_idx = int(page_idx_raw) if page_idx_raw is not None else None
+    except (TypeError, ValueError):
+        page_idx = None
+
     project_name = get_project_from_request()
     try:
         project = load_project()
     except ProjectLockedError:
         return api_error(_LOCKED_ERROR, 401)
     _, _, _, resources_folder, _ = get_project_paths(project_name)
+
+    pages_removed: list[int] = []
+    global_removed = False
+    updated = False
+
+    if scope == 'page':
+        if page_idx is None:
+            return api_error('page required for scope=page', 400)
+        pages = project.get('pages', [])
+        if not isinstance(pages, list) or not (0 <= page_idx < len(pages)):
+            return api_error('page out of range', 404)
+        page_obj = pages[page_idx]
+        if not isinstance(page_obj, dict):
+            return api_error('page data invalid', 500)
+        resources = page_obj.get('resources', [])
+        if not isinstance(resources, list) or name not in resources:
+            return api_error('resource not associated with page', 404)
+        page_obj['resources'] = [r for r in resources if r != name]
+        pages_removed.append(page_idx)
+        updated = True
+    elif scope == 'global':
+        resources = project.get('resources', [])
+        if not isinstance(resources, list) or name not in resources:
+            return api_error('resource not in global scope', 404)
+        project['resources'] = [r for r in resources if r != name]
+        global_removed = True
+        updated = True
+    else:
+        scope = 'all'
+        resources = project.get('resources', [])
+        if isinstance(resources, list) and name in resources:
+            project['resources'] = [r for r in resources if r != name]
+            global_removed = True
+            updated = True
+        pages = project.get('pages', [])
+        if isinstance(pages, list):
+            for idx, page in enumerate(pages):
+                if not isinstance(page, dict):
+                    continue
+                res_list = page.get('resources', [])
+                if not isinstance(res_list, list) or name not in res_list:
+                    continue
+                page['resources'] = [r for r in res_list if r != name]
+                pages_removed.append(idx)
+                updated = True
+
+    if updated:
+        save_project(project)
+
+    usage_after = _collect_resource_usage(project)
+    remaining = usage_after.get(name)
+
+    payload = {
+        'name': name,
+        'scope': scope,
+        'globalRemoved': global_removed,
+        'pagesRemoved': [idx + 1 for idx in pages_removed],
+    }
+
+    if remaining:
+        payload['fileRemoved'] = False
+        payload['stillReferenced'] = {
+            'pages': sorted(idx + 1 for idx in remaining['pages']),
+            'global': bool(remaining['global']),
+            'refCount': len(remaining['pages']) + (1 if remaining['global'] else 0),
+        }
+        return api_success(payload)
+
     direct_target = os.path.join(resources_folder, relative)
     target = direct_target if os.path.exists(direct_target) else _find_resource_file(resources_folder, name)
+
+    local_removed = False
     if target and os.path.exists(target):
         try:
             os.remove(target)
+            local_removed = True
         except Exception as exc:
             return api_error(str(exc), 500)
 
+    remote_removed = False
+    remote_error: Optional[str] = None
     if bool(project.get('ossSyncEnabled')) and oss_is_configured():
         remote_candidates: list[str] = []
         try:
             existing = oss_list_files(project_name, category='resources')
             remote_candidates = [key for key in existing if os.path.basename(key) == name]
         except Exception as exc:
+            remote_error = str(exc)
             try:
                 current_app.logger.warning('OSS 列出资源失败 %s: %s', name, exc)
             except Exception:
@@ -1848,22 +2061,23 @@ def delete_resource():
         for key in targets:
             try:
                 oss_delete_file(project_name, key, category='resources')
+                remote_removed = True
             except Exception as exc:
+                remote_error = str(exc)
                 try:
                     current_app.logger.warning('OSS 删除资源失败 %s: %s', key, exc)
                 except Exception:
                     pass
 
-    if isinstance(project.get('resources'), list):
-        project['resources'] = [r for r in project['resources'] if os.path.basename(r) != name]
-    if isinstance(project.get('pages'), list):
-        for page in project['pages']:
-            if isinstance(page, dict):
-                resources = page.get('resources')
-                if isinstance(resources, list):
-                    page['resources'] = [r for r in resources if os.path.basename(r) != name]
-    save_project(project)
-    return api_success()
+    if not local_removed and not remote_removed:
+        return api_error('file not found', 404)
+
+    payload['fileRemoved'] = True
+    payload['localRemoved'] = local_removed
+    payload['remoteRemoved'] = remote_removed
+    if remote_error:
+        payload['remoteError'] = remote_error
+    return api_success(payload)
 
 
 @bp.route('/resources/list')
@@ -1894,6 +2108,7 @@ def list_resources():
         if isinstance(res_list, list):
             names = res_list
 
+    usage_map = _collect_resource_usage(project)
     local_map: dict[str, str] = {}
     for root, _, file_names in os.walk(resources_folder):
         for fname in file_names:
@@ -1932,6 +2147,7 @@ def list_resources():
             location = 'oss'
         else:
             location = 'missing'
+        usage_entry = usage_map.get(sanitized, {'pages': set(), 'global': False})
         files.append(
             {
                 'name': sanitized,
@@ -1944,6 +2160,10 @@ def list_resources():
                 'remote': bool(oss_url),
                 'local': bool(local_url),
                 'location': location,
+                'refCount': len(usage_entry['pages']) + (1 if usage_entry['global'] else 0),
+                'usedOnPages': sorted(idx + 1 for idx in usage_entry['pages']),
+                'usedGlobally': bool(usage_entry['global']),
+                'otherPages': sorted(idx + 1 for idx in usage_entry['pages'] if page_idx is not None and idx != page_idx),
             }
         )
 

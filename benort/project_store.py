@@ -995,7 +995,7 @@ def save_project(data):
         incoming_pages = []
         incoming['pages'] = incoming_pages
 
-    incoming_resources_flag: dict[str, bool] = {}
+    incoming_resources_map: dict[str, tuple[bool, list[str]]] = {}
     for idx, page in enumerate(incoming_pages):
         if isinstance(page, dict):
             pass
@@ -1036,19 +1036,33 @@ def save_project(data):
                     page.pop('id', None)
             except Exception:
                 page.pop('id', None)
-        incoming_resources_flag[page_id] = 'resources' in page
+        if 'resources' in page and isinstance(page['resources'], list):
+            sanitized_list = _sanitize_resource_list(page['resources'])
+            incoming_resources_map[page_id] = (True, sanitized_list)
+            page['resources'] = sanitized_list[:]
+        else:
+            incoming_resources_map[page_id] = (False, [])
+            page.pop('resources', None)
 
     data = _canonicalize_project_structure(incoming)
 
     for page in data['pages']:
         page_id = page.get('pageId')
-        incoming_had_key = incoming_resources_flag.get(page_id, False) if isinstance(page_id, str) else False
-        if (not incoming_had_key) and isinstance(page_id, str):
+        incoming_present, incoming_list = incoming_resources_map.get(page_id, (False, [])) if isinstance(page_id, str) else (False, [])
+        prev_resources: list[str] = []
+        if isinstance(page_id, str):
             previous = existing_by_id.get(page_id)
-            if previous and 'resources' not in page and isinstance(previous.get('resources'), list):
-                restored = _sanitize_resource_list(previous.get('resources', []))
-                if restored:
-                    page['resources'] = restored[:]
+            if previous and isinstance(previous.get('resources'), list):
+                prev_resources = _sanitize_resource_list(previous.get('resources', []))
+        if incoming_present:
+            if incoming_list:
+                page['resources'] = incoming_list[:]
+            else:
+                page.pop('resources', None)
+        elif prev_resources:
+            page['resources'] = prev_resources[:]
+        else:
+            page.pop('resources', None)
         page['content'] = normalize_latex_content(page.get('content', ''), attachments_folder, resources_folder) or ''
         page['script'] = page.get('script', '') or ''
         page['notes'] = page.get('notes', '') or ''

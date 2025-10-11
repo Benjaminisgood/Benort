@@ -453,6 +453,31 @@ COMPONENT_LIBRARY = {
     ],
     "markdown": [
         {
+            "group": "模板",
+            "items": [
+                {
+                    "name": "Blog Front Matter",
+                    "code": "---\ncover: https://example.com/cover.jpg\ndate: \"2025-01-01\"\nstatus: draft\nsummary: |\n  在这里撰写文章摘要，支持多行描述。\ntags:\n  - 标签一\n  - 标签二\ntitle: \"文章标题\"\ncategories:\n  - 默认分类\nslug: my-blog-post\n---\n\n# 主标题\n\n正文从这里开始……\n",
+                },
+                {
+                    "name": "日记模板",
+                    "code": "---\ndate: \"2025-01-01\"\nmood: 😊\nweather: 晴\nkeywords:\n  - 生活\n  - 感悟\n---\n\n## 今日亮点\n- \n\n## 遇到的挑战\n- \n\n## 学到的事情\n- \n\n## 明日计划\n- \n",
+                },
+                {
+                    "name": "记账模板",
+                    "code": "---\ndate: \"2025-01-01\"\naccount: \"现金/银行卡\"\nsummary: \"今日收支记录\"\n---\n\n| 类别 | 描述 | 收入 | 支出 |\n| ---- | ---- | ---- | ---- |\n| 工作 | 工资 | 500.00 | 0.00 |\n| 生活 | 午餐 | 0.00 | 35.00 |\n| 交通 | 地铁 | 0.00 | 6.00 |\n\n**当日净收入：** `= 收入合计 - 支出合计`\n\n## 备注\n- \n",
+                },
+                {
+                    "name": "会议笔记模板",
+                    "code": "---\nmeeting: 项目例会\ndate: \"2025-01-01\"\nattendees:\n  - 张三\n  - 李四\nobjective: \"明确里程碑与风险\"\n---\n\n## 议程\n1. \n2. \n\n## 关键讨论\n- 主题：\n  - 观点 A：\n  - 决策：\n\n## 待办事项\n- [ ] 负责人 / 截止日期 / 工作内容\n\n## 风险与问题\n- \n",
+                },
+                {
+                    "name": "课堂/读书笔记模板",
+                    "code": "---\ntopic: 课程/书籍名称\ndate: \"2025-01-01\"\nsource: \"来源或讲者\"\n---\n\n## 核心概念\n- \n\n## 重点摘录\n> \n\n## 思考与疑问\n- \n\n## 行动启发\n- \n",
+                },
+            ],
+        },
+        {
             "group": "基础",
             "items": [
                 {"name": "二级标题", "code": "## 小节标题\n\n这里是内容简介。"},

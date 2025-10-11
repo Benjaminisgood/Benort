@@ -1018,7 +1018,7 @@
                   <textarea id="ai-learn-context" class="form-control" rows="8" placeholder="添加额外背景、页面内容或你的学习目标，以便获得更精确的回答。"></textarea>
                   <div class="d-flex justify-content-between align-items-center mt-2">
                     <small class="text-muted">上下文会一并发送给 AI，可包含当前页 LaTeX、笔记、讲稿等信息。</small>
-                    <button class="btn btn-sm btn-outline-secondary" type="button" id="ai-learn-clear-context">清空上下文</button>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" id="ai-learn-fetch-context">获取上下文</button>
                   </div>
                 </div>
               </div>
@@ -3136,6 +3136,142 @@
     const matches = window.matchMedia('(max-width: 1024px)').matches;
     setMobileCompact(matches);
   }
+
+  function guessImageExtension(file) {
+    const name = file && typeof file.name === 'string' ? file.name.toLowerCase() : '';
+    if (name) {
+      const match = name.match(/\.([a-z0-9]{2,8})$/);
+      if (match && match[1]) {
+        const ext = match[1];
+        if (ext === 'jpeg') return 'jpg';
+        return ext;
+      }
+    }
+    const type = file && typeof file.type === 'string' ? file.type.toLowerCase() : '';
+    if (type.startsWith('image/')) {
+      const subtype = type.split('/')[1] || '';
+      if (!subtype) return 'png';
+      if (subtype === 'jpeg' || subtype === 'pjpeg') return 'jpg';
+      if (subtype === 'svg+xml') return 'svg';
+      return subtype.replace(/[^a-z0-9]/g, '') || 'png';
+    }
+    return 'png';
+  }
+
+  function buildPastedImageFilename(file, index) {
+    const date = new Date();
+    const pad = (num) => String(num).padStart(2, '0');
+    const timestamp = [
+      date.getFullYear(),
+      pad(date.getMonth() + 1),
+      pad(date.getDate()),
+      pad(date.getHours()),
+      pad(date.getMinutes()),
+      pad(date.getSeconds()),
+    ].join('');
+    const randomPart = Math.random().toString(36).slice(2, 6);
+    const extension = guessImageExtension(file);
+    return `pasted-${timestamp}-${index + 1}-${randomPart}.${extension}`;
+  }
+
+  async function uploadPastedImageFile(file, index) {
+    const fd = new FormData();
+    const filename = buildPastedImageFilename(file, index);
+    fd.append('file', file, filename);
+    const res = await fetch('/attachments/upload', {method: 'POST', body: fd});
+    const parsed = await parseJsonSafe(res);
+    if (res.ok && (!parsed.json || parsed.json.success !== false)) {
+      const payload = parsed.json || {};
+      if (!payload.filename) {
+        payload.filename = filename;
+      }
+      return payload;
+    }
+    const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || `HTTP ${res.status}`);
+    throw new Error(message);
+  }
+
+  function buildPastedImageSnippet(payload) {
+    if (!payload || typeof payload !== 'object') {
+      return {snippet: '', filename: '', warning: '上传结果无效'};
+    }
+    const filename = payload.filename || payload.name || 'pasted-image';
+    const localUrl = payload.localUrl || '';
+    const preferredUrl = payload.url || payload.ossUrl || localUrl;
+    const mode = (typeof currentEditMode === 'string' && currentEditMode === 'markdown') ? 'markdown' : 'latex';
+    if (mode === 'latex') {
+      if (!localUrl) {
+        return {snippet: '', filename, warning: '图片已上传，但缺少本地路径，无法在 LaTeX 中引用。'};
+      }
+      const latexPath = urlToLatexPath(localUrl);
+      const snippet = `\\begin{center}\n  \\includegraphics[width=0.7\\textwidth]{${latexPath}}\n\\end{center}\n`;
+      return {snippet, filename};
+    }
+    if (!preferredUrl) {
+      return {snippet: '', filename, warning: '图片已上传，但缺少可用链接。'};
+    }
+    return {snippet: `![${filename}](${preferredUrl})\n`, filename};
+  }
+
+  async function handleEditorPaste(cm, event) {
+    const originalEvent = event && event.originalEvent ? event.originalEvent : event;
+    const clipboard = (event && event.clipboardData) || (originalEvent && originalEvent.clipboardData);
+    const items = clipboard && clipboard.items ? Array.from(clipboard.items) : [];
+    const imageItems = items.filter(item => item && item.kind === 'file' && typeof item.type === 'string' && item.type.startsWith('image/'));
+    if (!imageItems.length) {
+      return;
+    }
+    event.preventDefault();
+    const files = imageItems.map(item => (typeof item.getAsFile === 'function' ? item.getAsFile() : null)).filter(Boolean);
+    if (!files.length) {
+      return;
+    }
+    showStatus(files.length > 1 ? `检测到 ${files.length} 张图片，正在上传...` : '检测到图片，正在上传...', 'info', 2500);
+    const doc = cm.getDoc();
+    let bookmark = doc.setBookmark(doc.getCursor(), {insertLeft: false});
+    let insertedCount = 0;
+    for (let idx = 0; idx < files.length; idx++) {
+      const file = files[idx];
+      try {
+        const result = await uploadPastedImageFile(file, idx);
+        const {snippet, filename, warning} = buildPastedImageSnippet(result);
+        if (warning) {
+          showStatus(warning, 'warning', 3500);
+        }
+        if (!snippet) {
+          continue;
+        }
+        const anchorPos = bookmark && typeof bookmark.find === 'function' ? bookmark.find() : null;
+        const insertPos = anchorPos || doc.getCursor();
+        const startIndex = doc.indexFromPos(insertPos);
+        doc.replaceRange(snippet, insertPos);
+        const endPos = doc.posFromIndex(startIndex + snippet.length);
+        if (bookmark && typeof bookmark.clear === 'function') {
+          bookmark.clear();
+        }
+        bookmark = doc.setBookmark(endPos, {insertLeft: false});
+        doc.setCursor(endPos);
+        insertedCount += 1;
+        showStatus(`图片已上传并插入：${filename || file.name || '图片'}`, 'success', 2200);
+      } catch (err) {
+        console.error('粘贴图片上传失败', err);
+        showStatus('粘贴图片上传失败：' + (err?.message || '未知错误'), 'danger', 4000);
+      }
+    }
+    if (bookmark && typeof bookmark.clear === 'function') {
+      bookmark.clear();
+    }
+    if (insertedCount > 0 && typeof loadAttachmentsModal === 'function') {
+      const attachmentsModalEl = document.getElementById('attachmentsModal');
+      if (attachmentsModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal && typeof bootstrap.Modal.getInstance === 'function' && bootstrap.Modal.getInstance(attachmentsModalEl)) {
+        try {
+          await loadAttachmentsModal();
+        } catch (refreshErr) {
+          console.warn('刷新附件列表失败', refreshErr);
+        }
+      }
+    }
+  }
   
   function renderSingleEditor() {
     const list = document.getElementById('pages-list');
@@ -3159,6 +3295,7 @@
     singleEditor.setValue(initialValue);
     singleEditor.setSize('100%', '100%');
     singleEditor.setOption('readOnly', mobileEditingDisabled ? 'nocursor' : false);
+    singleEditor.on('paste', handleEditorPaste);
     singleEditor.on('change', function() {
       const value = singleEditor.getValue();
       if (currentEditMode === 'markdown') {
@@ -4478,15 +4615,17 @@ loadProjects().then(()=>{
     return context.length > 3000 ? context.slice(0, 3000) + '\n\n…（上下文已截断）' : context;
   }
 
-  function updateLearningContext(auto = false) {
+  function updateLearningContext(auto = false, showMessage = false) {
     const contextEl = document.getElementById('ai-learn-context');
     if (!contextEl) return;
-    if (auto && contextEl.value.trim()) {
-      return;
-    }
+    if (auto) return;
     const context = buildLearningContext();
+    contextEl.value = context || '';
+    if (!showMessage) return;
     if (context) {
-      contextEl.value = context;
+      showStatus('已获取当前页上下文', 'info', 2200);
+    } else {
+      showStatus('当前页没有可用的上下文', 'warning', 2500);
     }
   }
 
@@ -4922,14 +5061,10 @@ loadProjects().then(()=>{
     });
   }
 
-  const aiLearnClearContext = document.getElementById('ai-learn-clear-context');
-  if (aiLearnClearContext) {
-    aiLearnClearContext.addEventListener('click', () => {
-      const contextEl = document.getElementById('ai-learn-context');
-      if (contextEl) {
-        contextEl.value = '';
-        showStatus('已清空上下文', 'info', 2000);
-      }
+  const aiLearnFetchContext = document.getElementById('ai-learn-fetch-context');
+  if (aiLearnFetchContext) {
+    aiLearnFetchContext.addEventListener('click', () => {
+      updateLearningContext(false, true);
     });
   }
 

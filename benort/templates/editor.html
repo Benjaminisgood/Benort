@@ -631,10 +631,13 @@
     body.theme-dark #markdownTableModalCaption {
       color: rgba(203, 213, 225, 0.86);
     }
-    @media (max-width: 768px) {
+    @media (max-width: 1024px) {
       body.mobile-compact nav.navbar .navbar-nav > li { display: none !important; }
-      body.mobile-compact nav.navbar .navbar-nav > li.mobile-allowed { display: flex !important; }
+      body.mobile-compact nav.navbar .navbar-nav > li.mobile-allowed { display: flex !important; align-items: center; justify-content: center; gap: 0.75rem; }
       body.mobile-compact nav.navbar .navbar-nav > li hr { display: none !important; }
+      body.mobile-compact #project-dropdown { display: none !important; }
+      body.mobile-compact nav.navbar .navbar-nav { width: 100%; justify-content: center; }
+      body.mobile-compact nav.navbar .navbar-nav > li.mobile-allowed { margin: 0 auto; }
       body.mobile-compact .preview-pane { display: none !important; }
       body.mobile-compact .editor-pane { flex: 1 1 100%; max-width: 100%; }
       body.mobile-compact #project-search-btn,
@@ -3039,7 +3042,7 @@
     const isDefaultProject = !currentProject || currentProject === 'default';
     navButtons.forEach(btn => {
       if (!btn) return;
-      const allow = btn.id === 'project-dropdown' || (isDefaultProject && (btn.id === 'prev-page' || btn.id === 'next-page'));
+      const allow = isDefaultProject && (btn.id === 'prev-page' || btn.id === 'next-page' || btn.id === 'page-status');
       btn.disabled = !allow;
     });
     const scriptEl = document.getElementById('page-script');
@@ -3095,7 +3098,7 @@
 
   function applyMobileRestrictions() {
     if (typeof window === 'undefined' || !window.matchMedia) return;
-    const matches = window.matchMedia('(max-width: 768px)').matches;
+    const matches = window.matchMedia('(max-width: 1024px)').matches;
     setMobileCompact(matches);
   }
   

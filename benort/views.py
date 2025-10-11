@@ -5,6 +5,7 @@ import copy
 import hashlib
 import io
 import json
+import mimetypes
 import os
 import re
 import subprocess
@@ -12,9 +13,14 @@ import uuid
 import zipfile
 from datetime import datetime
 from typing import Optional, Tuple
+from urllib.parse import urlparse, unquote
 
 import requests
 from flask import Blueprint, current_app, jsonify, render_template, request, send_file, send_from_directory
+from bs4 import BeautifulSoup
+from markdown_it import MarkdownIt
+from mdit_py_plugins.footnote import footnote
+from mdit_py_plugins.tasklists import tasklists
 from werkzeug.utils import secure_filename
 
 from .latex import normalize_latex_content, prepare_latex_assets, _find_resource_file
@@ -61,6 +67,7 @@ from .config import (
     OPENAI_TTS_VOICE,
 )
 from .template_store import get_default_header, get_default_template, list_templates
+from .template_store import get_default_markdown_template
 from .responses import api_error, api_success
 
 
@@ -73,6 +80,234 @@ _LATEX_URL_RE = re.compile(r"\\url\{([^}]+)\}")
 _MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 _HTML_SRC_RE = re.compile(r'\bsrc=["\']([^"\']+)["\']', re.IGNORECASE)
 _HTML_HREF_RE = re.compile(r'\bhref=["\']([^"\']+)["\']', re.IGNORECASE)
+
+_MARKDOWN_RENDERER = (
+    MarkdownIt("commonmark", {"html": True, "linkify": True, "typographer": True})
+    .enable("table")
+    .enable("strikethrough")
+    .use(tasklists, enabled=True, label=True)
+    .use(footnote)
+)
+
+_DEFAULT_MARKDOWN_EXPORT_STYLE = """
+:root {
+  color-scheme: light dark;
+}
+body.markdown-export {
+  margin: 0;
+  padding: 48px 24px;
+  background: #0b1120;
+  color: #e2e8f0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  line-height: 1.7;
+}
+body.markdown-export.theme-light {
+  background: #f8fafc;
+  color: #0f172a;
+}
+body.markdown-export .markdown-export-content {
+  max-width: min(960px, 100%);
+  margin: 0 auto;
+}
+body.markdown-export a {
+  color: #93c5fd;
+  text-decoration: none;
+}
+body.markdown-export.theme-light a {
+  color: #2563eb;
+}
+body.markdown-export a:hover {
+  text-decoration: underline;
+}
+body.markdown-export pre {
+  overflow-x: auto;
+}
+body.markdown-export img {
+  max-width: 100%;
+  height: auto;
+}
+"""
+
+
+def _safe_join(base: str, relative: str) -> Optional[str]:
+    """Safely join a relative path to a base directory."""
+
+    if not relative:
+        return None
+    normalized_base = os.path.abspath(base)
+    candidate = os.path.abspath(os.path.join(base, relative))
+    try:
+        common = os.path.commonpath([normalized_base, candidate])
+    except ValueError:
+        return None
+    if common != normalized_base:
+        return None
+    return candidate
+
+
+def _resolve_local_asset_path(
+    src: str,
+    project_name: str,
+    attachments_folder: str,
+    resources_folder: str,
+) -> Optional[str]:
+    """Resolve a local image URL to an absolute filesystem path."""
+
+    if not src:
+        return None
+    cleaned = unquote(str(src).strip())
+    if not cleaned:
+        return None
+    cleaned = cleaned.split("#", 1)[0].split("?", 1)[0]
+    parsed = urlparse(cleaned)
+    if parsed.scheme and parsed.scheme not in {"http", "https"}:
+        return None
+    path = parsed.path or cleaned
+    trimmed = path.lstrip("/")
+    project_prefix = f"projects/{project_name}/"
+    if trimmed.startswith(project_prefix):
+        trimmed = trimmed[len(project_prefix) :]
+    trimmed = trimmed.lstrip("/")
+    if trimmed.startswith("uploads/"):
+        rel = trimmed[len("uploads/") :]
+        return _safe_join(attachments_folder, rel)
+    if trimmed.startswith("resources/"):
+        rel = trimmed[len("resources/") :]
+        return _safe_join(resources_folder, rel)
+    candidate = _safe_join(attachments_folder, trimmed)
+    if candidate and os.path.exists(candidate):
+        return candidate
+    candidate = _safe_join(resources_folder, trimmed)
+    if candidate and os.path.exists(candidate):
+        return candidate
+    return None
+
+
+def _load_image_bytes(
+    src: str,
+    project_name: str,
+    attachments_folder: str,
+    resources_folder: str,
+) -> tuple[Optional[bytes], Optional[str]]:
+    """Fetch image content and detect its MIME type."""
+
+    if not src or src.startswith("data:"):
+        return None, None
+    cleaned = src.strip()
+    parsed = urlparse(cleaned)
+    if parsed.scheme in {"http", "https"}:
+        try:
+            response = requests.get(cleaned, timeout=10)
+            response.raise_for_status()
+        except Exception:
+            return None, None
+        mime_type = (response.headers.get("Content-Type") or "").split(";", 1)[0].strip() or None
+        return response.content, mime_type
+    local_path = _resolve_local_asset_path(cleaned, project_name, attachments_folder, resources_folder)
+    if local_path and os.path.exists(local_path):
+        try:
+            with open(local_path, "rb") as fh:
+                content = fh.read()
+        except OSError:
+            return None, None
+        mime_type = mimetypes.guess_type(local_path)[0] or "application/octet-stream"
+        return content, mime_type
+    return None, None
+
+
+def _enhance_markdown_soup(
+    html: str,
+    project_name: str,
+    attachments_folder: str,
+    resources_folder: str,
+) -> BeautifulSoup:
+    """Apply export-specific enhancements to rendered Markdown HTML."""
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    for pre in soup.find_all("pre"):
+        code_block = pre.find("code", recursive=False)
+        if not code_block:
+            continue
+        code_classes = list(code_block.get("class") or [])
+        if "hljs" not in code_classes:
+            code_classes.append("hljs")
+        code_block["class"] = code_classes
+        pre_classes = list(pre.get("class") or [])
+        if "hljs" not in pre_classes:
+            pre_classes.append("hljs")
+        pre["class"] = pre_classes
+
+    for img in soup.find_all("img"):
+        src = img.get("src") or ""
+        content, mime_type = _load_image_bytes(src, project_name, attachments_folder, resources_folder)
+        if content and mime_type:
+            encoded = base64.b64encode(content).decode("ascii")
+            img["src"] = f"data:{mime_type};base64,{encoded}"
+        classes = set(img.get("class") or [])
+        classes.add("markdown-preview-image")
+        img["class"] = list(classes)
+        if not img.has_attr("loading"):
+            img["loading"] = "lazy"
+        if not img.has_attr("decoding"):
+            img["decoding"] = "async"
+
+    return soup
+
+
+def _build_markdown_export_html(
+    markdown_text: str,
+    template: dict,
+    project_name: str,
+    attachments_folder: str,
+    resources_folder: str,
+) -> str:
+    """Render Markdown text and wrap it with styling suitable for export."""
+
+    rendered_html = _MARKDOWN_RENDERER.render(markdown_text or "")
+    soup = _enhance_markdown_soup(rendered_html, project_name, attachments_folder, resources_folder)
+    body_html = "".join(str(child) for child in soup.contents)
+
+    wrapper_classes = ["markdown-preview-content", "markdown-export-content"]
+    wrapper_extra = str(template.get("wrapperClass") or "").strip()
+    if wrapper_extra:
+        wrapper_classes.extend(wrapper_extra.split())
+    wrapper_class_attr = " ".join(dict.fromkeys(wrapper_classes))
+
+    css = str(template.get("css") or "")
+    custom_head = str(template.get("customHead") or "")
+
+    color_mode = "light"
+    if isinstance(UI_THEME, dict):
+        color_mode = str(UI_THEME.get("color_mode", "light") or "light").lower()
+        if color_mode not in {"light", "dark"}:
+            color_mode = "light"
+
+    body_classes = ["markdown-export", f"theme-{color_mode}"]
+    body_attr = f'class="{" ".join(body_classes)}" data-theme="{color_mode}"'
+
+    document = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Markdown 预览导出</title>
+  <style>
+{_DEFAULT_MARKDOWN_EXPORT_STYLE}
+  </style>
+  <style>
+{css}
+  </style>
+  {custom_head}
+</head>
+<body {body_attr}>
+  <div class="{wrapper_class_attr}">
+{body_html}
+  </div>
+</body>
+</html>
+"""
+    return document
 
 
 def _normalize_link_target(value: object) -> str:
@@ -715,6 +950,75 @@ def export_page_notes():
     return send_file(
         buffer,
         mimetype="text/markdown",
+        as_attachment=True,
+        download_name=download_name,
+    )
+
+
+@bp.route("/export_page_markdown_html", methods=["GET"])
+def export_page_markdown_html():
+    """导出当前页 Markdown 渲染后的 HTML（内联图片）。"""
+
+    page_param = request.args.get("page", type=int)
+    page_idx = max((page_param or 1) - 1, 0)
+
+    try:
+        project = load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
+
+    pages = project.get("pages", []) if isinstance(project, dict) else []
+    if not pages or page_idx >= len(pages):
+        return jsonify({"success": False, "error": "指定页不存在"}), 404
+
+    page = pages[page_idx]
+    notes = ""
+    if isinstance(page, dict):
+        notes = page.get("notes", "") or ""
+    else:  # pragma: no cover - 容错兜底
+        notes = str(page or "")
+
+    if not notes.strip():
+        return jsonify({"success": False, "error": "当前页没有笔记可导出"}), 400
+
+    project_name = get_project_from_request()
+    attachments_folder, _, _, resources_folder, _ = get_project_paths(project_name)
+
+    default_template = get_default_markdown_template()
+    template: dict = {
+        "css": default_template.get("css", ""),
+        "wrapperClass": default_template.get("wrapperClass", ""),
+    }
+    if default_template.get("customHead"):
+        template["customHead"] = default_template["customHead"]
+
+    raw_template = project.get("markdownTemplate") if isinstance(project, dict) else None
+    if isinstance(raw_template, dict):
+        css_value = raw_template.get("css")
+        if isinstance(css_value, str):
+            template["css"] = css_value
+        wrapper_value = raw_template.get("wrapperClass")
+        if isinstance(wrapper_value, str):
+            template["wrapperClass"] = wrapper_value
+        head_value = raw_template.get("customHead")
+        if isinstance(head_value, str) and head_value.strip():
+            template["customHead"] = head_value
+        elif "customHead" in template and not template["customHead"]:
+            template.pop("customHead")
+
+    html_output = _build_markdown_export_html(
+        notes,
+        template,
+        project_name,
+        attachments_folder,
+        resources_folder,
+    )
+
+    buffer = io.BytesIO(html_output.encode("utf-8"))
+    download_name = f"page_{page_idx + 1}_notes.html"
+    return send_file(
+        buffer,
+        mimetype="text/html",
         as_attachment=True,
         download_name=download_name,
     )

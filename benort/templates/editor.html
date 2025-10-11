@@ -1413,6 +1413,10 @@
             <label class="form-check-label" for="exportPageNotesOption">导出 当前页 Markdown</label>
           </div>
           <div class="form-check">
+            <input class="form-check-input" type="radio" name="exportOption" id="exportPageNotesHtmlOption" value="page_notes_html">
+            <label class="form-check-label" for="exportPageNotesHtmlOption">导出 当前页 Markdown（HTML）</label>
+          </div>
+          <div class="form-check">
             <input class="form-check-input" type="radio" name="exportOption" id="exportPageAudioOption" value="page_audio">
             <label class="form-check-label" for="exportPageAudioOption">导出 当前页讲稿语音 (MP3)</label>
           </div>
@@ -3574,6 +3578,18 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = `page_${pageNumber}_notes.md`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
         showStatus(`第 ${pageNumber} 页 Markdown 已导出`, 'success', 2500);
+      }).catch(e=>alert('导出失败：'+e.message));
+      return;
+    }
+    if(opt === 'page_notes_html') {
+      const pageNumber = currentPageIdx + 1;
+      fetch(`/export_page_markdown_html?page=${pageNumber}`).then(res => {
+        if(res.ok) return res.blob();
+        return res.json().then(data=>{throw new Error(data.error||'导出失败')});
+      }).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = `page_${pageNumber}_notes.html`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        showStatus(`第 ${pageNumber} 页 Markdown HTML 已导出`, 'success', 2500);
       }).catch(e=>alert('导出失败：'+e.message));
       return;
     }

@@ -19,8 +19,8 @@ import requests
 from flask import Blueprint, current_app, jsonify, render_template, request, send_file, send_from_directory
 from bs4 import BeautifulSoup
 from markdown_it import MarkdownIt
-from mdit_py_plugins.footnote import footnote
-from mdit_py_plugins.tasklists import tasklists
+from mdit_py_plugins.footnote import footnote_plugin
+from mdit_py_plugins.tasklists import tasklists_plugin
 from werkzeug.utils import secure_filename
 
 from .latex import normalize_latex_content, prepare_latex_assets, _find_resource_file
@@ -85,8 +85,8 @@ _MARKDOWN_RENDERER = (
     MarkdownIt("commonmark", {"html": True, "linkify": True, "typographer": True})
     .enable("table")
     .enable("strikethrough")
-    .use(tasklists, enabled=True, label=True)
-    .use(footnote)
+    .use(tasklists_plugin, enabled=True, label=True)
+    .use(footnote_plugin)
 )
 
 _DEFAULT_MARKDOWN_EXPORT_STYLE = """

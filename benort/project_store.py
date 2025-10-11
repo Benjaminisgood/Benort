@@ -911,18 +911,63 @@ def load_project():
             if sanitized:
                 referenced_resources.add(sanitized)
 
+    def _safe_page_dir_name(pid: str) -> str:
+        sanitized = secure_filename(pid or '')
+        return f'page_{sanitized or pid}'
+
+    # 处理旧版按页码命名的资源目录，迁移到基于 pageId 的目录结构
     for idx, page in enumerate(data['pages']):
-        page_dir = os.path.join(resources_folder, f'page_{idx+1}')
-        if not os.path.isdir(page_dir):
+        if not isinstance(page, dict):
+            continue
+        page_id = str(page.get('pageId') or '').strip()
+        if not page_id:
+            continue
+        desired_dir = os.path.join(resources_folder, _safe_page_dir_name(page_id))
+        legacy_dir = os.path.join(resources_folder, f'page_{idx+1}')
+        if os.path.isdir(legacy_dir) and os.path.abspath(legacy_dir) != os.path.abspath(desired_dir):
+            try:
+                if os.path.isdir(desired_dir):
+                    for root, _, files in os.walk(legacy_dir):
+                        for fname in files:
+                            src = os.path.join(root, fname)
+                            rel = os.path.relpath(src, legacy_dir)
+                            dst = os.path.join(desired_dir, rel)
+                            os.makedirs(os.path.dirname(dst), exist_ok=True)
+                            if not os.path.exists(dst):
+                                shutil.move(src, dst)
+                    shutil.rmtree(legacy_dir, ignore_errors=True)
+                else:
+                    parent = os.path.dirname(desired_dir)
+                    os.makedirs(parent, exist_ok=True)
+                    os.rename(legacy_dir, desired_dir)
+                migrated = True
+            except Exception:
+                pass
+
+    for idx, page in enumerate(data['pages']):
+        if not isinstance(page, dict):
+            continue
+        page_id = str(page.get('pageId') or '').strip()
+        candidate_dirs: list[str] = []
+        if page_id:
+            page_dir = os.path.join(resources_folder, _safe_page_dir_name(page_id))
+            if os.path.isdir(page_dir):
+                candidate_dirs.append(page_dir)
+        legacy_dir = os.path.join(resources_folder, f'page_{idx+1}')
+        if os.path.isdir(legacy_dir) and legacy_dir not in candidate_dirs:
+            candidate_dirs.append(legacy_dir)
+        if not candidate_dirs:
             continue
         existing = set(page.get('resources', []))
-        added = []
-        for fname in sorted(os.listdir(page_dir)):
-            if fname in referenced_resources:
+        added: list[str] = []
+        for page_dir in candidate_dirs:
+            try:
+                for fname in sorted(os.listdir(page_dir)):
+                    if fname in referenced_resources or fname in existing or fname in added:
+                        continue
+                    added.append(fname)
+            except Exception:
                 continue
-            if fname in existing:
-                continue
-            added.append(fname)
         if added:
             page.setdefault('resources', [])
             page['resources'].extend(added)

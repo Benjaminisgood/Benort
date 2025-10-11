@@ -668,9 +668,9 @@
   <li class="nav-item"><button class="btn btn-outline-success me-2 js-nav-btn" id="export-btn" title="导出">导出</button></li>
         <li><hr class="dropdown-divider m-1"></li>
 
-        <li class="nav-item"><button class="btn btn-outline-danger me-2 js-nav-btn" id="ai-optimize" title="AI代码优化">代码优化</button></li>
-  <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-note-optimize" title="AI笔记优化">笔记优化</button></li>
-  <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-script-optimize" title="AI讲稿优化">讲稿优化</button></li>
+        <li class="nav-item"><button class="btn btn-outline-danger me-2 js-nav-btn" id="ai-optimize" title="Latex优化">tex优化</button></li>
+  <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-note-optimize" title="Markdown优化">md优化</button></li>
+  <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-script-optimize" title="Speech script优化">script优化</button></li>
         <li><hr class="dropdown-divider m-1"></li>
   <li class="nav-item"><button class="btn btn-outline-dark me-2 js-nav-btn" id="play-note" title="播放当前页讲稿">播放讲稿</button></li>
         <li><hr class="dropdown-divider m-1"></li>
@@ -5025,8 +5025,10 @@ loadProjects().then(()=>{
       const globalFiles = Array.isArray(globalData.files) ? globalData.files : [];
       const pageNames = pageFiles.map(f => f && f.name).filter(Boolean);
       const globalNames = globalFiles.map(f => f && f.name).filter(Boolean);
-      if(pagesData[pageIdx]) {
-        pagesData[pageIdx].resources = pageNames.slice();
+      const serverPageId = pageData && typeof pageData.pageId === 'string' ? pageData.pageId : null;
+      const currentPage = pagesData[pageIdx];
+      if(currentPage && typeof currentPage === 'object' && typeof currentPage.pageId === 'string' && serverPageId && currentPage.pageId === serverPageId) {
+        currentPage.resources = pageNames.slice();
       }
       globalResources = globalNames.slice();
       renderResourceList(pageListEl, pageFiles, {scope: 'page', pageIndex: pageIdx});

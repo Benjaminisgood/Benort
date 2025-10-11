@@ -2097,12 +2097,14 @@ def list_resources():
         page_idx = None
 
     names = []
+    page_id = None
     if page_idx is not None:
         pages = project.get('pages', [])
         if 0 <= page_idx < len(pages) and isinstance(pages[page_idx], dict):
             res_list = pages[page_idx].get('resources', [])
             if isinstance(res_list, list):
                 names = res_list
+            page_id = pages[page_idx].get('pageId')
     else:
         res_list = project.get('resources', [])
         if isinstance(res_list, list):
@@ -2168,6 +2170,8 @@ def list_resources():
         )
 
     payload = {'files': files, 'ossConfigured': configured}
+    if page_id:
+        payload['pageId'] = str(page_id)
     if oss_error:
         payload['ossError'] = oss_error
     return api_success(payload)

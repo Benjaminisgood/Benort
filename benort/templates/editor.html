@@ -4629,6 +4629,54 @@ loadProjects().then(()=>{
     }
   }
 
+  function toPlainPos(pos) {
+    if (!pos || typeof pos.line !== 'number' || typeof pos.ch !== 'number') return null;
+    return {line: pos.line, ch: pos.ch};
+  }
+
+  function captureLearningApplyMeta() {
+    const page = pagesData[currentPageIdx] || {};
+    const meta = {
+      pageIdx: currentPageIdx,
+      pageId: typeof page.pageId === 'string' ? page.pageId : '',
+      mode: currentEditMode,
+      project: currentProject || '',
+      selection: null,
+      cursor: null,
+    };
+    if (!singleEditor || typeof singleEditor.getDoc !== 'function') {
+      return meta;
+    }
+    const doc = singleEditor.getDoc();
+    if (!doc) {
+      return meta;
+    }
+    if (typeof doc.getCursor === 'function') {
+      const cursor = toPlainPos(doc.getCursor());
+      if (cursor) {
+        meta.cursor = cursor;
+      }
+    }
+    if (typeof doc.listSelections === 'function') {
+      const selections = doc.listSelections();
+      if (Array.isArray(selections) && selections.length) {
+        const primary = selections[0];
+        const anchorPos = toPlainPos(primary.anchor);
+        const headPos = toPlainPos(primary.head);
+        if (anchorPos && headPos) {
+          const anchorIdx = doc.indexFromPos(anchorPos);
+          const headIdx = doc.indexFromPos(headPos);
+          if (anchorIdx !== headIdx) {
+            const from = anchorIdx <= headIdx ? anchorPos : headPos;
+            const to = anchorIdx <= headIdx ? headPos : anchorPos;
+            meta.selection = {from, to};
+          }
+        }
+      }
+    }
+    return meta;
+  }
+
   function setLearningPrompts(prompts) {
     learningAssistantState.prompts = Array.isArray(prompts) ? prompts : [];
     learningAssistantState.promptsMap = new Map();
@@ -4776,6 +4824,7 @@ loadProjects().then(()=>{
     const baseContext = contextEl ? contextEl.value.trim() : '';
     const promptId = prompt ? prompt.id : '__raw__';
     const promptName = prompt ? prompt.name : '无提示词';
+    const applyMeta = captureLearningApplyMeta();
 
     let buttonLabel = '';
     if (triggerBtn) {
@@ -4807,7 +4856,8 @@ loadProjects().then(()=>{
         { id: data.promptId || promptId, name: data.promptName || promptName },
         baseContent,
         baseContext,
-        resultText
+        resultText,
+        applyMeta
       );
     } catch (err) {
       console.error('AI 学习失败:', err);
@@ -4820,7 +4870,7 @@ loadProjects().then(()=>{
     }
   }
 
-  function appendLearningResultCard(promptInfo, baseContent, baseContext, resultText) {
+  function appendLearningResultCard(promptInfo, baseContent, baseContext, resultText, applyMeta = {}) {
     const container = document.getElementById('ai-learn-results');
     if (!container) return;
     const card = document.createElement('div');
@@ -4830,7 +4880,16 @@ loadProjects().then(()=>{
     card._payload = {
       content: baseContent,
       context: baseContext,
+      mode: typeof applyMeta.mode === 'string' ? applyMeta.mode : currentEditMode,
+      pageIdx: typeof applyMeta.pageIdx === 'number' ? applyMeta.pageIdx : currentPageIdx,
+      pageId: typeof applyMeta.pageId === 'string' ? applyMeta.pageId : ((pagesData[currentPageIdx] && pagesData[currentPageIdx].pageId) || ''),
+      project: typeof applyMeta.project === 'string' ? applyMeta.project : (currentProject || ''),
+      selection: applyMeta.selection || null,
+      cursor: applyMeta.cursor || null,
     };
+    if (card._payload.pageId) {
+      card.dataset.pageId = card._payload.pageId;
+    }
     const header = document.createElement('div');
     header.className = 'card-header d-flex flex-wrap justify-content-between align-items-center gap-2';
     const title = document.createElement('div');
@@ -4841,6 +4900,7 @@ loadProjects().then(()=>{
     actions.innerHTML = `
       <button type="button" class="btn btn-outline-primary ai-learn-save-record">保存记录</button>
       <button type="button" class="btn btn-outline-secondary ai-learn-copy-result">复制</button>
+      <button type="button" class="btn btn-outline-success ai-learn-apply-result">一键替换</button>
       <button type="button" class="btn btn-outline-danger ai-learn-remove-result">移除</button>
     `;
     header.appendChild(actions);
@@ -4875,10 +4935,100 @@ loadProjects().then(()=>{
           alert('复制失败，请手动复制。');
         });
       }
+    } else if (target.closest('.ai-learn-apply-result')) {
+      applyLearningResult(card);
     } else if (target.closest('.ai-learn-remove-result')) {
       card.remove();
       updateLearningResultsPlaceholder();
     }
+  }
+
+  function applyLearningResult(card) {
+    const textarea = card.querySelector('.ai-learn-result-text');
+    if (!textarea) {
+      alert('无法读取学习结果内容');
+      return;
+    }
+    const text = textarea.value;
+    if (!text) {
+      alert('学习结果为空，无法替换');
+      return;
+    }
+    if (!singleEditor || typeof singleEditor.getDoc !== 'function') {
+      alert('当前编辑器不可用，无法替换内容');
+      return;
+    }
+    const payload = card._payload || {};
+    const targetProject = typeof payload.project === 'string' ? payload.project : '';
+    if (targetProject && currentProject && targetProject !== currentProject) {
+      showStatus('当前项目已变更，请切换至生成该结果的项目后再试。', 'warning', 3200);
+      return;
+    }
+    const targetMode = typeof payload.mode === 'string' ? payload.mode : '';
+    if (targetMode && targetMode !== currentEditMode) {
+      const modeLabel = targetMode === 'markdown' ? 'Markdown' : 'LaTeX';
+      showStatus(`请先切换到 ${modeLabel} 编辑模式后再执行一键替换。`, 'warning', 3200);
+      return;
+    }
+    const pageId = typeof payload.pageId === 'string' ? payload.pageId : '';
+    const pageIdx = typeof payload.pageIdx === 'number' ? payload.pageIdx : null;
+    const currentPage = pagesData[currentPageIdx] || {};
+    const currentPageId = typeof currentPage.pageId === 'string' ? currentPage.pageId : '';
+    if (pageId) {
+      if (currentPageId && currentPageId !== pageId) {
+        showStatus('请切换到生成该结果的页面后再执行一键替换。', 'warning', 3200);
+        return;
+      }
+    } else if (pageIdx !== null && pageIdx !== currentPageIdx) {
+      showStatus('请切换到生成该结果的页面后再执行一键替换。', 'warning', 3200);
+      return;
+    }
+    const doc = singleEditor.getDoc();
+    if (!doc) {
+      alert('无法访问编辑器，替换失败');
+      return;
+    }
+    const selection = payload.selection;
+    const cursor = payload.cursor;
+    const resolvePos = (pos) => {
+      const plain = toPlainPos(pos);
+      if (!plain) return null;
+      return {line: plain.line, ch: plain.ch};
+    };
+    let from = selection && selection.from ? resolvePos(selection.from) : null;
+    let to = selection && selection.to ? resolvePos(selection.to) : null;
+    if (!from || !to) {
+      const fallback = resolvePos(cursor) || resolvePos(doc.getCursor());
+      from = fallback;
+      to = fallback;
+    }
+    if (!from) {
+      from = resolvePos(doc.getCursor());
+      to = from;
+    }
+    if (!from || !to) {
+      alert('未能确定替换位置，请手动粘贴结果。');
+      return;
+    }
+    const startIndex = doc.indexFromPos(from);
+    const endIndex = doc.indexFromPos(to);
+    let start = from;
+    let end = to;
+    if (endIndex < startIndex) {
+      start = to;
+      end = from;
+    }
+    const startIdx = doc.indexFromPos(start);
+    doc.replaceRange(text, start, end);
+    const endPos = doc.posFromIndex(startIdx + text.length);
+    doc.setSelection(start, endPos);
+    if (typeof singleEditor.focus === 'function') {
+      singleEditor.focus();
+    }
+    if (typeof singleEditor.scrollIntoView === 'function') {
+      singleEditor.scrollIntoView({from: start, to: endPos});
+    }
+    showStatus('已将学习结果替换到编辑器', 'success', 2600);
   }
 
   async function saveLearningRecord(card, button) {

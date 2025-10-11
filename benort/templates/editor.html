@@ -671,6 +671,7 @@
         <li class="nav-item"><button class="btn btn-outline-danger me-2 js-nav-btn" id="ai-optimize" title="Latex优化">tex优化</button></li>
   <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-note-optimize" title="Markdown优化">md优化</button></li>
   <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-script-optimize" title="Speech script优化">script优化</button></li>
+  <li class="nav-item"><button class="btn btn-outline-success me-2 js-nav-btn" id="ai-learn-helper" title="AI学习助手">ai助理</button></li>
         <li><hr class="dropdown-divider m-1"></li>
   <li class="nav-item"><button class="btn btn-outline-dark me-2 js-nav-btn" id="play-note" title="播放当前页讲稿">播放讲稿</button></li>
         <li><hr class="dropdown-divider m-1"></li>
@@ -932,6 +933,92 @@
         </div>
       </div>
     
+      <div class="modal fade" id="aiLearnModal" tabindex="-1" aria-labelledby="aiLearnModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="aiLearnModalLabel">AI 学习助手</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="row g-3">
+                <div class="col-lg-6">
+                  <label for="ai-learn-content" class="form-label">学习内容</label>
+                  <textarea id="ai-learn-content" class="form-control" rows="8" placeholder="在此输入或粘贴想要学习的内容"></textarea>
+                  <div class="d-flex justify-content-between align-items-center mt-2">
+                    <small class="text-muted" id="ai-learn-content-hint">可自动捕获当前编辑器中的选中文字。</small>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" id="ai-learn-fill-selection">获取选中内容</button>
+                  </div>
+                </div>
+                <div class="col-lg-6">
+                  <label for="ai-learn-context" class="form-label">上下文（可选）</label>
+                  <textarea id="ai-learn-context" class="form-control" rows="8" placeholder="添加额外背景、页面内容或你的学习目标，以便获得更精确的回答。"></textarea>
+                  <div class="form-text">上下文会一并发送给 AI，可包含当前页 LaTeX、笔记、讲稿等信息。</div>
+                </div>
+              </div>
+              <hr class="my-3">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="mb-0">默认提示词</h6>
+                <div class="d-flex align-items-center gap-2">
+                  <button class="btn btn-sm btn-outline-secondary" type="button" id="ai-learn-refresh-prompts">刷新</button>
+                  <button class="btn btn-sm btn-outline-dark" type="button" id="ai-learn-run-raw">无提示词</button>
+                </div>
+              </div>
+              <div id="ai-learn-default-prompts" class="d-flex flex-wrap gap-2 mt-2"></div>
+              <div class="mt-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="mb-0">自定义提示词</h6>
+                <button class="btn btn-sm btn-outline-primary" type="button" id="ai-learn-add-prompt">新增提示词</button>
+              </div>
+              <div id="ai-learn-custom-prompts" class="d-flex flex-column gap-2 mt-2"></div>
+              <hr class="my-3">
+              <div>
+                <h6 class="mb-2">学习结果</h6>
+                <div id="ai-learn-results" class="d-flex flex-column gap-3">
+                  <div class="text-muted small" id="ai-learn-results-empty">点击上方提示词开始学习，AI 的回答会显示在这里。</div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal fade" id="aiLearnPromptModal" tabindex="-1" aria-labelledby="aiLearnPromptModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="aiLearnPromptModalLabel">新增提示词</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label for="ai-learn-prompt-name" class="form-label">名称</label>
+                <input type="text" class="form-control" id="ai-learn-prompt-name" placeholder="例如：雅思口语练习">
+              </div>
+              <div class="mb-3">
+                <label for="ai-learn-prompt-description" class="form-label">用途描述（可选）</label>
+                <input type="text" class="form-control" id="ai-learn-prompt-description" placeholder="提示词的适用场景或目标">
+              </div>
+              <div class="mb-3">
+                <label for="ai-learn-prompt-system" class="form-label">系统提示（可选）</label>
+                <textarea id="ai-learn-prompt-system" class="form-control" rows="3" placeholder="指定 AI 扮演的角色或总体风格，留空则使用默认导师提示。"></textarea>
+              </div>
+              <div class="mb-3">
+                <label for="ai-learn-prompt-template" class="form-label">用户提示模板</label>
+                <textarea id="ai-learn-prompt-template" class="form-control" rows="8" placeholder="可以使用 {content} 和 {context} 作为占位符。"></textarea>
+                <div class="form-text">模板示例：<code>请分析以下内容：\n{content}\n\n上下文：\n{context}</code></div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-primary" id="ai-learn-prompt-save">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Attachment Preview Modal -->
       <div class="modal fade" id="attachmentPreviewModal" tabindex="-1" aria-labelledby="attachmentPreviewModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -4171,7 +4258,547 @@ loadProjects().then(()=>{
     var modal = bootstrap.Modal.getInstance(document.getElementById('aiNoteModal'));
     modal.hide();
   };
-  
+
+  const learningAssistantState = {
+    modal: null,
+    promptModal: null,
+    loaded: false,
+    loadingPrompts: false,
+    prompts: [],
+    promptsMap: new Map(),
+    editingPrompt: null,
+  };
+
+  function ensureLearningModal() {
+    if (!learningAssistantState.modal) {
+      const modalEl = document.getElementById('aiLearnModal');
+      if (!modalEl) return null;
+      learningAssistantState.modal = new bootstrap.Modal(modalEl);
+    }
+    return learningAssistantState.modal;
+  }
+
+  function ensureLearningPromptModal() {
+    if (!learningAssistantState.promptModal) {
+      const modalEl = document.getElementById('aiLearnPromptModal');
+      if (!modalEl) return null;
+      learningAssistantState.promptModal = new bootstrap.Modal(modalEl);
+    }
+    return learningAssistantState.promptModal;
+  }
+
+  function getLearningSelection() {
+    let selected = '';
+    if (singleEditor && typeof singleEditor.getSelection === 'function') {
+      selected = singleEditor.getSelection();
+    }
+    if (!selected) {
+      try {
+        selected = window.getSelection ? (window.getSelection()?.toString() || '') : '';
+      } catch (e) {
+        selected = '';
+      }
+    }
+    return (selected || '').trim();
+  }
+
+  function buildLearningContext() {
+    const page = pagesData[currentPageIdx] || {};
+    const chunks = [];
+    if (page.content) chunks.push('LaTeX:\n' + page.content);
+    if (page.notes) chunks.push('Markdown:\n' + page.notes);
+    if (page.script) chunks.push('Script:\n' + page.script);
+    const context = chunks.join('\n\n');
+    return context.length > 3000 ? context.slice(0, 3000) + '\n\n…（上下文已截断）' : context;
+  }
+
+  function updateLearningContext(auto = false) {
+    const contextEl = document.getElementById('ai-learn-context');
+    if (!contextEl) return;
+    if (auto && contextEl.value.trim()) {
+      return;
+    }
+    const context = buildLearningContext();
+    if (context) {
+      contextEl.value = context;
+    }
+  }
+
+  function setLearningPrompts(prompts) {
+    learningAssistantState.prompts = Array.isArray(prompts) ? prompts : [];
+    learningAssistantState.promptsMap = new Map();
+    learningAssistantState.prompts.forEach(item => {
+      if (item && item.id) {
+        learningAssistantState.promptsMap.set(item.id, item);
+      }
+    });
+    renderLearningPrompts();
+  }
+
+  async function loadLearningPrompts(force = false) {
+    if (learningAssistantState.loadingPrompts) return;
+    if (learningAssistantState.loaded && !force) return;
+    learningAssistantState.loadingPrompts = true;
+    try {
+      const res = await fetch('/learn/config');
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.prompts)) {
+        learningAssistantState.loaded = true;
+        setLearningPrompts(data.prompts);
+      } else {
+        throw new Error(data && data.error ? data.error : '未知错误');
+      }
+    } catch (err) {
+      console.error('加载学习提示词失败:', err);
+      showStatus('加载学习提示词失败：' + (err?.message || err || '未知错误'), 'danger', 6000);
+    } finally {
+      learningAssistantState.loadingPrompts = false;
+    }
+  }
+
+  function renderLearningPrompts() {
+    const defaultContainer = document.getElementById('ai-learn-default-prompts');
+    const customContainer = document.getElementById('ai-learn-custom-prompts');
+    if (defaultContainer) defaultContainer.innerHTML = '';
+    if (customContainer) customContainer.innerHTML = '';
+    const defaults = learningAssistantState.prompts.filter(item => item.source === 'default');
+    const customs = learningAssistantState.prompts.filter(item => item.source === 'custom');
+    if (defaultContainer) {
+      if (!defaults.length) {
+        defaultContainer.innerHTML = '<div class="text-muted small">暂无默认提示词。</div>';
+      } else {
+        defaults.forEach(prompt => {
+          defaultContainer.appendChild(buildLearningPromptItem(prompt));
+        });
+      }
+    }
+    if (customContainer) {
+      if (!customs.length) {
+        customContainer.innerHTML = '<div class="text-muted small">尚未创建自定义提示词。</div>';
+      } else {
+        customs.forEach(prompt => {
+          customContainer.appendChild(buildLearningPromptItem(prompt, true));
+        });
+      }
+    }
+  }
+
+  function buildLearningPromptItem(prompt, stacked = false) {
+    const wrapper = document.createElement('div');
+    wrapper.className = stacked ? 'd-flex flex-column flex-sm-row align-items-sm-center gap-2' : 'd-flex flex-wrap align-items-center gap-2';
+    wrapper.dataset.promptId = prompt.id || '';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-outline-primary';
+    btn.textContent = prompt.name || prompt.id;
+    btn.addEventListener('click', () => runLearningPrompt(prompt, btn));
+    wrapper.appendChild(btn);
+
+    if (prompt.description) {
+      const desc = document.createElement('small');
+      desc.className = 'text-muted';
+      desc.textContent = prompt.description;
+      wrapper.appendChild(desc);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'btn-group btn-group-sm';
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'btn btn-outline-secondary';
+    editBtn.textContent = '编辑';
+    editBtn.addEventListener('click', evt => {
+      evt.stopPropagation();
+      openPromptEditor(prompt);
+    });
+    actions.appendChild(editBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'btn btn-outline-danger';
+    delBtn.textContent = '删除';
+    if (!prompt.allowDelete) {
+      delBtn.disabled = true;
+    }
+    delBtn.addEventListener('click', evt => {
+      evt.stopPropagation();
+      deletePrompt(prompt);
+    });
+    actions.appendChild(delBtn);
+
+    wrapper.appendChild(actions);
+    return wrapper;
+  }
+
+  function openLearningModal() {
+    const modal = ensureLearningModal();
+    if (!modal) return;
+    const contentEl = document.getElementById('ai-learn-content');
+    if (contentEl) {
+      const selection = getLearningSelection();
+      if (selection) {
+        contentEl.value = selection;
+      } else if (!contentEl.value.trim()) {
+        contentEl.value = '';
+      }
+    }
+    updateLearningContext(true);
+    updateLearningResultsPlaceholder();
+    modal.show();
+    loadLearningPrompts(false);
+  }
+
+  function updateLearningResultsPlaceholder() {
+    const container = document.getElementById('ai-learn-results');
+    const placeholder = document.getElementById('ai-learn-results-empty');
+    if (!container || !placeholder) return;
+    const hasCards = container.querySelector('.ai-learn-result');
+    placeholder.classList.toggle('d-none', !!hasCards);
+  }
+
+  async function runLearningPrompt(prompt, triggerBtn) {
+    const contentEl = document.getElementById('ai-learn-content');
+    if (!contentEl) return;
+    const baseContent = contentEl.value.trim();
+    if (!baseContent) {
+      alert('请输入或选择需要学习的内容');
+      return;
+    }
+    const contextEl = document.getElementById('ai-learn-context');
+    const baseContext = contextEl ? contextEl.value.trim() : '';
+    const promptId = prompt ? prompt.id : '__raw__';
+    const promptName = prompt ? prompt.name : '无提示词';
+
+    let buttonLabel = '';
+    if (triggerBtn) {
+      buttonLabel = triggerBtn.textContent;
+      triggerBtn.disabled = true;
+      triggerBtn.textContent = '学习中...';
+    }
+    try {
+      const res = await fetch('/learn/query', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          content: baseContent,
+          context: baseContext,
+          promptId,
+          promptName,
+        }),
+      });
+      if (!res.ok) {
+        const text = (await res.text()) || `HTTP ${res.status}`;
+        throw new Error(text);
+      }
+      const data = await res.json();
+      if (!data || data.success === false) {
+        throw new Error((data && data.error) || 'AI 学习失败');
+      }
+      const resultText = data.result || '';
+      appendLearningResultCard(
+        { id: data.promptId || promptId, name: data.promptName || promptName },
+        baseContent,
+        baseContext,
+        resultText
+      );
+    } catch (err) {
+      console.error('AI 学习失败:', err);
+      showStatus('AI 学习失败：' + (err?.message || err || '未知错误'), 'danger', 6000);
+    } finally {
+      if (triggerBtn) {
+        triggerBtn.disabled = false;
+        triggerBtn.textContent = buttonLabel || (prompt ? prompt.name : '无提示词');
+      }
+    }
+  }
+
+  function appendLearningResultCard(promptInfo, baseContent, baseContext, resultText) {
+    const container = document.getElementById('ai-learn-results');
+    if (!container) return;
+    const card = document.createElement('div');
+    card.className = 'card shadow-sm ai-learn-result';
+    card.dataset.promptId = promptInfo.id || '';
+    card.dataset.promptName = promptInfo.name || '';
+    card._payload = {
+      content: baseContent,
+      context: baseContext,
+    };
+    const header = document.createElement('div');
+    header.className = 'card-header d-flex flex-wrap justify-content-between align-items-center gap-2';
+    const title = document.createElement('div');
+    title.innerHTML = `<strong>${promptInfo.name || '学习结果'}</strong> <span class="text-muted small ms-2">${new Date().toLocaleString()}</span>`;
+    header.appendChild(title);
+    const actions = document.createElement('div');
+    actions.className = 'btn-group btn-group-sm';
+    actions.innerHTML = `
+      <button type="button" class="btn btn-outline-primary ai-learn-save-record">保存记录</button>
+      <button type="button" class="btn btn-outline-secondary ai-learn-copy-result">复制</button>
+      <button type="button" class="btn btn-outline-danger ai-learn-remove-result">移除</button>
+    `;
+    header.appendChild(actions);
+    card.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+    const textarea = document.createElement('textarea');
+    textarea.className = 'form-control ai-learn-result-text';
+    textarea.rows = 12;
+    textarea.value = resultText || '';
+    body.appendChild(textarea);
+    card.appendChild(body);
+
+    container.prepend(card);
+    updateLearningResultsPlaceholder();
+  }
+
+  function handleLearningResultsClick(event) {
+    const target = event.target;
+    const card = target.closest('.ai-learn-result');
+    if (!card) return;
+    if (target.closest('.ai-learn-save-record')) {
+      saveLearningRecord(card, target.closest('button'));
+    } else if (target.closest('.ai-learn-copy-result')) {
+      const textarea = card.querySelector('.ai-learn-result-text');
+      if (textarea) {
+        navigator.clipboard.writeText(textarea.value).then(() => {
+          showStatus('已复制学习结果', 'success', 3000);
+        }).catch(err => {
+          console.warn('复制失败', err);
+          alert('复制失败，请手动复制。');
+        });
+      }
+    } else if (target.closest('.ai-learn-remove-result')) {
+      card.remove();
+      updateLearningResultsPlaceholder();
+    }
+  }
+
+  async function saveLearningRecord(card, button) {
+    const payload = card._payload || {};
+    const textarea = card.querySelector('.ai-learn-result-text');
+    if (!textarea) return;
+    const output = textarea.value.trim();
+    if (!output) {
+      alert('请先填写要保存的学习结果文本');
+      return;
+    }
+    if (button) {
+      button.disabled = true;
+      button.textContent = '保存中...';
+    }
+    try {
+      const res = await fetch('/learn/record', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          content: payload.content || '',
+          context: payload.context || '',
+          promptId: card.dataset.promptId || '',
+          promptName: card.dataset.promptName || '',
+          output,
+        }),
+      });
+      if (!res.ok) {
+        const text = (await res.text()) || `HTTP ${res.status}`;
+        throw new Error(text);
+      }
+      const data = await res.json();
+      if (data && data.success === false) {
+        throw new Error(data.error || '保存失败');
+      }
+      showStatus('学习记录已保存', 'success', 3000);
+      if (button) {
+        button.textContent = '已保存';
+      }
+    } catch (err) {
+      console.error('保存学习记录失败:', err);
+      showStatus('保存学习记录失败：' + (err?.message || err || '未知错误'), 'danger', 6000);
+      if (button) {
+        button.textContent = '保存记录';
+      }
+    } finally {
+      if (button) {
+        button.disabled = false;
+      }
+    }
+  }
+
+  function resetPromptEditor() {
+    const nameEl = document.getElementById('ai-learn-prompt-name');
+    const descEl = document.getElementById('ai-learn-prompt-description');
+    const sysEl = document.getElementById('ai-learn-prompt-system');
+    const tplEl = document.getElementById('ai-learn-prompt-template');
+    if (nameEl) nameEl.value = '';
+    if (descEl) descEl.value = '';
+    if (sysEl) sysEl.value = '';
+    if (tplEl) tplEl.value = '请针对以下内容提供学习说明：\n{content}\n\n上下文：\n{context}\n';
+  }
+
+  function openPromptEditor(prompt) {
+    const modal = ensureLearningPromptModal();
+    if (!modal) return;
+    resetPromptEditor();
+    learningAssistantState.editingPrompt = prompt || null;
+    const title = document.getElementById('aiLearnPromptModalLabel');
+    if (title) title.textContent = prompt ? '编辑提示词' : '新增提示词';
+    if (prompt) {
+      const nameEl = document.getElementById('ai-learn-prompt-name');
+      const descEl = document.getElementById('ai-learn-prompt-description');
+      const sysEl = document.getElementById('ai-learn-prompt-system');
+      const tplEl = document.getElementById('ai-learn-prompt-template');
+      if (nameEl) nameEl.value = prompt.name || '';
+      if (descEl) descEl.value = prompt.description || '';
+      if (sysEl) sysEl.value = prompt.system || '';
+      if (tplEl) tplEl.value = prompt.template || '';
+    }
+    modal.show();
+  }
+
+  async function submitPromptEditor() {
+    const nameEl = document.getElementById('ai-learn-prompt-name');
+    const tplEl = document.getElementById('ai-learn-prompt-template');
+    if (!nameEl || !tplEl) return;
+    const name = nameEl.value.trim();
+    const template = tplEl.value.trim();
+    if (!name || !template) {
+      alert('提示词名称和模板均不能为空');
+      return;
+    }
+    const descEl = document.getElementById('ai-learn-prompt-description');
+    const sysEl = document.getElementById('ai-learn-prompt-system');
+    const description = descEl ? descEl.value.trim() : '';
+    const systemText = sysEl ? sysEl.value.trim() : '';
+    const payload = {
+      name,
+      template,
+      description,
+      system: systemText,
+    };
+    const isEdit = !!learningAssistantState.editingPrompt;
+    const url = isEdit ? `/learn/prompts/${encodeURIComponent(learningAssistantState.editingPrompt.id)}` : '/learn/prompts';
+    const method = isEdit ? 'PUT' : 'POST';
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const text = (await res.text()) || `HTTP ${res.status}`;
+        throw new Error(text);
+      }
+      const data = await res.json();
+      if (!data || data.success === false) {
+        throw new Error((data && data.error) || '保存提示词失败');
+      }
+      if (Array.isArray(data.prompts)) {
+        learningAssistantState.loaded = true;
+        setLearningPrompts(data.prompts);
+      }
+      showStatus(isEdit ? '提示词已更新' : '提示词已创建', 'success', 3000);
+      learningAssistantState.editingPrompt = null;
+      const modal = ensureLearningPromptModal();
+      if (modal) modal.hide();
+    } catch (err) {
+      console.error('保存提示词失败:', err);
+      alert('保存提示词失败：' + (err?.message || err || '未知错误'));
+    }
+  }
+
+  async function deletePrompt(prompt) {
+    if (!prompt || !prompt.id) return;
+    if (!confirm(`确定要删除提示词“${prompt.name || prompt.id}”吗？`)) return;
+    try {
+      const res = await fetch(`/learn/prompts/${encodeURIComponent(prompt.id)}`, {
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const text = (await res.text()) || `HTTP ${res.status}`;
+        throw new Error(text);
+      }
+      const data = await res.json();
+      if (!data || data.success === false) {
+        throw new Error((data && data.error) || '删除失败');
+      }
+      if (Array.isArray(data.prompts)) {
+        learningAssistantState.loaded = true;
+        setLearningPrompts(data.prompts);
+      }
+      showStatus('提示词已删除', 'success', 3000);
+    } catch (err) {
+      console.error('删除提示词失败:', err);
+      alert('删除提示词失败：' + (err?.message || err || '未知错误'));
+    }
+  }
+
+  const aiLearnBtn = document.getElementById('ai-learn-helper');
+  if (aiLearnBtn) {
+    aiLearnBtn.addEventListener('click', openLearningModal);
+  }
+
+  const aiLearnFillSelection = document.getElementById('ai-learn-fill-selection');
+  if (aiLearnFillSelection) {
+    aiLearnFillSelection.addEventListener('click', () => {
+      const contentEl = document.getElementById('ai-learn-content');
+      if (!contentEl) return;
+      const selection = getLearningSelection();
+      if (selection) {
+        contentEl.value = selection;
+        showStatus('已填充选中的内容', 'info', 2000);
+      } else {
+        showStatus('未检测到选中的文本，请手动粘贴。', 'warning', 3000);
+      }
+    });
+  }
+
+  const aiLearnRefreshBtn = document.getElementById('ai-learn-refresh-prompts');
+  if (aiLearnRefreshBtn) {
+    aiLearnRefreshBtn.addEventListener('click', () => loadLearningPrompts(true));
+  }
+
+  const aiLearnAddPromptBtn = document.getElementById('ai-learn-add-prompt');
+  if (aiLearnAddPromptBtn) {
+    aiLearnAddPromptBtn.addEventListener('click', () => openPromptEditor(null));
+  }
+
+  const aiLearnRawBtn = document.getElementById('ai-learn-run-raw');
+  if (aiLearnRawBtn) {
+    aiLearnRawBtn.addEventListener('click', () => runLearningPrompt(null, aiLearnRawBtn));
+  }
+
+  const aiLearnPromptSaveBtn = document.getElementById('ai-learn-prompt-save');
+  if (aiLearnPromptSaveBtn) {
+    aiLearnPromptSaveBtn.addEventListener('click', submitPromptEditor);
+  }
+
+  const aiLearnResults = document.getElementById('ai-learn-results');
+  if (aiLearnResults) {
+    aiLearnResults.addEventListener('click', handleLearningResultsClick);
+  }
+
+  const aiLearnModalEl = document.getElementById('aiLearnModal');
+  if (aiLearnModalEl) {
+    aiLearnModalEl.addEventListener('shown.bs.modal', () => {
+      const contentEl = document.getElementById('ai-learn-content');
+      if (contentEl) {
+        contentEl.focus();
+      }
+      updateLearningContext(true);
+    });
+  }
+
+  const aiLearnPromptModalEl = document.getElementById('aiLearnPromptModal');
+  if (aiLearnPromptModalEl) {
+    aiLearnPromptModalEl.addEventListener('hidden.bs.modal', () => {
+      learningAssistantState.editingPrompt = null;
+    });
+  }
+
   document.getElementById('play-note').onclick = function() {
     const script = pagesData[currentPageIdx]?.script || '';
     if(!script.trim()) return alert('当前页讲稿为空');

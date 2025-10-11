@@ -1,13 +1,16 @@
 """封装 Flask 路由的蓝图，提供前端交互所需的全部接口。"""
 
 import base64
+import copy
 import hashlib
 import io
 import json
 import os
 import re
 import subprocess
+import uuid
 import zipfile
+from datetime import datetime
 from typing import Optional, Tuple
 
 import requests
@@ -29,8 +32,10 @@ from .project_store import (
     is_safe_project_name,
     issue_project_cookie,
     list_projects,
+    load_learning_data,
     load_project,
     rename_project,
+    save_learning_data,
     save_project,
     set_project_password,
     verify_project_password,
@@ -46,6 +51,7 @@ from .config import (
     AI_BIB_PROMPT,
     AI_PROMPTS,
     COMPONENT_LIBRARY,
+    LEARNING_ASSISTANT_DEFAULT_PROMPTS,
     UI_THEME,
     OPENAI_CHAT_COMPLETIONS_MODEL,
     OPENAI_TTS_MODEL,
@@ -177,6 +183,70 @@ def _collect_attachment_references(project: dict) -> dict[str, list[str]]:
                 _scan_text(entry, f"全局参考文献 {idx + 1}")
 
     return {name: sorted(contexts) for name, contexts in usage.items()}
+
+
+_DEFAULT_LEARNING_SYSTEM_MESSAGE = (
+    "You are a knowledgeable bilingual tutor. "
+    "Provide thorough, structured explanations in Markdown. "
+    "Use LaTeX math when appropriate, and include actionable study advice."
+)
+
+
+def _truncate_text(value: str, limit: int) -> str:
+    text = (value or "").strip()
+    if not text:
+        return ""
+    if len(text) <= limit:
+        return text
+    snippet = text[:limit].rstrip()
+    return f"{snippet}\n\n…（内容较长，已截断）"
+
+
+def _merge_learning_prompts(project_name: str) -> tuple[list[dict], dict]:
+    data = load_learning_data(project_name)
+    prompts_meta = data.get("prompts", {})
+    overrides = {item["id"]: item for item in prompts_meta.get("overrides", [])}
+    removed = set(prompts_meta.get("removed", []))
+
+    combined: list[dict] = []
+    for default_prompt in LEARNING_ASSISTANT_DEFAULT_PROMPTS:
+        prompt_id = default_prompt["id"]
+        if prompt_id in removed:
+            continue
+        prompt = copy.deepcopy(default_prompt)
+        override = overrides.get(prompt_id)
+        if override:
+            for key in ("name", "description", "template", "system"):
+                if override.get(key):
+                    prompt[key] = override[key]
+        prompt["source"] = "default"
+        prompt["allowDelete"] = True
+        combined.append(prompt)
+
+    for custom_prompt in prompts_meta.get("custom", []):
+        prompt = copy.deepcopy(custom_prompt)
+        prompt["source"] = "custom"
+        prompt["allowDelete"] = True
+        combined.append(prompt)
+
+    combined.sort(key=lambda item: (0 if item.get("source") == "default" else 1, item.get("name", "")))
+    return combined, data
+
+
+def _find_learning_prompt(prompts: list[dict], prompt_id: str) -> Optional[dict]:
+    for prompt in prompts:
+        if prompt.get("id") == prompt_id:
+            return prompt
+    return None
+
+
+def _format_learning_user_message(template: str, content: str, context: str) -> str:
+    base_template = template or "{content}\n\n上下文：\n{context}"
+    safe_context = context or "（无额外上下文）"
+    try:
+        return base_template.format(content=content, context=safe_context)
+    except KeyError:
+        return f"{base_template}\n\n---\n{content}\n\n上下文：\n{safe_context}"
 
 
 def _extract_json_object(text: str) -> dict:
@@ -1143,6 +1213,286 @@ def ai_bib():
     }
 
     return jsonify({"success": True, "entry": entry_payload})
+
+
+@bp.route("/learn/config", methods=["GET"])
+def learn_config():
+    project_name = get_project_from_request()
+    prompts, _ = _merge_learning_prompts(project_name)
+    return api_success({"prompts": prompts})
+
+
+@bp.route("/learn/prompts", methods=["POST"])
+def learn_create_prompt():
+    data = request.json or {}
+    name = str(data.get("name") or "").strip()
+    template = str(data.get("template") or "").strip()
+    if not name or not template:
+        return api_error("name 和 template 必填", 400)
+    description = str(data.get("description") or "").strip()
+    system_text = str(data.get("system") or "").strip()
+
+    project_name = get_project_from_request()
+    learn_data = load_learning_data(project_name)
+    prompts_meta = learn_data.setdefault("prompts", {"custom": [], "overrides": [], "removed": []})
+    prompts_meta.setdefault("custom", [])
+    prompts_meta.setdefault("overrides", [])
+    prompts_meta.setdefault("removed", [])
+
+    prompt_id = f"custom_{uuid.uuid4().hex[:12]}"
+    entry = {"id": prompt_id, "name": name, "template": template}
+    if description:
+        entry["description"] = description
+    if system_text:
+        entry["system"] = system_text
+    prompts_meta["custom"].append(entry)
+
+    save_learning_data(project_name, learn_data)
+    prompts, _ = _merge_learning_prompts(project_name)
+    return api_success({"prompts": prompts, "createdId": prompt_id})
+
+
+@bp.route("/learn/prompts/<prompt_id>", methods=["PUT"])
+def learn_update_prompt(prompt_id: str):
+    data = request.json or {}
+    prompt_id = str(prompt_id or "").strip()
+    if not prompt_id:
+        return api_error("prompt_id 无效", 400)
+
+    name = data.get("name")
+    template = data.get("template")
+    description = data.get("description")
+    system_text = data.get("system")
+
+    if template is not None and not str(template).strip():
+        return api_error("template 不能为空", 400)
+
+    project_name = get_project_from_request()
+    learn_data = load_learning_data(project_name)
+    prompts_meta = learn_data.setdefault("prompts", {"custom": [], "overrides": [], "removed": []})
+    custom_list = prompts_meta.setdefault("custom", [])
+    overrides_list = prompts_meta.setdefault("overrides", [])
+    removed_list = prompts_meta.setdefault("removed", [])
+
+    target = None
+    for item in custom_list:
+        if item.get("id") == prompt_id:
+            target = item
+            break
+
+    if target:
+        if name is not None and str(name).strip():
+            target["name"] = str(name).strip()
+        if description is not None:
+            desc_val = str(description).strip()
+            if desc_val:
+                target["description"] = desc_val
+            else:
+                target.pop("description", None)
+        if system_text is not None:
+            sys_val = str(system_text).strip()
+            if sys_val:
+                target["system"] = sys_val
+            else:
+                target.pop("system", None)
+        if template is not None and str(template).strip():
+            target["template"] = str(template)
+    else:
+        override = None
+        for item in overrides_list:
+            if item.get("id") == prompt_id:
+                override = item
+                break
+        if override is None:
+            override = {"id": prompt_id}
+            overrides_list.append(override)
+        if name is not None and str(name).strip():
+            override["name"] = str(name).strip()
+        if description is not None:
+            desc_val = str(description).strip()
+            if desc_val:
+                override["description"] = desc_val
+            else:
+                override.pop("description", None)
+        if system_text is not None:
+            sys_val = str(system_text).strip()
+            if sys_val:
+                override["system"] = sys_val
+            else:
+                override.pop("system", None)
+        if template is not None and str(template).strip():
+            override["template"] = str(template)
+        if prompt_id in removed_list:
+            removed_list.remove(prompt_id)
+
+    save_learning_data(project_name, learn_data)
+    prompts, _ = _merge_learning_prompts(project_name)
+    return api_success({"prompts": prompts})
+
+
+@bp.route("/learn/prompts/<prompt_id>", methods=["DELETE"])
+def learn_delete_prompt(prompt_id: str):
+    prompt_id = str(prompt_id or "").strip()
+    if not prompt_id:
+        return api_error("prompt_id 无效", 400)
+
+    project_name = get_project_from_request()
+    learn_data = load_learning_data(project_name)
+    prompts_meta = learn_data.setdefault("prompts", {"custom": [], "overrides": [], "removed": []})
+    custom_list = prompts_meta.setdefault("custom", [])
+    overrides_list = prompts_meta.setdefault("overrides", [])
+    removed_list = prompts_meta.setdefault("removed", [])
+
+    removed_flag = False
+    filtered = []
+    for item in custom_list:
+        if item.get("id") == prompt_id:
+            removed_flag = True
+            continue
+        filtered.append(item)
+    prompts_meta["custom"] = filtered
+
+    if not removed_flag:
+        overrides_list[:] = [item for item in overrides_list if item.get("id") != prompt_id]
+        if prompt_id not in removed_list:
+            removed_list.append(prompt_id)
+
+    save_learning_data(project_name, learn_data)
+    prompts, _ = _merge_learning_prompts(project_name)
+    return api_success({"prompts": prompts})
+
+
+@bp.route("/learn/query", methods=["POST"])
+def learn_query():
+    data = request.json or {}
+    content = str(data.get("content") or "").strip()
+    if not content:
+        return api_error("学习内容不能为空", 400)
+    context = str(data.get("context") or "").strip()
+    prompt_id = str(data.get("promptId") or "").strip()
+    prompt_name = str(data.get("promptName") or "").strip()
+
+    project_name = get_project_from_request()
+    prompts, _ = _merge_learning_prompts(project_name)
+
+    if prompt_id and prompt_id != "__raw__":
+        prompt = _find_learning_prompt(prompts, prompt_id)
+        if not prompt:
+            return api_error("提示词不存在", 404)
+        prompt_name = prompt.get("name", prompt_id)
+        system_text = prompt.get("system") or _DEFAULT_LEARNING_SYSTEM_MESSAGE
+        template = prompt.get("template") or "{content}\n\n上下文：\n{context}"
+    else:
+        prompt_id = "__raw__"
+        if not prompt_name:
+            prompt_name = "无提示词"
+        system_text = _DEFAULT_LEARNING_SYSTEM_MESSAGE
+        template = (
+            "以下是需要学习或解析的内容，请用结构化 Markdown 给出详细讲解与建议：\n"
+            "{content}\n\n上下文信息：\n{context}"
+        )
+
+    truncated_content = _truncate_text(content, 4000)
+    truncated_context = _truncate_text(context, 3000) or "（无额外上下文）"
+    user_prompt = _format_learning_user_message(template, truncated_content, truncated_context)
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return api_error("未设置OPENAI_API_KEY环境变量", 500)
+
+    try:
+        resp = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": OPENAI_CHAT_COMPLETIONS_MODEL,
+                "messages": [
+                    {"role": "system", "content": system_text},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "temperature": 0.4,
+            },
+            timeout=60,
+        )
+    except Exception as exc:  # pragma: no cover
+        return api_error(str(exc), 500)
+
+    if resp.status_code != 200:
+        return api_error(f"OpenAI API错误: {resp.text}", 500)
+
+    try:
+        result = resp.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, ValueError) as exc:  # pragma: no cover
+        return api_error(f"解析 OpenAI 响应失败: {exc}", 500)
+
+    return api_success({
+        "result": result,
+        "promptId": prompt_id,
+        "promptName": prompt_name,
+    })
+
+
+@bp.route("/learn/record", methods=["POST"])
+def learn_record():
+    data = request.json or {}
+    content = str(data.get("content") or "").strip()
+    output = str(data.get("output") or "").strip()
+    if not content or not output:
+        return api_error("content 和 output 必填", 400)
+
+    prompt_name = str(data.get("promptName") or "").strip() or "无提示词"
+    prompt_id = str(data.get("promptId") or "").strip()
+    context = str(data.get("context") or "").strip()
+
+    project_name = get_project_from_request()
+    learn_data = load_learning_data(project_name)
+    prompts_meta = learn_data.setdefault("prompts", {"custom": [], "overrides": [], "removed": []})
+    prompts_meta.setdefault("custom", [])
+    prompts_meta.setdefault("overrides", [])
+    prompts_meta.setdefault("removed", [])
+
+    records = learn_data.setdefault("records", [])
+    target = None
+    for record in records:
+        if record.get("input") == content:
+            target = record
+            break
+    if target is None:
+        target = {"input": content, "entries": []}
+        records.append(target)
+    if context:
+        target["context"] = context
+
+    entries = target.setdefault("entries", [])
+    existing = None
+    for entry in entries:
+        entry_prompt_id = str(entry.get("promptId") or "").strip()
+        if prompt_id and entry_prompt_id == prompt_id:
+            existing = entry
+            break
+        if not prompt_id and not entry_prompt_id and entry.get("promptName") == prompt_name:
+            existing = entry
+            break
+
+    timestamp = datetime.utcnow().isoformat() + "Z"
+    if existing:
+        existing["output"] = output
+        existing["promptName"] = prompt_name
+        existing["savedAt"] = timestamp
+    else:
+        entries.append({
+            "id": uuid.uuid4().hex,
+            "promptId": prompt_id,
+            "promptName": prompt_name,
+            "output": output,
+            "savedAt": timestamp,
+        })
+
+    save_learning_data(project_name, learn_data)
+    return api_success({"savedAt": timestamp})
 
 
 @bp.route("/static/<path:filename>")

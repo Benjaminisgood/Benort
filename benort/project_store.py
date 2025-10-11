@@ -778,6 +778,180 @@ def get_project_paths(project_name: str):
     return attachments, static, yaml_path, resources, build
 
 
+def get_project_learn_path(project_name: str) -> str:
+    """返回学习助手 YAML 文件路径。"""
+
+    projects_root = get_projects_root()
+    return os.path.join(projects_root, project_name, 'learn_project.yaml')
+
+
+def _sanitize_learning_prompt(entry: dict, allow_custom_prefix: bool = True) -> dict | None:
+    if not isinstance(entry, dict):
+        return None
+    prompt_id = str(entry.get('id') or '').strip()
+    name = str(entry.get('name') or '').strip()
+    template = entry.get('template')
+    if not prompt_id or not name or not isinstance(template, str) or not template.strip():
+        return None
+    if allow_custom_prefix and not prompt_id.startswith(('custom_', 'sentence_', 'word_', 'concept_', 'code_')):
+        prompt_id = f'custom_{prompt_id}'
+    description = str(entry.get('description') or '').strip()
+    system = str(entry.get('system') or '').strip()
+    prompt = {'id': prompt_id, 'name': name, 'template': template}
+    if description:
+        prompt['description'] = description
+    if system:
+        prompt['system'] = system
+    return prompt
+
+
+def load_learning_data(project_name: str) -> dict:
+    """载入学习助手的提示词与记录文件。"""
+
+    path = get_project_learn_path(project_name)
+    raw = _read_project_file(path)
+    if not isinstance(raw, dict):
+        raw = {}
+
+    prompts_meta = raw.get('prompts')
+    if not isinstance(prompts_meta, dict):
+        prompts_meta = {}
+
+    custom_prompts: list[dict] = []
+    overrides: list[dict] = []
+    removed: list[str] = []
+
+    for entry in prompts_meta.get('custom', []) or []:
+        sanitized = _sanitize_learning_prompt(entry, allow_custom_prefix=False)
+        if sanitized:
+            custom_prompts.append(sanitized)
+
+    for entry in prompts_meta.get('overrides', []) or []:
+        sanitized = _sanitize_learning_prompt(entry, allow_custom_prefix=False)
+        if sanitized:
+            overrides.append(sanitized)
+
+    for item in prompts_meta.get('removed', []) or []:
+        text = str(item or '').strip()
+        if text:
+            removed.append(text)
+
+    records_out: list[dict] = []
+    raw_records = raw.get('records')
+    if isinstance(raw_records, list):
+        for rec in raw_records:
+            if not isinstance(rec, dict):
+                continue
+            base = str(rec.get('input') or '').strip()
+            if not base:
+                continue
+            context = str(rec.get('context') or '').strip()
+            entries_raw = rec.get('entries') if isinstance(rec.get('entries'), list) else []
+            entries: list[dict] = []
+            for item in entries_raw:
+                if not isinstance(item, dict):
+                    continue
+                output = str(item.get('output') or '').strip()
+                if not output:
+                    continue
+                prompt_name = str(item.get('promptName') or '').strip()
+                prompt_id = str(item.get('promptId') or '').strip()
+                saved_at = str(item.get('savedAt') or '').strip()
+                entry_id = str(item.get('id') or '').strip() or uuid.uuid4().hex
+                entry = {'id': entry_id, 'promptName': prompt_name, 'promptId': prompt_id, 'output': output}
+                if saved_at:
+                    entry['savedAt'] = saved_at
+                entries.append(entry)
+            if entries:
+                record = {'input': base, 'entries': entries}
+                if context:
+                    record['context'] = context
+                records_out.append(record)
+
+    return {
+        'prompts': {
+            'custom': custom_prompts,
+            'overrides': overrides,
+            'removed': removed,
+        },
+        'records': records_out,
+    }
+
+
+def save_learning_data(project_name: str, data: dict) -> None:
+    """保存学习助手的提示词与记录。"""
+
+    if not isinstance(data, dict):
+        data = {}
+
+    prompts_meta = data.get('prompts') if isinstance(data.get('prompts'), dict) else {}
+    custom_list: list[dict] = []
+    overrides_list: list[dict] = []
+    removed_set: set[str] = set()
+
+    for entry in prompts_meta.get('custom', []) or []:
+        sanitized = _sanitize_learning_prompt(entry, allow_custom_prefix=False)
+        if sanitized:
+            if not sanitized['id'].startswith('custom_'):
+                sanitized['id'] = f"custom_{sanitized['id']}"
+            custom_list.append(sanitized)
+
+    for entry in prompts_meta.get('overrides', []) or []:
+        sanitized = _sanitize_learning_prompt(entry, allow_custom_prefix=False)
+        if sanitized:
+            overrides_list.append(sanitized)
+
+    for item in prompts_meta.get('removed', []) or []:
+        text = str(item or '').strip()
+        if text:
+            removed_set.add(text)
+
+    records_raw = data.get('records')
+    records_out: list[dict] = []
+    if isinstance(records_raw, list):
+        for rec in records_raw:
+            if not isinstance(rec, dict):
+                continue
+            base = str(rec.get('input') or '').strip()
+            if not base:
+                continue
+            context = str(rec.get('context') or '').strip()
+            entries_raw = rec.get('entries') if isinstance(rec.get('entries'), list) else []
+            entries: list[dict] = []
+            for item in entries_raw:
+                if not isinstance(item, dict):
+                    continue
+                output = str(item.get('output') or '').strip()
+                if not output:
+                    continue
+                prompt_name = str(item.get('promptName') or '').strip()
+                prompt_id = str(item.get('promptId') or '').strip()
+                saved_at = str(item.get('savedAt') or '').strip()
+                entry_id = str(item.get('id') or '').strip() or uuid.uuid4().hex
+                entry = {'id': entry_id, 'promptName': prompt_name, 'promptId': prompt_id, 'output': output}
+                if saved_at:
+                    entry['savedAt'] = saved_at
+                entries.append(entry)
+            if entries:
+                record = {'input': base, 'entries': entries}
+                if context:
+                    record['context'] = context
+                records_out.append(record)
+
+    sanitized = {
+        'prompts': {
+            'custom': custom_list,
+            'overrides': overrides_list,
+            'removed': sorted(removed_set),
+        },
+        'records': records_out,
+    }
+
+    path = get_project_learn_path(project_name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    _write_project_file(path, sanitized)
+
+
 def get_project_from_request():
     """综合请求参数、JSON、环境变量获取当前项目名。"""
 
@@ -1184,11 +1358,14 @@ __all__ = [
     'is_safe_project_name',
     'ensure_project',
     'get_project_paths',
+    'get_project_learn_path',
     'get_local_attachments_root',
     'get_local_resources_root',
     'get_project_from_request',
     'load_project',
     'save_project',
+    'load_learning_data',
+    'save_learning_data',
     '_store_attachment_file',
     '_sanitize_resource_list',
     '_sanitize_bib_list',

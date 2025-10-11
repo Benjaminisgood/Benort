@@ -314,6 +314,90 @@ AI_BIB_PROMPT = {
     ),
 }
 
+LEARNING_ASSISTANT_DEFAULT_PROMPTS = [
+    {
+        "id": "sentence_en",
+        "name": "句子英语学习",
+        "description": "翻译并润色句子，同时补充语法与文化背景知识。",
+        "system": (
+            "You are an experienced bilingual English-Chinese tutor. "
+            "Explain grammar, nuance, and background in Chinese where appropriate, "
+            "but keep important terminology bilingual. Provide clear, structured output in Markdown, "
+            "and include LaTeX math when useful."
+        ),
+        "template": (
+            "学习目标：针对以下句子进行英语学习，需包含翻译、语法结构解析、表达优化建议、相关文化或专业知识补充。\n"
+            "主句内容：\n{content}\n\n"
+            "可参考的上下文：\n{context}\n\n"
+            "请输出以下部分：\n"
+            "1. **翻译**：给出地道的中英文互译。\n"
+            "2. **语法与结构解析**：逐句拆解，指出核心语法点和常见错误。\n"
+            "3. **表达优化**：提供多种更自然或更正式的替换表达。\n"
+            "4. **知识扩展**：补充与句子相关的背景知识、使用场景或学术信息。\n"
+            "5. **练习建议**：给出巩固学习的练习或记忆方法。\n"
+        ),
+    },
+    {
+        "id": "word_en",
+        "name": "单词英语学习",
+        "description": "学习单词，包含词源、近反义词、例句与常识补充。",
+        "system": (
+            "You are an etymology-focused English vocabulary coach. "
+            "Explain words with roots, affixes, synonyms, antonyms, usage notes, and memorable examples. "
+            "Return Markdown with sections and bullet lists when helpful."
+        ),
+        "template": (
+            "目标：全面学习以下词汇或短语。\n"
+            "待学习词汇：\n{content}\n\n"
+            "上下文（可选）：\n{context}\n\n"
+            "请输出：\n"
+            "1. **基本含义**（中英文）。\n"
+            "2. **词根词缀与来源**，若无则说明。\n"
+            "3. **词性与常见搭配**，至少给出 3 个例句，并附简短中文解释。\n"
+            "4. **近义词 / 反义词对比**，指出差别和适用场景。\n"
+            "5. **拓展知识**：与该词相关的文化、学科、专业常识或记忆技巧。\n"
+        ),
+    },
+    {
+        "id": "concept_new",
+        "name": "新的知识概念",
+        "description": "理解第一次遇到的概念，进行系统化拆解。",
+        "system": (
+            "You are a subject-matter expert and teacher. "
+            "Break down new concepts for a curious learner with structured explanations, analogies, and practice suggestions."
+        ),
+        "template": (
+            "请帮助学习者理解以下全新概念：\n{content}\n\n"
+            "上下文信息：\n{context}\n\n"
+            "请输出：\n"
+            "1. **概念定义**：给出通俗版与专业版定义。\n"
+            "2. **核心组成/关键要素**：用分点或流程说明。\n"
+            "3. **类比与图示思路**：给出帮助记忆的类比或图像化描述。\n"
+            "4. **典型应用场景**：列举至少两个实际案例或问题。\n"
+            "5. **延伸阅读与练习建议**：推荐进一步学习路径。\n"
+        ),
+    },
+    {
+        "id": "code_explain",
+        "name": "代码学习解析",
+        "description": "解析代码逻辑，拓展相关知识与实践建议。",
+        "system": (
+            "You are a pragmatic software mentor. "
+            "Explain code line-by-line, summarize algorithms, discuss complexity, best practices, and potential pitfalls."
+        ),
+        "template": (
+            "需要解析的代码或伪代码片段如下：\n{content}\n\n"
+            "额外上下文（若有）：\n{context}\n\n"
+            "请输出：\n"
+            "1. **功能概述**：说明代码整体意图和输入输出。\n"
+            "2. **详细解析**：按逻辑块或行解释关键语句、数据结构、算法思想。\n"
+            "3. **复杂度与性能**：分析时间/空间复杂度，指出瓶颈。\n"
+            "4. **相关知识拓展**：关联框架、语言特性、常见替代写法或高级用法。\n"
+            "5. **实践建议**：给出测试、调试、优化或安全方面的注意事项。\n"
+        ),
+    },
+]
+
 COMPONENT_LIBRARY = {
     "latex": [
         {
@@ -631,6 +715,7 @@ __all__ = [
     "OPENAI_TTS_SPEED",
     "AI_PROMPTS",
     "AI_BIB_PROMPT",
+    "LEARNING_ASSISTANT_DEFAULT_PROMPTS",
     "COMPONENT_LIBRARY",
     "UI_THEME",
     "init_app_config",

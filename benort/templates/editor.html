@@ -631,6 +631,31 @@
     body.theme-dark #markdownTableModalCaption {
       color: rgba(203, 213, 225, 0.86);
     }
+    @media (max-width: 768px) {
+      body.mobile-compact nav.navbar .navbar-nav > li { display: none !important; }
+      body.mobile-compact nav.navbar .navbar-nav > li.mobile-allowed { display: flex !important; }
+      body.mobile-compact nav.navbar .navbar-nav > li hr { display: none !important; }
+      body.mobile-compact .preview-pane { display: none !important; }
+      body.mobile-compact .editor-pane { flex: 1 1 100%; max-width: 100%; }
+      body.mobile-compact #project-search-btn,
+      body.mobile-compact #mode-switch-btn,
+      body.mobile-compact #add-page,
+      body.mobile-compact #insert-component,
+      body.mobile-compact #edit-template,
+      body.mobile-compact #export-btn,
+      body.mobile-compact #ai-optimize,
+      body.mobile-compact #ai-note-optimize,
+      body.mobile-compact #ai-script-optimize,
+      body.mobile-compact #ai-learn-helper,
+      body.mobile-compact #play-note,
+      body.mobile-compact #edit-bib,
+      body.mobile-compact #manage-resources,
+      body.mobile-compact #manage-attachments,
+      body.mobile-compact #manage-sync,
+      body.mobile-compact .page-script-container { display: none !important; }
+      body.mobile-compact .editor-pane textarea,
+      body.mobile-compact .CodeMirror { min-height: 60vh; }
+    }
   </style>
 </head>
 <body class="{% if ui_theme and ui_theme.get('color_mode') == 'dark' %}theme-dark{% endif %}" data-bs-theme="{{ ui_theme.get('color_mode', 'light') if ui_theme else 'light' }}">
@@ -649,7 +674,7 @@
   <div class="navbar-collapse show ms-3">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
 
-        <li class="nav-item d-flex align-items-center">
+        <li class="nav-item d-flex align-items-center mobile-allowed">
           <button class="btn btn-outline-primary me-2 js-nav-btn" id="prev-page" title="上一页">上</button>
           <button type="button" class="btn btn-outline-primary me-2 js-nav-btn" id="page-status" >
             <span id="page-num">1</span> / <span id="page-count">1</span>
@@ -953,7 +978,10 @@
                 <div class="col-lg-6">
                   <label for="ai-learn-context" class="form-label">上下文（可选）</label>
                   <textarea id="ai-learn-context" class="form-control" rows="8" placeholder="添加额外背景、页面内容或你的学习目标，以便获得更精确的回答。"></textarea>
-                  <div class="form-text">上下文会一并发送给 AI，可包含当前页 LaTeX、笔记、讲稿等信息。</div>
+                  <div class="d-flex justify-content-between align-items-center mt-2">
+                    <small class="text-muted">上下文会一并发送给 AI，可包含当前页 LaTeX、笔记、讲稿等信息。</small>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" id="ai-learn-clear-context">清空上下文</button>
+                  </div>
                 </div>
               </div>
               <hr class="my-3">
@@ -1325,7 +1353,7 @@
     </div>
   </div>
 
-  <div class="mb-4 mt-2">
+  <div class="mb-4 mt-2 page-script-container">
     <textarea id="page-script" class="form-control" rows="4" placeholder="这里是本页的讲稿，支持导出语音。"></textarea>
   </div>
   
@@ -1357,6 +1385,10 @@
           <div class="form-check">
             <input class="form-check-input" type="radio" name="exportOption" id="exportTexOption" value="tex">
             <label class="form-check-label" for="exportTexOption">导出 全部 TeX</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="exportOption" id="exportLearnOption" value="learn">
+            <label class="form-check-label" for="exportLearnOption">导出 学习记录 (learn_project.yaml)</label>
           </div>
           <div class="form-check">
             <input class="form-check-input" type="radio" name="exportOption" id="exportAttachmentsOption" value="attachments">
@@ -1613,6 +1645,9 @@
   let searchAbortController = null;
   let searchRequestId = 0;
   let searchDebounceTimer = null;
+  let isMobileCompactView = false;
+  let mobileEditingDisabled = false;
+  let mobileWarnedProject = '';
 
   let resourceRenameTarget = null;
   let attachmentRenameTarget = null;
@@ -2985,6 +3020,84 @@
       tabs.appendChild(tab);
     });
   }
+
+  function updateMobileControlStates() {
+    const navButtons = document.querySelectorAll('.js-nav-btn');
+    if (!isMobileCompactView) {
+      navButtons.forEach(btn => {
+        if (btn) btn.disabled = false;
+      });
+      mobileEditingDisabled = false;
+      mobileWarnedProject = '';
+      if (singleEditor) {
+        singleEditor.setOption('readOnly', false);
+      }
+      const scriptEl = document.getElementById('page-script');
+      if (scriptEl) scriptEl.disabled = false;
+      return;
+    }
+    const isDefaultProject = !currentProject || currentProject === 'default';
+    navButtons.forEach(btn => {
+      if (!btn) return;
+      const allow = btn.id === 'project-dropdown' || (isDefaultProject && (btn.id === 'prev-page' || btn.id === 'next-page'));
+      btn.disabled = !allow;
+    });
+    const scriptEl = document.getElementById('page-script');
+    if (scriptEl) scriptEl.disabled = true;
+    if (!isDefaultProject) {
+      if (mobileWarnedProject !== currentProject) {
+        showStatus('移动端仅支持 default 项目，功能暂不可用。', 'warning', 3500);
+        mobileWarnedProject = currentProject;
+      }
+      mobileEditingDisabled = true;
+    } else {
+      mobileEditingDisabled = false;
+      mobileWarnedProject = '';
+    }
+    if (singleEditor) {
+      singleEditor.setOption('readOnly', mobileEditingDisabled ? 'nocursor' : false);
+    }
+  }
+
+  function setMobileCompact(enabled) {
+    const boolEnabled = !!enabled;
+    if (isMobileCompactView === boolEnabled) {
+      if (boolEnabled && currentEditMode !== 'markdown' && singleEditor && typeof setEditMode === 'function') {
+        setEditMode('markdown');
+      }
+      if (boolEnabled) {
+        updateLearningContext(true);
+      }
+      if (!boolEnabled) {
+        mobileEditingDisabled = false;
+        mobileWarnedProject = '';
+        if (singleEditor) singleEditor.setOption('readOnly', false);
+      }
+      updateMobileControlStates();
+      return;
+    }
+    isMobileCompactView = boolEnabled;
+    document.body.classList.toggle('mobile-compact', boolEnabled);
+    if (boolEnabled) {
+      if (currentEditMode !== 'markdown' && singleEditor && typeof setEditMode === 'function') {
+        setEditMode('markdown');
+      }
+      updateLearningContext(true);
+    } else {
+      mobileEditingDisabled = false;
+      mobileWarnedProject = '';
+      if (singleEditor) {
+        singleEditor.setOption('readOnly', false);
+      }
+    }
+    updateMobileControlStates();
+  }
+
+  function applyMobileRestrictions() {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const matches = window.matchMedia('(max-width: 768px)').matches;
+    setMobileCompact(matches);
+  }
   
   function renderSingleEditor() {
     const list = document.getElementById('pages-list');
@@ -3007,6 +3120,7 @@
     const initialValue = currentEditMode === 'markdown' ? (page.notes || '') : (page.content || '');
     singleEditor.setValue(initialValue);
     singleEditor.setSize('100%', '100%');
+    singleEditor.setOption('readOnly', mobileEditingDisabled ? 'nocursor' : false);
     singleEditor.on('change', function() {
       const value = singleEditor.getValue();
       if (currentEditMode === 'markdown') {
@@ -3025,6 +3139,7 @@
     // refresh resources list for this page
     setTimeout(()=>{ if(window.refreshResourceLists) refreshResourceLists(); }, 50);
     queueCompile();
+    updateMobileControlStates();
   }
   
   document.getElementById('page-num').parentElement.onclick = function() {
@@ -3306,6 +3421,17 @@
       }).catch(e=>alert('导出失败：'+e.message));
       return;
     }
+    if(opt === 'learn'){
+      fetch('/export_learn_project').then(res => {
+        if(res.ok) return res.blob();
+        return res.json().then(data=>{throw new Error(data.error||'导出失败')});
+      }).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'learn_project.yaml'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        showStatus('学习记录已导出', 'success', 2500);
+      }).catch(e=>alert('导出失败：'+e.message));
+      return;
+    }
     if(opt === 'tex') return exportTex();
     if(opt === 'attachments') {
       fetch('/export_attachments').then(res => {
@@ -3457,6 +3583,7 @@
         currentPageIdx = Math.min(currentPageIdx, pagesData.length - 1);
         updateProjectButtonLabel();
         renderSingleEditor();
+        applyMobileRestrictions();
         updatePageNumLabel();
         ensureTemplatesLoaded().then(() => detectAllTemplates()).catch(() => {});
         applyMarkdownStyles();
@@ -3701,6 +3828,7 @@
         buildProjectMenu(menu, projects);
       }
       updateProjectButtonLabel();
+      applyMobileRestrictions();
       return data;
     }catch(e){
       console.warn('loadProjects failed', e);
@@ -4752,6 +4880,17 @@ loadProjects().then(()=>{
         showStatus('已填充选中的内容', 'info', 2000);
       } else {
         showStatus('未检测到选中的文本，请手动粘贴。', 'warning', 3000);
+      }
+    });
+  }
+
+  const aiLearnClearContext = document.getElementById('ai-learn-clear-context');
+  if (aiLearnClearContext) {
+    aiLearnClearContext.addEventListener('click', () => {
+      const contextEl = document.getElementById('ai-learn-context');
+      if (contextEl) {
+        contextEl.value = '';
+        showStatus('已清空上下文', 'info', 2000);
       }
     });
   }
@@ -6329,6 +6468,15 @@ loadProjects().then(()=>{
       this.textContent = originalText || '保存';
     });
   }
+
+  const mobileMediaQuery = window.matchMedia('(max-width: 768px)');
+  const handleMobileMediaQuery = e => setMobileCompact(e.matches);
+  if(typeof mobileMediaQuery.addEventListener === 'function'){
+    mobileMediaQuery.addEventListener('change', handleMobileMediaQuery);
+  } else if (typeof mobileMediaQuery.addListener === 'function'){
+    mobileMediaQuery.addListener(handleMobileMediaQuery);
+  }
+  applyMobileRestrictions();
 
   // Side-panel upload handlers removed — resource management is modal-only
 

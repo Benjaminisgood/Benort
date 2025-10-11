@@ -29,6 +29,7 @@ from .project_store import (
     get_project_metadata,
     get_project_password_hash,
     get_project_paths,
+    get_project_learn_path,
     is_safe_project_name,
     issue_project_cookie,
     list_projects,
@@ -1493,6 +1494,31 @@ def learn_record():
 
     save_learning_data(project_name, learn_data)
     return api_success({"savedAt": timestamp})
+
+
+@bp.route("/export_learn_project", methods=["GET"])
+def export_learn_project():
+    """导出学习助手的记录/配置文件。"""
+
+    project_name = get_project_from_request()
+    try:
+        load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
+
+    learn_data = load_learning_data(project_name)
+    save_learning_data(project_name, learn_data)
+    learn_path = get_project_learn_path(project_name)
+    if not os.path.exists(learn_path):
+        return api_error("暂无学习记录", 404)
+
+    download_name = f"{project_name}_learn_project.yaml"
+    return send_file(
+        learn_path,
+        mimetype="application/x-yaml",
+        as_attachment=True,
+        download_name=download_name,
+    )
 
 
 @bp.route("/static/<path:filename>")

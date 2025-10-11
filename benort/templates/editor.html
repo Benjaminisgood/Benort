@@ -639,7 +639,8 @@
       body.mobile-compact nav.navbar .navbar-nav { width: 100%; justify-content: center; }
       body.mobile-compact nav.navbar .navbar-nav > li.mobile-allowed { margin: 0 auto; }
       body.mobile-compact .preview-pane { display: none !important; }
-      body.mobile-compact .editor-pane { flex: 1 1 100%; max-width: 100%; }
+      body.mobile-compact .editor-pane { flex: 1 1 100%; max-width: 100%; padding: 0; }
+      body.mobile-compact #pages-list { padding: 0 4px; }
       body.mobile-compact #project-search-btn,
       body.mobile-compact #mode-switch-btn,
       body.mobile-compact #add-page,
@@ -657,7 +658,12 @@
       body.mobile-compact #manage-sync,
       body.mobile-compact .page-script-container { display: none !important; }
       body.mobile-compact .editor-pane textarea,
-      body.mobile-compact .CodeMirror { min-height: 60vh; }
+      body.mobile-compact .CodeMirror { min-height: 65vh; font-size: 1rem; }
+      body.mobile-compact .js-nav-btn { padding: 10px 18px; font-size: 1.05rem; border-radius: 1.5rem; }
+      body.mobile-compact .CodeMirror-scroll { font-size: 1.05rem; }
+      body.mobile-compact .CodeMirror pre { font-size: 1.05rem; line-height: 1.55; }
+      body.mobile-compact textarea.form-control { font-size: 1.05rem; line-height: 1.6; }
+      body.mobile-compact #page-status { font-size: 1.1rem; padding: 10px 20px; }
     }
   </style>
 </head>

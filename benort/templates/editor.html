@@ -666,14 +666,31 @@
       body.mobile-compact #manage-attachments,
       body.mobile-compact #manage-sync,
       body.mobile-compact .page-script-container { display: none !important; }
-      body.mobile-compact .editor-pane textarea,
-      body.mobile-compact .CodeMirror { min-height: 70vh; font-size: 1.15rem; border-radius: 1.2rem; }
       body.mobile-compact .js-nav-btn { font-size: 1.1rem; border-radius: 1.5rem; }
-      body.mobile-compact .CodeMirror-scroll { font-size: 1.15rem; padding: 14px 14px; }
-      body.mobile-compact .CodeMirror pre { font-size: 1.15rem; line-height: 1.65; }
-      body.mobile-compact textarea.form-control { font-size: 1.15rem; line-height: 1.65; border-radius: 1.2rem; padding: 14px 16px; }
-      body.mobile-compact .editor-pane textarea::placeholder { font-size: 1rem; }
+      body.mobile-compact .CodeMirror,
+      body.mobile-compact .CodeMirror-scroll {
+        font-size: clamp(1.15rem, 4.5vw, 1.35rem);
+      }
+      body.mobile-compact .CodeMirror { min-height: 72vh; border-radius: 1.2rem; }
+      body.mobile-compact .CodeMirror pre { font-size: inherit; line-height: 1.7; }
+      body.mobile-compact .CodeMirror-scroll { padding: 14px 18px; }
+      body.mobile-compact textarea.form-control {
+        font-size: clamp(1.15rem, 4.5vw, 1.35rem);
+        line-height: 1.7;
+        border-radius: 1.2rem;
+        padding: 16px 18px;
+      }
+      body.mobile-compact .editor-pane textarea::placeholder { font-size: clamp(1rem, 3.6vw, 1.1rem); }
       body.mobile-compact #pages-list .CodeMirror { box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18); }
+      body.mobile-compact #tabsModal .modal-dialog { max-width: 95vw; margin: 1.5rem auto; }
+      body.mobile-compact #tabsModal .modal-content { border-radius: 1.25rem; padding: 18px 16px; }
+      body.mobile-compact #page-tabs { gap: 0.8rem; justify-content: center; }
+      body.mobile-compact #page-tabs .badge {
+        font-size: clamp(1.1rem, 4vw, 1.4rem);
+        padding: 0.75rem 1rem;
+        min-width: 3rem;
+        border-radius: 2rem;
+      }
     }
   </style>
 </head>

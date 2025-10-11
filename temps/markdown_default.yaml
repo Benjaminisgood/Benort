@@ -3,6 +3,9 @@ css: |
   :root {
     color-scheme: light;
   }
+  body.theme-dark {
+    color-scheme: dark;
+  }
   .markdown-note {
     font-family: "Helvetica Neue", Arial, "PingFang SC", sans-serif;
     font-size: 16px;
@@ -177,5 +180,129 @@ css: |
     border: none;
     border-top: 1px solid #d8e3f8;
     margin: 2em 0;
+  }
+  body.theme-dark .markdown-note {
+    color: #dbe4ff;
+  }
+  body.theme-dark .markdown-note h1,
+  body.theme-dark .markdown-note h2,
+  body.theme-dark .markdown-note h3 {
+    color: #e2e8f0;
+  }
+  body.theme-dark .markdown-note blockquote {
+    border-left-color: rgba(96, 165, 250, 0.55);
+    background: rgba(30, 41, 59, 0.72);
+    color: #cbd5f5;
+  }
+  body.theme-dark .markdown-note code {
+    background: rgba(148, 163, 184, 0.16);
+    color: #f8fafc;
+  }
+  body.theme-dark .markdown-note pre {
+    background: rgba(9, 12, 23, 0.95);
+    color: #e2e8f0;
+    border-radius: 0.6rem;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow: 0 18px 46px rgba(2, 6, 23, 0.45);
+  }
+  body.theme-dark .markdown-note pre code {
+    color: inherit;
+  }
+  body.theme-dark .markdown-note .hljs {
+    color: #e2e8f0;
+    background: transparent;
+  }
+  body.theme-dark .markdown-note .hljs-comment,
+  body.theme-dark .markdown-note .hljs-quote {
+    color: #94a3b8;
+    font-style: italic;
+  }
+  body.theme-dark .markdown-note .hljs-keyword,
+  body.theme-dark .markdown-note .hljs-selector-tag,
+  body.theme-dark .markdown-note .hljs-built_in,
+  body.theme-dark .markdown-note .hljs-type {
+    color: #93c5fd;
+  }
+  body.theme-dark .markdown-note .hljs-string,
+  body.theme-dark .markdown-note .hljs-title,
+  body.theme-dark .markdown-note .hljs-title.class_,
+  body.theme-dark .markdown-note .hljs-title.function_,
+  body.theme-dark .markdown-note .hljs-name,
+  body.theme-dark .markdown-note .hljs-attribute,
+  body.theme-dark .markdown-note .hljs-attr {
+    color: #fbcfe8;
+  }
+  body.theme-dark .markdown-note .hljs-number,
+  body.theme-dark .markdown-note .hljs-literal,
+  body.theme-dark .markdown-note .hljs-symbol,
+  body.theme-dark .markdown-note .hljs-bullet {
+    color: #facc15;
+  }
+  body.theme-dark .markdown-note .hljs-meta,
+  body.theme-dark .markdown-note .hljs-selector-attr,
+  body.theme-dark .markdown-note .hljs-selector-pseudo {
+    color: #f472b6;
+  }
+  body.theme-dark .markdown-note .hljs-addition {
+    color: #bbf7d0;
+  }
+  body.theme-dark .markdown-note .hljs-deletion {
+    color: #fecaca;
+  }
+  body.theme-dark .markdown-note .hljs-variable,
+  body.theme-dark .markdown-note .hljs-template-variable,
+  body.theme-dark .markdown-note .hljs-params {
+    color: #f8fafc;
+  }
+  body.theme-dark .markdown-note .markdown-preview-table-wrapper {
+    border-color: rgba(59, 130, 246, 0.35);
+    background: rgba(15, 23, 42, 0.78);
+    box-shadow: 0 24px 60px rgba(2, 6, 23, 0.55);
+  }
+  body.theme-dark .markdown-note .markdown-preview-table-wrapper table {
+    background: rgba(17, 26, 46, 0.92);
+    color: #e2e8f0;
+  }
+  body.theme-dark .markdown-note .markdown-preview-table-wrapper caption {
+    color: #cbd5f5;
+  }
+  body.theme-dark .markdown-note .markdown-preview-table-wrapper thead th {
+    background: rgba(37, 54, 84, 0.98);
+    color: #f8fafc;
+    box-shadow: inset 0 -1px 0 rgba(96, 165, 250, 0.45);
+  }
+  body.theme-dark .markdown-note .markdown-preview-table-wrapper tbody tr:nth-child(odd) {
+    background: rgba(30, 41, 59, 0.64);
+  }
+  body.theme-dark .markdown-note .markdown-preview-table-wrapper th,
+  body.theme-dark .markdown-note .markdown-preview-table-wrapper td {
+    border-color: rgba(96, 165, 250, 0.28);
+  }
+  body.theme-dark .markdown-note .markdown-table-expand-btn {
+    background: rgba(37, 99, 235, 0.26);
+    border-color: rgba(59, 130, 246, 0.55);
+    color: #dbeafe;
+  }
+  body.theme-dark .markdown-note .markdown-table-expand-btn:hover,
+  body.theme-dark .markdown-note .markdown-table-expand-btn:focus {
+    background: rgba(37, 99, 235, 0.35);
+    color: #ffffff;
+  }
+  body.theme-dark .markdown-note table {
+    border-color: rgba(148, 163, 184, 0.3);
+  }
+  body.theme-dark .markdown-note th {
+    background: rgba(30, 41, 59, 0.95);
+    color: #f8fafc;
+  }
+  body.theme-dark .markdown-note td {
+    background: rgba(15, 23, 42, 0.88);
+    color: #e2e8f0;
+  }
+  body.theme-dark .markdown-note hr {
+    border-top-color: rgba(148, 163, 184, 0.32);
+  }
+  body.theme-dark .markdown-note figcaption {
+    color: #94a3b8;
   }
 wrapperClass: markdown-note

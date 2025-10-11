@@ -1382,10 +1382,10 @@
 
     <div class="preview-pane">
       
-      <div id="pdf-container">
+      <div id="pdf-container" class="d-none">
         <div id="pdf-pages" class="w-100 d-flex flex-column align-items-center gap-3"></div>
       </div>
-      <div id="markdown-preview" class="d-none">
+      <div id="markdown-preview">
         <div id="markdown-preview-content" class="markdown-preview-content mt-4"></div>
       </div>
     </div>
@@ -1666,7 +1666,7 @@
   
   let currentPageIdx = 0;
   let singleEditor = null;
-  let currentEditMode = 'latex';
+  let currentEditMode = 'markdown';
   let currentProject = '';
   let compileTimer = null;
   let isCompiling = false;
@@ -2374,9 +2374,13 @@
 
   function updateModeToggleUI() {
     const switchBtn = document.getElementById('mode-switch-btn');
-    if (switchBtn) {
-      switchBtn.textContent = currentEditMode === 'latex' ? 'LaTeX' : 'Markdown';
-    }
+    if (!switchBtn) return;
+    const isMarkdown = currentEditMode === 'markdown';
+    switchBtn.textContent = isMarkdown ? 'Markdown 模式' : 'LaTeX 模式';
+    switchBtn.setAttribute('aria-pressed', isMarkdown ? 'true' : 'false');
+    switchBtn.title = isMarkdown ? '当前为 Markdown 编辑，点击切换至 LaTeX' : '当前为 LaTeX 编辑，点击切换至 Markdown';
+    switchBtn.classList.toggle('btn-primary', isMarkdown);
+    switchBtn.classList.toggle('btn-outline-primary', !isMarkdown);
   }
 
   function showStatus(message, type = 'info', timeout = 4000) {

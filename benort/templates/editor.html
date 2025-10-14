@@ -2226,6 +2226,7 @@
           btn.classList.add('active');
           currentProject = name;
           currentPageIdx = 0;
+          handleLearningProjectSwitch(name);
           updateProjectButtonLabel();
           const metaNow = getProjectMeta(name);
           if(metaNow.locked && !metaNow.unlocked){
@@ -3715,6 +3716,8 @@
 
   
   function loadProject(cb) {
+    const targetProject = typeof currentProject === 'string' ? currentProject : '';
+    const promptsChanged = handleLearningProjectSwitch(targetProject, {force: false});
     const projectUrl = PROJECT_ENDPOINTS.project || '/project';
     return fetch(projectUrl)
       .then(async res => {
@@ -3782,6 +3785,15 @@
         updatePageNumLabel();
         ensureTemplatesLoaded().then(() => detectAllTemplates()).catch(() => {});
         applyMarkdownStyles();
+        const liveProject = typeof currentProject === 'string' ? currentProject : '';
+        if (liveProject === targetProject) {
+          const needsReload = promptsChanged || !learningAssistantState.loaded || learningAssistantState.project !== targetProject;
+          if (targetProject && needsReload) {
+            loadLearningPrompts(true);
+          } else if (targetProject) {
+            learningAssistantState.pendingProject = targetProject;
+          }
+        }
         resetSearchState();
         if(cb) cb();
       })
@@ -4168,6 +4180,7 @@
         if(res.ok && (!parsed.json || parsed.json.success !== false)){
           const payload = parsed.json || {};
           currentProject = payload.project || name;
+          handleLearningProjectSwitch(currentProject, {force: true});
           updateProjectButtonLabel();
           if(projectCreateModalEl){
             const modal = bootstrap.Modal.getInstance(projectCreateModalEl);
@@ -4215,6 +4228,7 @@
           const wasCurrent = currentProject === projectRenameTarget;
           if(wasCurrent){
             currentProject = finalName;
+            handleLearningProjectSwitch(currentProject, {force: true});
           }
           updateProjectButtonLabel();
           showStatus('项目已重命名', 'success', 4000);
@@ -4271,6 +4285,7 @@
           showStatus('项目已删除', 'success', 4000);
           if(currentProject === deleted){
             currentProject = '';
+            handleLearningProjectSwitch('', {force: true});
             updateProjectButtonLabel();
           }
           projectDeleteTarget = '';
@@ -4442,6 +4457,7 @@
           showStatus('项目已解锁', 'success', 4000);
           projectUnlockTargetName = name;
           currentProject = name;
+          handleLearningProjectSwitch(currentProject, {force: true});
           updateProjectButtonLabel();
           await loadProjects();
           await loadProject();
@@ -4590,7 +4606,25 @@ loadProjects().then(()=>{
     prompts: [],
     promptsMap: new Map(),
     editingPrompt: null,
+    project: '',
+    pendingProject: '',
   };
+
+  function handleLearningProjectSwitch(nextProject, options = {}) {
+    const normalized = typeof nextProject === 'string' ? nextProject : '';
+    const force = options && options.force === true;
+    const changed = force || learningAssistantState.project !== normalized;
+    learningAssistantState.pendingProject = normalized;
+    if (changed) {
+      learningAssistantState.loaded = false;
+      learningAssistantState.prompts = [];
+      learningAssistantState.promptsMap = new Map();
+      if (typeof renderLearningPrompts === 'function') {
+        renderLearningPrompts();
+      }
+    }
+    return changed;
+  }
 
   function ensureLearningModal() {
     if (!learningAssistantState.modal) {
@@ -4706,29 +4740,50 @@ loadProjects().then(()=>{
       }
     });
     renderLearningPrompts();
+    const activeProject = typeof currentProject === 'string' ? currentProject : '';
+    if (activeProject || learningAssistantState.pendingProject) {
+      learningAssistantState.project = activeProject || learningAssistantState.pendingProject || '';
+    }
+    learningAssistantState.loaded = true;
   }
 
   async function loadLearningPrompts(force = false) {
-    if (learningAssistantState.loadingPrompts) return;
-    if (learningAssistantState.loaded && !force) return;
+    const targetProject = typeof currentProject === 'string' ? currentProject : '';
+    const cacheValid = learningAssistantState.loaded && learningAssistantState.project === targetProject;
+    if (!force && cacheValid) {
+      return;
+    }
+    if (learningAssistantState.loadingPrompts) {
+      learningAssistantState.pendingProject = targetProject;
+      return;
+    }
     learningAssistantState.loadingPrompts = true;
+    learningAssistantState.pendingProject = targetProject;
+    let staleResult = false;
     try {
       const res = await fetch('/learn/config');
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
       const data = await res.json();
-      if (data && data.success && Array.isArray(data.prompts)) {
-        learningAssistantState.loaded = true;
-        setLearningPrompts(data.prompts);
-      } else {
-        throw new Error(data && data.error ? data.error : '未知错误');
+      if (!data || data.success === false || !Array.isArray(data.prompts)) {
+        const message = data && data.error ? data.error : '未知错误';
+        throw new Error(message);
       }
+      const current = typeof currentProject === 'string' ? currentProject : '';
+      if (learningAssistantState.pendingProject !== targetProject || targetProject !== current) {
+        staleResult = true;
+        return;
+      }
+      setLearningPrompts(data.prompts);
     } catch (err) {
       console.error('加载学习提示词失败:', err);
       showStatus('加载学习提示词失败：' + (err?.message || err || '未知错误'), 'danger', 6000);
     } finally {
       learningAssistantState.loadingPrompts = false;
+      if (staleResult && learningAssistantState.pendingProject && learningAssistantState.pendingProject !== learningAssistantState.project) {
+        loadLearningPrompts(true);
+      }
     }
   }
 

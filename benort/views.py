@@ -128,6 +128,19 @@ body.markdown-export img {
 }
 """
 
+_DEFAULT_MATHJAX_EXPORT_SNIPPET = """<script>
+window.MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+    displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+    processEscapes: true
+  },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+"""
+
 
 def _safe_join(base: str, relative: str) -> Optional[str]:
     """Safely join a relative path to a base directory."""
@@ -276,6 +289,8 @@ def _build_markdown_export_html(
 
     css = str(template.get("css") or "")
     custom_head = str(template.get("customHead") or "")
+    include_mathjax = "mathjax" not in custom_head.lower()
+    mathjax_head = _DEFAULT_MATHJAX_EXPORT_SNIPPET if include_mathjax else ""
 
     color_mode = "light"
     if isinstance(UI_THEME, dict):
@@ -298,6 +313,7 @@ def _build_markdown_export_html(
   <style>
 {css}
   </style>
+  {mathjax_head if mathjax_head else ""}
   {custom_head}
 </head>
 <body {body_attr}>

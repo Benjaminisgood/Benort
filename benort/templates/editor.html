@@ -6234,19 +6234,73 @@ loadProjects().then(()=>{
 
   let attachmentsCache = [];
   let attachmentsFilterTerm = '';
+  let unusedAttachmentsCache = [];
+  let clearingUnusedAttachments = false;
 
   function updateAttachmentsUsageHint(data) {
     const hintEl = document.getElementById('attachments-usage-hint');
     if(!hintEl) return;
     const unused = data && Array.isArray(data.unused) ? data.unused : [];
-    if(unused.length){
+    unusedAttachmentsCache = unused.slice();
+    if(unusedAttachmentsCache.length){
       hintEl.classList.remove('d-none');
-      const preview = unused.slice(0, 5).join('、');
-      hintEl.textContent = unused.length > 5 ? `有 ${unused.length} 个附件未被引用，例如：${preview}` : `有 ${unused.length} 个附件未被引用：${preview}`;
+      hintEl.innerHTML = '';
+      const preview = unusedAttachmentsCache.slice(0, 5).join('、');
+      const message = unusedAttachmentsCache.length > 5 ? `有 ${unusedAttachmentsCache.length} 个附件未被引用，例如：${preview}` : `有 ${unusedAttachmentsCache.length} 个附件未被引用：${preview}`;
+      const textSpan = document.createElement('span');
+      textSpan.textContent = message;
+      hintEl.appendChild(textSpan);
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.id = 'clear-unused-attachments-button';
+      clearBtn.className = 'btn btn-sm btn-outline-danger ms-3';
+      clearBtn.textContent = clearingUnusedAttachments ? '清除中...' : '一键清除';
+      clearBtn.disabled = clearingUnusedAttachments;
+      clearBtn.addEventListener('click', clearUnusedAttachments);
+      hintEl.appendChild(clearBtn);
     } else {
       hintEl.classList.add('d-none');
+      hintEl.innerHTML = '';
       hintEl.textContent = '';
     }
+  }
+
+  async function clearUnusedAttachments(){
+    if(clearingUnusedAttachments || !unusedAttachmentsCache.length) return;
+    const pendingNames = unusedAttachmentsCache.slice();
+    const hintEl = document.getElementById('attachments-usage-hint');
+    const clearBtn = hintEl ? hintEl.querySelector('#clear-unused-attachments-button') : null;
+    clearingUnusedAttachments = true;
+    if(clearBtn){
+      clearBtn.disabled = true;
+      clearBtn.textContent = '清除中...';
+    }
+    const failures = [];
+    for(const name of pendingNames){
+      const attachment = Array.isArray(attachmentsCache) ? attachmentsCache.find(item => item && item.name === name) : null;
+      const path = attachment && attachment.path ? attachment.path : name;
+      try{
+        const res = await fetch('/attachments/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({path})});
+        const parsed = await parseJsonSafe(res);
+        if(!(res.ok && (!parsed.json || parsed.json.success !== false))){
+          const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
+          failures.push({name, message});
+        }
+      }catch(err){
+        failures.push({name, message: err && err.message ? err.message : String(err)});
+      }
+    }
+    if(failures.length){
+      const lines = failures.map(item => `${item.name}：${item.message}`);
+      alert(`以下附件删除失败：\n${lines.join('\n')}`);
+    }
+    clearingUnusedAttachments = false;
+    unusedAttachmentsCache = failures.map(item => item.name);
+    if(clearBtn){
+      clearBtn.disabled = false;
+      clearBtn.textContent = '一键清除';
+    }
+    await loadAttachmentsModal();
   }
 
   function setAttachmentsFilter(term) {

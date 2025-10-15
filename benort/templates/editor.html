@@ -343,6 +343,12 @@
       font-size: 0.9rem;
       color: #6b7280;
     }
+    .markdown-preview-content .markdown-heading-highlight {
+      background: rgba(191, 219, 254, 0.45);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+      border-radius: 0.5rem;
+      transition: background 1.2s ease, box-shadow 1.2s ease;
+    }
     .markdown-preview-table-wrapper {
       position: relative;
       margin: 1.25rem 0;
@@ -1316,6 +1322,12 @@
             <div class="modal-body">
               <div id="page-tabs" class="d-flex flex-wrap"></div>
               <div class="text-muted mt-2">拖动页码标签可调整顺序，点击页码可跳转</div>
+              <div class="d-flex flex-wrap gap-2 mt-3" id="tabs-actions">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="tabs-copy-page-id">复制 pageId</button>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="tabs-delete-page">删除当前页</button>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="tabs-copy-page-link">复制打开链接</button>
+              </div>
+              <div class="form-text mt-1" id="tabs-actions-hint">复制后的链接包含项目与 pageId，可分享给他人直接打开该页。</div>
             </div>
           </div>
         </div>
@@ -1672,6 +1684,25 @@
   let singleEditor = null;
   let currentEditMode = 'markdown';
   let currentProject = '';
+  const INITIAL_URL_STATE = (() => {
+    try {
+      const url = new URL(window.location.href);
+      const params = url.searchParams;
+      const projectParam = (params.get('project') || params.get('proj') || '').trim();
+      let combined = '';
+      if (url.search) combined += url.search;
+      if (url.hash) combined += url.hash;
+      const deepLink = combined ? parseMarkdownInternalLink(combined) : null;
+      return {project: projectParam, deepLink};
+    } catch (err) {
+      return {project: '', deepLink: null};
+    }
+  })();
+  if (INITIAL_URL_STATE.project) {
+    currentProject = INITIAL_URL_STATE.project;
+  }
+  let initialDeepLinkTarget = INITIAL_URL_STATE.deepLink;
+  let initialDeepLinkApplied = false;
   let compileTimer = null;
   let isCompiling = false;
   let compilePending = false;
@@ -1690,6 +1721,8 @@
   let isMobileCompactView = false;
   let mobileEditingDisabled = false;
   let mobileWarnedProject = '';
+  let markdownHeadingHighlightTimer = null;
+  let markdownHeadingActiveEl = null;
 
   let resourceRenameTarget = null;
   let attachmentRenameTarget = null;
@@ -2861,6 +2894,7 @@
     } else {
       preview.innerHTML = '<p class="text-muted mb-0">暂无 Markdown 内容</p>';
     }
+    enhanceMarkdownHeadingAnchors(preview, wrapper);
     enhanceMarkdownImages(preview);
     enhanceMarkdownTables(preview);
     if (window.hljs && preview.querySelectorAll) {
@@ -2881,6 +2915,441 @@
         .then(() => enhanceMathCopy(preview))
         .catch(err => console.warn('MathJax 渲染失败', err));
     }
+  }
+
+  function safeDecodeURIComponent(value) {
+    if (typeof value !== 'string') return '';
+    try {
+      return decodeURIComponent(value);
+    } catch (_) {
+      return value;
+    }
+  }
+
+  function cssEscapeIdent(value) {
+    if (typeof value !== 'string') return '';
+    if (window.CSS && typeof window.CSS.escape === 'function') {
+      try {
+        return window.CSS.escape(value);
+      } catch (_) {
+        return value;
+      }
+    }
+    return value;
+  }
+
+  function slugifyMarkdownHeading(text, registry) {
+    const raw = typeof text === 'string' ? text.trim() : '';
+    if (!raw) return '';
+    const normalized = typeof raw.normalize === 'function' ? raw.normalize('NFKC') : raw;
+    let slug = normalized.replace(/\s+/g, '-');
+    slug = slug.replace(/[\u0000-\u001F\u007F]/g, '');
+    slug = slug.replace(/[^A-Za-z0-9\u00C0-\uFFFD\-_]/g, '');
+    slug = slug.replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+    if (!slug) {
+      slug = 'heading';
+    }
+    const base = slug.toLowerCase();
+    if (!registry[base] && registry[base] !== 0) {
+      registry[base] = 0;
+      return base;
+    }
+    registry[base] += 1;
+    return `${base}-${registry[base]}`;
+  }
+
+  function getMarkdownScrollContainer(preview, wrapper) {
+    if (wrapper && typeof wrapper.scrollTop === 'number') return wrapper;
+    if (preview && typeof preview.scrollTop === 'number') return preview;
+    return null;
+  }
+
+  function focusMarkdownHeading(headingId, {silent = false, instant = false} = {}) {
+    if (!headingId) return false;
+    const preview = document.getElementById('markdown-preview-content');
+    const wrapper = document.getElementById('markdown-preview');
+    if (!preview) return false;
+    const attemptSelect = (id) => {
+      if (!id) return null;
+      const selector = `[id="${cssEscapeIdent(id)}"]`;
+      return preview.querySelector(selector) || document.getElementById(id);
+    };
+    let target = attemptSelect(headingId);
+    if (!target && headingId) {
+      const fallbackId = slugifyMarkdownHeading(headingId, Object.create(null));
+      if (fallbackId) {
+        target = attemptSelect(fallbackId);
+      }
+    }
+    if (!target) {
+      if (!silent && typeof showStatus === 'function') {
+        showStatus(`未找到标题 “${headingId}”`, 'warning', 2600);
+      }
+      return false;
+    }
+
+    const scrollContainer = getMarkdownScrollContainer(preview, wrapper);
+    if (scrollContainer) {
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const delta = targetRect.top - containerRect.top;
+      const desired = scrollContainer.scrollTop + delta - 16;
+      if (typeof scrollContainer.scrollTo === 'function') {
+        scrollContainer.scrollTo({top: Math.max(desired, 0), behavior: instant ? 'auto' : 'smooth'});
+      } else {
+        scrollContainer.scrollTop = Math.max(desired, 0);
+      }
+    } else if (typeof target.scrollIntoView === 'function') {
+      target.scrollIntoView({behavior: instant ? 'auto' : 'smooth', block: 'start', inline: 'nearest'});
+    }
+
+    if (markdownHeadingActiveEl && markdownHeadingActiveEl !== target) {
+      markdownHeadingActiveEl.classList.remove('markdown-heading-highlight');
+    }
+    markdownHeadingActiveEl = target;
+    target.classList.add('markdown-heading-highlight');
+    if (markdownHeadingHighlightTimer) {
+      clearTimeout(markdownHeadingHighlightTimer);
+    }
+    markdownHeadingHighlightTimer = setTimeout(() => {
+      if (markdownHeadingActiveEl) {
+        markdownHeadingActiveEl.classList.remove('markdown-heading-highlight');
+        markdownHeadingActiveEl = null;
+      }
+    }, instant ? 1200 : 2200);
+    return true;
+  }
+
+  function findPageIndexById(pageId) {
+    if (!pageId) return -1;
+    const normalized = String(pageId).trim().toLowerCase();
+    if (!normalized) return -1;
+    for (let idx = 0; idx < pagesData.length; idx++) {
+      const page = pagesData[idx];
+      if (!page || typeof page !== 'object') continue;
+      const rawPid = typeof page.pageId === 'string' ? page.pageId : '';
+      const normalizedPid = rawPid ? rawPid.trim().toLowerCase() : '';
+      if (normalizedPid && normalizedPid === normalized) {
+        return idx;
+      }
+    }
+    return -1;
+  }
+
+  function parseMarkdownInternalLink(href) {
+    if (typeof href !== 'string') return null;
+    let trimmed = href.trim();
+    if (!trimmed) return null;
+
+    if (/^(?:https?:|mailto:|tel:|ftp:|file:|data:|\/\/)/i.test(trimmed)) {
+      return null;
+    }
+
+    if (trimmed.startsWith('#')) {
+      const headingId = safeDecodeURIComponent(trimmed.slice(1));
+      return headingId ? {headingId, pageIndex: null, pageId: null} : null;
+    }
+
+    let working = trimmed;
+    if (working.startsWith('./')) working = working.slice(2);
+    working = working.replace(/^\/+/, '');
+
+    const hashIndex = working.indexOf('#');
+    let headingId = '';
+    if (hashIndex !== -1) {
+      headingId = safeDecodeURIComponent(working.slice(hashIndex + 1));
+      working = working.slice(0, hashIndex);
+    }
+
+    if (!working) {
+      return headingId ? {headingId, pageIndex: null, pageId: null} : null;
+    }
+
+    working = safeDecodeURIComponent(working);
+    if (working.startsWith('?')) working = working.slice(1);
+    working = working.replace(/\.md$/i, '');
+
+    let pageIndex = null;
+    let pageId = null;
+
+    if (working.includes('=')) {
+      try {
+        const params = new URLSearchParams(working);
+        const mapped = Object.create(null);
+        params.forEach((value, key) => {
+          if (typeof key === 'string') {
+            mapped[key.toLowerCase()] = value;
+          }
+        });
+        const getParam = (...keys) => {
+          for (const key of keys) {
+            const lookup = key.toLowerCase();
+            if (Object.prototype.hasOwnProperty.call(mapped, lookup)) {
+              return mapped[lookup];
+            }
+          }
+          return undefined;
+        };
+
+        const pageParam = getParam('page', 'p');
+        if (pageParam !== undefined) {
+          const parsed = parseInt(pageParam, 10);
+          if (!Number.isNaN(parsed)) pageIndex = parsed - 1;
+        }
+        const pageIndexParam = getParam('pageindex', 'page_idx', 'index');
+        if (pageIndexParam !== undefined) {
+          const parsed = parseInt(pageIndexParam, 10);
+          if (!Number.isNaN(parsed)) pageIndex = parsed - 1;
+        }
+        const pageIdParam = getParam('pageid', 'page_id', 'pid', 'id');
+        if (pageIdParam !== undefined && pageIdParam !== null) {
+          const trimmedPid = String(pageIdParam).trim();
+          if (trimmedPid) {
+            pageId = trimmedPid;
+          }
+        }
+        if (!headingId) {
+          const headingParam = getParam('heading', 'title', 'h');
+          if (headingParam !== undefined && headingParam !== null) {
+            headingId = String(headingParam).trim();
+          }
+        }
+      } catch (_) {
+        // ignore parsing failure, fall back to pattern matching
+      }
+    }
+
+    if (pageIndex === null && !pageId) {
+      let match = working.match(/^(?:page[-_]?|p)(\d+)$/i);
+      if (match) {
+        pageIndex = parseInt(match[1], 10) - 1;
+      } else {
+        match = working.match(/^(\d+)$/);
+        if (match) {
+          pageIndex = parseInt(match[1], 10) - 1;
+        } else {
+          match = working.match(/^page(?:Id)?[-_:]?([0-9a-f]{32})$/i);
+          if (match) {
+            pageId = match[1];
+          } else {
+            match = working.match(/^page(?:Id)?[-_:]?(.+)$/i);
+            if (match) {
+              const candidate = match[1].trim();
+              if (candidate) {
+                pageId = candidate;
+              }
+            } else {
+              match = working.match(/^([0-9a-f]{32})$/i);
+              if (match) {
+                pageId = match[1];
+              } else if (!headingId) {
+                const candidate = working.trim();
+                if (candidate) {
+                  // Treat plain text as same-page heading reference
+                  return {headingId: candidate, pageIndex: null, pageId: null};
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (pageIndex !== null && (Number.isNaN(pageIndex) || pageIndex < 0)) {
+      pageIndex = null;
+    }
+    if (!headingId) headingId = '';
+    if (!pageId && pageIndex === null) {
+      return {headingId, pageIndex: null, pageId: null};
+    }
+    return {headingId, pageIndex, pageId};
+  }
+
+  function navigateMarkdownLinkTarget(target) {
+    if (!target) return false;
+    const {pageIndex, pageId, headingId} = target;
+    if (pageIndex === null && !pageId) {
+      if (!headingId) return false;
+      return focusMarkdownHeading(headingId, {silent: false});
+    }
+
+    let idx = null;
+    if (typeof pageIndex === 'number' && pageIndex >= 0 && pageIndex < pagesData.length) {
+      idx = pageIndex;
+    }
+    if (idx === null && pageId) {
+      const found = findPageIndexById(pageId);
+      if (found !== -1) {
+        idx = found;
+      }
+    }
+    if (idx === null || idx < 0 || idx >= pagesData.length) {
+      if (typeof showStatus === 'function') {
+        showStatus('未找到目标页面', 'warning', 2600);
+      }
+      return false;
+    }
+
+    const performHighlight = () => {
+      if (headingId) {
+        if (!focusMarkdownHeading(headingId, {silent: true})) {
+          if (typeof showStatus === 'function') {
+            showStatus(`未找到标题 “${headingId}”`, 'warning', 2600);
+          }
+        }
+      } else {
+        const container = document.getElementById('markdown-preview');
+        if (container) {
+          if (typeof container.scrollTo === 'function') container.scrollTo({top: 0, behavior: 'smooth'});
+          else container.scrollTop = 0;
+        }
+      }
+    };
+
+    if (idx === currentPageIdx && currentEditMode === 'markdown') {
+      performHighlight();
+      return true;
+    }
+
+    const needsModeSwitch = currentEditMode !== 'markdown';
+    currentPageIdx = idx;
+    updatePageNumLabel();
+    if (needsModeSwitch) {
+      setEditMode('markdown');
+    } else {
+      renderSingleEditor();
+    }
+    const delay = needsModeSwitch ? 280 : 160;
+    setTimeout(() => {
+      if (currentPageIdx !== idx) return;
+      performHighlight();
+    }, delay);
+    return true;
+  }
+
+  function handleMarkdownPreviewLinkClick(event) {
+    if (event.defaultPrevented) return;
+    if (event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const anchor = event.target.closest('a[href]');
+    if (!anchor) return;
+    if (anchor.target && anchor.target.toLowerCase() === '_blank') return;
+    const href = anchor.getAttribute('href');
+    if (!href) return;
+    const target = parseMarkdownInternalLink(href);
+    if (!target) return;
+    event.preventDefault();
+    navigateMarkdownLinkTarget(target);
+  }
+
+  function applyInitialDeepLinkIfNeeded() {
+    if (initialDeepLinkApplied) return;
+    if (!initialDeepLinkTarget) {
+      initialDeepLinkApplied = true;
+      return;
+    }
+    const handled = navigateMarkdownLinkTarget(initialDeepLinkTarget);
+    if (!handled && initialDeepLinkTarget.headingId) {
+      focusMarkdownHeading(initialDeepLinkTarget.headingId, {silent: true, instant: true});
+    }
+    initialDeepLinkTarget = null;
+    initialDeepLinkApplied = true;
+  }
+
+  function enhanceMarkdownHeadingAnchors(preview, wrapper) {
+    if (!preview) return;
+    if (markdownHeadingHighlightTimer) {
+      clearTimeout(markdownHeadingHighlightTimer);
+      markdownHeadingHighlightTimer = null;
+    }
+    markdownHeadingActiveEl = null;
+    const slugRegistry = Object.create(null);
+    const headings = preview.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    headings.forEach(heading => {
+      if (!(heading instanceof HTMLElement)) return;
+      const currentId = (heading.getAttribute('id') || '').trim();
+      const source = currentId || heading.textContent || '';
+      const slug = slugifyMarkdownHeading(source, slugRegistry);
+      if (!slug) return;
+      heading.id = slug;
+      heading.dataset.markdownHeadingId = slug;
+    });
+    if (!preview.dataset.markdownLinksBound) {
+      preview.addEventListener('click', handleMarkdownPreviewLinkClick);
+      preview.dataset.markdownLinksBound = '1';
+    }
+    const container = getMarkdownScrollContainer(preview, wrapper);
+    if (container && !container.dataset.markdownLinksBound) {
+      container.dataset.markdownLinksBound = '1';
+    }
+  }
+
+  async function copyCurrentPageIdToClipboard() {
+    const page = pagesData[currentPageIdx] || {};
+    const rawId = typeof page.pageId === 'string' ? page.pageId.trim() : '';
+    if (!rawId) {
+      showStatus('当前页缺少 pageId，无法复制', 'warning', 3200);
+      return;
+    }
+    const ok = await copyTextToClipboard(rawId);
+    if (ok) {
+      showStatus('pageId 已复制到剪贴板', 'success', 2400);
+    } else {
+      window.prompt('当前浏览器无法自动复制，请手动复制 pageId：', rawId);
+    }
+  }
+
+  function buildCurrentPageShareLink() {
+    const page = pagesData[currentPageIdx] || {};
+    const rawId = typeof page.pageId === 'string' ? page.pageId.trim() : '';
+    if (!rawId) return null;
+    try {
+      const url = new URL(window.location.href);
+      url.hash = '';
+      url.searchParams.set('pageId', rawId);
+      const projectName = typeof currentProject === 'string' ? currentProject.trim() : '';
+      if (projectName) {
+        url.searchParams.set('project', projectName);
+      } else {
+        url.searchParams.delete('project');
+      }
+      url.searchParams.delete('page');
+      url.searchParams.delete('p');
+      url.searchParams.delete('pageIndex');
+      url.searchParams.delete('pageindex');
+      return url.toString();
+    } catch (err) {
+      console.warn('生成分享链接失败', err);
+      return null;
+    }
+  }
+
+  async function copyCurrentPageShareLink() {
+    const link = buildCurrentPageShareLink();
+    if (!link) {
+      showStatus('无法生成当前页链接', 'warning', 3200);
+      return;
+    }
+    const ok = await copyTextToClipboard(link);
+    if (ok) {
+      showStatus('打开链接已复制，可直接分享', 'success', 2400);
+    } else {
+      window.prompt('当前浏览器无法自动复制，请手动复制链接：', link);
+    }
+  }
+
+  function confirmDeleteCurrentPage() {
+    if (pagesData.length <= 1) {
+      showStatus('至少保留一页内容，删除已取消', 'warning', 3200);
+      return;
+    }
+    const pageNumber = currentPageIdx + 1;
+    if (!window.confirm(`确定删除第 ${pageNumber} 页吗？此操作无法撤销。`)) {
+      return;
+    }
+    removeCurrentPage();
+    renderTabsModal();
+    showStatus(`已删除第 ${pageNumber} 页`, 'success', 2400);
   }
 
   async function copyTextToClipboard(text) {
@@ -3331,6 +3800,28 @@
     var modal = new bootstrap.Modal(document.getElementById('tabsModal'));
     modal.show();
   };
+
+  const tabsCopyPageIdBtn = document.getElementById('tabs-copy-page-id');
+  if (tabsCopyPageIdBtn && !tabsCopyPageIdBtn.dataset.bound) {
+    tabsCopyPageIdBtn.dataset.bound = '1';
+    tabsCopyPageIdBtn.addEventListener('click', () => {
+      copyCurrentPageIdToClipboard();
+    });
+  }
+  const tabsDeletePageBtn = document.getElementById('tabs-delete-page');
+  if (tabsDeletePageBtn && !tabsDeletePageBtn.dataset.bound) {
+    tabsDeletePageBtn.dataset.bound = '1';
+    tabsDeletePageBtn.addEventListener('click', () => {
+      confirmDeleteCurrentPage();
+    });
+  }
+  const tabsCopyPageLinkBtn = document.getElementById('tabs-copy-page-link');
+  if (tabsCopyPageLinkBtn && !tabsCopyPageLinkBtn.dataset.bound) {
+    tabsCopyPageLinkBtn.dataset.bound = '1';
+    tabsCopyPageLinkBtn.addEventListener('click', () => {
+      copyCurrentPageShareLink();
+    });
+  }
 
   function removeCurrentPage() {
     if(pagesData.length <= 1) return;
@@ -3795,6 +4286,7 @@
           }
         }
         resetSearchState();
+        applyInitialDeepLinkIfNeeded();
         if(cb) cb();
       })
       .catch(err => {

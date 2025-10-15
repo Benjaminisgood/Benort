@@ -3618,8 +3618,7 @@
         renderSingleEditor();
         refreshPreview();
         updatePageNumLabel();
-        var modal = bootstrap.Modal.getInstance(document.getElementById('tabsModal'));
-        modal.hide();
+        renderTabsModal();
       };
       tabs.appendChild(tab);
     });

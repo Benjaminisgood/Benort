@@ -1612,6 +1612,19 @@
     document.getElementById('page-count').textContent = pagesData.length;
   }
 
+  function jumpToPage(targetIdx) {
+    if (!Array.isArray(pagesData) || !pagesData.length) return;
+    let idx = Number(targetIdx);
+    if (!Number.isFinite(idx)) idx = 0;
+    idx = Math.trunc(idx);
+    if (idx < 0) idx = 0;
+    if (idx >= pagesData.length) idx = pagesData.length - 1;
+    if (idx === currentPageIdx) return;
+    currentPageIdx = idx;
+    renderSingleEditor();
+    updatePageNumLabel();
+  }
+
   
   const COMPONENT_LIBRARY = window.BENORT_COMPONENT_LIBRARY || {};
   let markdownImageModalInstance = null;
@@ -3882,11 +3895,39 @@
     updateMobileControlStates();
   }
   
-  document.getElementById('page-num').parentElement.onclick = function() {
-    renderTabsModal();
-    var modal = new bootstrap.Modal(document.getElementById('tabsModal'));
-    modal.show();
-  };
+  const pageStatusBtn = document.getElementById('page-status');
+  if (pageStatusBtn) {
+    let pageStatusClickTimer = null;
+    pageStatusBtn.addEventListener('click', event => {
+      if (pageStatusClickTimer) {
+        clearTimeout(pageStatusClickTimer);
+        pageStatusClickTimer = null;
+      }
+      if (event.detail > 1) {
+        return;
+      }
+      pageStatusClickTimer = setTimeout(() => {
+        renderTabsModal();
+        const modalEl = document.getElementById('tabsModal');
+        if (modalEl && typeof bootstrap !== 'undefined' && bootstrap?.Modal) {
+          const modal = typeof bootstrap.Modal.getOrCreateInstance === 'function'
+            ? bootstrap.Modal.getOrCreateInstance(modalEl)
+            : new bootstrap.Modal(modalEl);
+          modal.show();
+        }
+        pageStatusClickTimer = null;
+      }, 180);
+    });
+    pageStatusBtn.addEventListener('dblclick', event => {
+      if (pageStatusClickTimer) {
+        clearTimeout(pageStatusClickTimer);
+        pageStatusClickTimer = null;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      jumpToPage(0);
+    });
+  }
 
   const tabsCopyPageIdBtn = document.getElementById('tabs-copy-page-id');
   if (tabsCopyPageIdBtn && !tabsCopyPageIdBtn.dataset.bound) {

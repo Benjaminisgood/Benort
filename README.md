@@ -207,3 +207,5 @@ title: "Radiative Energy Transfer in Achiral–Chiral Systems: 中文详解《Pr
 更像是一个浏览器插件的功能，不再进行这个修改，防止应用变得没用冗余。
 
 benort优化支持对手机的窄屏幕的适配，不要改变已有的大屏幕的体验以及维持仅一个html文件包所有的前提下，为了适配手机端宅屏端，在窄屏下默认锁死在编辑markdown界面，能用的功能只有在default项目里支持换页写markdown，其它的功能全部隐藏不给用。
+
+新增双击菜单栏的页码前往当前project的第一页的功能。（这样结合跳转功能，第一页可以作为目录）

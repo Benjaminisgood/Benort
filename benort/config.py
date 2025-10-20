@@ -238,7 +238,7 @@ DEFAULT_LOCAL_ATTACHMENTS_DIRNAME = "attachments_store"
 DEFAULT_LOCAL_RESOURCES_DIRNAME = "resources_store"
 
 # OpenAI ChatCompletion 相关配置
-OPENAI_CHAT_COMPLETIONS_MODEL = "gpt-3.5-turbo"
+OPENAI_CHAT_COMPLETIONS_MODEL = "gpt-4o"
 
 # OpenAI 语音合成参数，可按需调整音色/格式/语速
 OPENAI_TTS_MODEL = "tts-1"
@@ -394,6 +394,62 @@ LEARNING_ASSISTANT_DEFAULT_PROMPTS = [
             "3. **复杂度与性能**：分析时间/空间复杂度，指出瓶颈。\n"
             "4. **相关知识拓展**：关联框架、语言特性、常见替代写法或高级用法。\n"
             "5. **实践建议**：给出测试、调试、优化或安全方面的注意事项。\n"
+        ),
+    },
+    {
+        "id": "code_optimize",
+        "name": "代码优化实战",
+        "description": "在保持语义一致的前提下提出性能、结构与安全优化建议。",
+        "system": (
+            "You are a senior software architect and performance engineer. "
+            "Focus on practical refactoring suggestions, measurable improvements, and potential risks."
+        ),
+        "template": (
+            "请在不改变功能的情况下优化下面的代码或伪代码：\n{content}\n\n"
+            "可参考的上下文（需求、约束、技术栈等）：\n{context}\n\n"
+            "请输出：\n"
+            "1. **问题扫描**：指出原实现中的性能、可维护性、安全或可读性问题。\n"
+            "2. **优化方案**：提供改进后的代码或伪代码片段，必要时分步骤解释。\n"
+            "3. **效果评估**：说明预期的性能/复杂度变化，或其他可量化收益。\n"
+            "4. **回归与风险**：列出需要注意的兼容性、测试要点与潜在副作用。\n"
+            "5. **进一步提升**：给出可选的工程化建议，如监控、自动化、工具链优化等。\n"
+        ),
+    },
+    {
+        "id": "markdown_math_polish",
+        "name": "Markdown 笔记优化（含公式）",
+        "description": "润色含数学公式的 Markdown 笔记，强调结构与渲染质量。",
+        "system": (
+            "You are a technical writing coach specializing in scientific Markdown. "
+            "Preserve mathematical meaning, improve structure, and ensure formulas render well in common Markdown engines."
+        ),
+        "template": (
+            "请优化以下含数学或技术内容的 Markdown 笔记：\n{content}\n\n"
+            "补充上下文（可为空）：\n{context}\n\n"
+            "请完成：\n"
+            "1. **结构梳理**：调整标题层级、列表、段落顺序，使逻辑清晰。\n"
+            "2. **公式与符号**：统一使用 `$...$` 或 `$$...$$`，排查未闭合/格式错误的表达式，并适当添加注释。\n"
+            "3. **表达优化**：润色语言，使表述准确、紧凑，必要时补充定义或说明。\n"
+            "4. **图表与引用建议**：提示可能需要的图示、参考文献、外部链接或进一步阅读。\n"
+            "5. **检查清单**：列出渲染、编译或发布前应确认的要点。\n"
+        ),
+    },
+    {
+        "id": "beamer_polish",
+        "name": "LaTeX Beamer 优化",
+        "description": "优化 Beamer 幻灯片代码与排版，确保兼容现有模板。",
+        "system": (
+            "You are a LaTeX Beamer specialist. "
+            "Respect existing template constraints, avoid introducing new packages, and focus on presentation clarity."
+        ),
+        "template": (
+            "需要优化的 Beamer 幻灯片代码如下：\n{content}\n\n"
+            "可参考的上下文（当前主题、受众、语言等）：\n{context}\n\n"
+            "请提供：\n"
+            "1. **主要问题**：指出排版、结构或风格上的不足。\n"
+            "2. **优化后的代码**：在现有宏包限制下给出改进版，必要时拆分为多个 frame，并保持可直接编译。\n"
+            "3. **视觉与叙事建议**：针对文字密度、重点突出、颜色或动画提出改进意见。\n"
+            "4. **后续检查**：列出编译、演示或分享前需要确认的事项。\n"
         ),
     },
 ]

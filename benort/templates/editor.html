@@ -685,6 +685,23 @@
     body.theme-dark #markdownTableModalCaption {
       color: rgba(203, 213, 225, 0.86);
     }
+    #tabsModal #page-tabs {
+      gap: 0.75rem;
+    }
+    #tabsModal #page-tabs .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 3.25rem;
+      padding: 0.7rem 1.05rem;
+      font-size: 1.05rem;
+      border-radius: 1.75rem;
+      cursor: grab;
+      user-select: none;
+    }
+    #tabsModal #page-tabs .badge:active {
+      cursor: grabbing;
+    }
     @media (max-width: 1024px) {
       body.mobile-compact nav.navbar .navbar-nav > li { display: none !important; }
       body.mobile-compact nav.navbar .navbar-nav > li.mobile-allowed { display: flex !important; align-items: center; justify-content: center; }
@@ -732,12 +749,16 @@
       body.mobile-compact #pages-list .CodeMirror { box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18); }
       body.mobile-compact #tabsModal .modal-dialog { max-width: 95vw; margin: 1.5rem auto; }
       body.mobile-compact #tabsModal .modal-content { border-radius: 1.25rem; padding: 18px 16px; }
-      body.mobile-compact #page-tabs { gap: 0.8rem; justify-content: center; }
+      body.mobile-compact #page-tabs { gap: 1rem; justify-content: center; }
       body.mobile-compact #page-tabs .badge {
-        font-size: clamp(1.1rem, 4vw, 1.4rem);
-        padding: 0.75rem 1rem;
-        min-width: 3rem;
+        font-size: clamp(1.2rem, 4.6vw, 1.5rem);
+        padding: 0.85rem 1.2rem;
+        min-width: 3.4rem;
         border-radius: 2rem;
+      }
+      body.mobile-compact #tabs-actions,
+      body.mobile-compact #tabs-actions-hint {
+        display: none !important;
       }
     }
   </style>

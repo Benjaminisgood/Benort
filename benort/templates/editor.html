@@ -18,6 +18,7 @@
       display: flex;
       flex-direction: column;
       gap: 1rem;
+      position: relative;
     }
     @media (min-width: 992px) {
       #editor-preview-wrapper {
@@ -32,6 +33,64 @@
       flex-direction: column;
       min-width: 0;
     }
+    .markdown-sync-toggle-wrapper {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 5;
+    }
+    @media (min-width: 992px) {
+      .markdown-sync-toggle-wrapper {
+        top: 50%;
+        transform: translate(-50%, -50%);
+      }
+    }
+    .markdown-sync-toggle {
+      border: none;
+      background: transparent;
+      color: #6366f1;
+      font-size: 0.85rem;
+      padding: 0.2rem 0.35rem;
+      border-radius: 999px;
+      opacity: 0.45;
+      cursor: pointer;
+      text-decoration: none;
+      letter-spacing: 0.08em;
+      font-weight: 500;
+      pointer-events: auto;
+      transition: color 0.2s ease, opacity 0.2s ease, text-shadow 0.3s ease, transform 0.2s ease;
+    }
+    .markdown-sync-toggle:hover,
+    .markdown-sync-toggle:focus {
+      opacity: 0.85;
+      color: #4f46e5;
+      transform: scale(1.05);
+    }
+    .markdown-sync-toggle:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+    }
+    .markdown-sync-toggle.active {
+      color: #2563eb;
+      opacity: 0.95;
+      text-shadow: 0 0 6px rgba(37, 99, 235, 0.4);
+    }
+    body.theme-dark .markdown-sync-toggle {
+      color: #93c5fd;
+    }
+    body.theme-dark .markdown-sync-toggle:hover,
+    body.theme-dark .markdown-sync-toggle:focus {
+      color: #bfdbfe;
+    }
+    body.theme-dark .markdown-sync-toggle.active {
+      color: #38bdf8;
+      text-shadow: 0 0 8px rgba(56, 189, 248, 0.48);
+    }
     #editor-container,
     #pdf-container,
     #markdown-preview {
@@ -40,6 +99,15 @@
       border-radius: 4px;
       background: #fff;
       overflow: auto;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .markdown-sync-glow {
+      border-color: rgba(99, 102, 241, 0.42) !important;
+      box-shadow: 0 0 14px rgba(99, 102, 241, 0.24), 0 0 4px rgba(129, 140, 248, 0.35);
+    }
+    body.theme-dark .markdown-sync-glow {
+      border-color: rgba(56, 189, 248, 0.45) !important;
+      box-shadow: 0 0 16px rgba(37, 99, 235, 0.32), 0 0 6px rgba(59, 130, 246, 0.26);
     }
     body.theme-dark {
       background: #0f172a;
@@ -1455,6 +1523,19 @@
       </div>
     </div>
 
+    <div class="markdown-sync-toggle-wrapper">
+      <button type="button" id="markdown-sync-toggle" class="markdown-sync-toggle" aria-label="切换 Markdown 编辑器与预览的同步滚动" aria-pressed="false">
+        <span aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 20 20" role="presentation" focusable="false">
+            <path d="M6.2 10a2.3 2.3 0 0 1 0-3.25l2.1-2.1a2.3 2.3 0 0 1 3.25 0c.9.9.9 2.35 0 3.25l-.9.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M13.8 10a2.3 2.3 0 0 1 0 3.25l-2.1 2.1a2.3 2.3 0 0 1-3.25 0c-.9-.9-.9-2.35 0-3.25l.9-.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="8" y1="10" x2="12" y2="10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="visually-hidden">同步预览</span>
+      </button>
+    </div>
+
     <div class="preview-pane">
       
       <div id="pdf-container" class="d-none">
@@ -1755,9 +1836,29 @@
     wrapperClass: ''
   };
 
-  
+
   let currentPageIdx = 0;
   let singleEditor = null;
+  const MARKDOWN_SCROLL_BLOCK_TYPES = new Set(['heading', 'paragraph', 'code', 'blockquote', 'list', 'table', 'hr', 'html']);
+  const MARKDOWN_SCROLL_THRESHOLD = 2; // px tolerance to avoid jitter when syncing
+  const MARKDOWN_HEADING_TYPES = new Set(['heading']);
+  const markdownScrollSyncState = {
+    anchors: [],
+    boundEditor: null,
+    editorHandler: null,
+    rafHandle: 0,
+    pendingEditor: null,
+    sourceLineCount: 0,
+    enabled: false,
+    button: null,
+    previewContainer: null,
+    previewHandler: null,
+    isSyncingFromEditor: false,
+    isSyncingFromPreview: false,
+    editorScroller: null,
+    editorScrollHandler: null,
+    editorCMHandler: null
+  };
   let currentEditMode = 'markdown';
   let currentProject = '';
   const INITIAL_URL_STATE = (() => {
@@ -2959,16 +3060,504 @@
     });
   }
 
+  function countMarkdownNewlines(text) {
+    if (!text) return 0;
+    const matches = text.match(/\r\n|\r|\n/g);
+    return matches ? matches.length : 0;
+  }
+
+  function cloneMarkedTokens(tokens) {
+    if (!Array.isArray(tokens)) return [];
+    if (typeof structuredClone === 'function') {
+      try {
+        return structuredClone(tokens);
+      } catch (_) {
+        // ignore and fall back
+      }
+    }
+    try {
+      return JSON.parse(JSON.stringify(tokens));
+    } catch (_) {
+      return tokens.map(token => ({...token}));
+    }
+  }
+
+  function resolveEditorScrollElement(editor) {
+    if (!editor) {
+      return document.getElementById('editor-container');
+    }
+    let scroller = typeof editor.getScrollerElement === 'function' ? editor.getScrollerElement() : null;
+    const needsFallback = !scroller || Math.abs(scroller.scrollHeight - scroller.clientHeight) < 1;
+    if (needsFallback) {
+      const wrapper = typeof editor.getWrapperElement === 'function' ? editor.getWrapperElement() : null;
+      const container = document.getElementById('editor-container');
+      if (wrapper && wrapper.parentElement && wrapper.parentElement.scrollHeight > wrapper.parentElement.clientHeight + 1) {
+        return wrapper.parentElement;
+      }
+      if (container) {
+        return container;
+      }
+    }
+    return scroller || document.getElementById('editor-container');
+  }
+
+  function annotateMarkdownTokenSourceLines(tokens, source) {
+    if (!Array.isArray(tokens)) return;
+    let cursor = 0;
+    let line = 0;
+    tokens.forEach(token => {
+      if (!token || typeof token !== 'object') return;
+      const raw = typeof token.raw === 'string' ? token.raw : '';
+      let startIndex = cursor;
+      if (raw) {
+        const idx = source.indexOf(raw, cursor);
+        if (idx !== -1) {
+          startIndex = idx;
+        }
+      }
+      if (startIndex > cursor) {
+        line += countMarkdownNewlines(source.slice(cursor, startIndex));
+      }
+      cursor = startIndex;
+      token.__sourceLine = line;
+      if (raw) {
+        line += countMarkdownNewlines(raw);
+        cursor = startIndex + raw.length;
+      }
+    });
+  }
+
+  function buildMarkdownScrollAnchors(tokens, preview, container) {
+    if (!preview) return [];
+    const elements = Array.from(preview.children || []).filter(child => child instanceof HTMLElement);
+    elements.forEach(el => {
+      if (el.dataset && 'markdownSourceLine' in el.dataset) {
+        delete el.dataset.markdownSourceLine;
+      }
+    });
+    const anchors = [];
+    if (!Array.isArray(tokens) || !tokens.length) {
+      return anchors;
+    }
+    let elementIdx = 0;
+    for (const token of tokens) {
+      if (!token || !MARKDOWN_SCROLL_BLOCK_TYPES.has(token.type)) {
+        continue;
+      }
+      while (elementIdx < elements.length && !(elements[elementIdx] instanceof HTMLElement)) {
+        elementIdx += 1;
+      }
+      if (elementIdx >= elements.length) {
+        break;
+      }
+      const element = elements[elementIdx];
+      const sourceLine = typeof token.__sourceLine === 'number' ? token.__sourceLine : 0;
+      element.dataset.markdownSourceLine = String(sourceLine);
+      const top = container ? getElementTopRelative(element, container) : element.offsetTop || 0;
+      anchors.push({
+        line: sourceLine,
+        element,
+        top,
+        type: token.type,
+        level: typeof token.depth === 'number' ? token.depth : 0
+      });
+      elementIdx += 1;
+    }
+    anchors.sort((a, b) => a.line - b.line);
+    for (let i = 0; i < anchors.length; i++) {
+      const current = anchors[i];
+      const next = anchors[i + 1];
+      current.lineEnd = next ? next.line : null;
+    }
+    return anchors;
+  }
+
+  function getHeadingAnchors(anchors) {
+    if (!Array.isArray(anchors)) return [];
+    return anchors.filter(anchor => MARKDOWN_HEADING_TYPES.has(anchor.type));
+  }
+
+  function getActiveAnchors(preferHeadings = true) {
+    const anchors = markdownScrollSyncState.anchors || [];
+    if (!anchors.length) return anchors;
+    if (!preferHeadings) return anchors;
+    const headingAnchors = getHeadingAnchors(anchors);
+    if (headingAnchors.length >= 2) {
+      const rawTotalLines = typeof markdownScrollSyncState.sourceLineCount === 'number'
+        ? markdownScrollSyncState.sourceLineCount
+        : 0;
+      const totalLines = Math.max(rawTotalLines - 1, 0);
+      return headingAnchors.map((anchor, idx) => {
+        const clone = {...anchor};
+        const next = headingAnchors[idx + 1];
+        if (next) {
+          clone.lineEnd = next.line;
+        } else if (typeof clone.lineEnd !== 'number') {
+          clone.lineEnd = totalLines;
+        }
+        return clone;
+      });
+    }
+    return anchors;
+  }
+
+  function getElementTopRelative(element, container) {
+    if (!element || !container || typeof element.getBoundingClientRect !== 'function') {
+      return 0;
+    }
+    const elementRect = element.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    return (elementRect.top - containerRect.top) + container.scrollTop;
+  }
+
+  function computeScrollTargetFromAnchors(line, anchors, container, totalLines) {
+    if (!anchors.length) return 0;
+    const maxScroll = Math.max(container.scrollHeight - container.clientHeight, 0);
+    const resolveTop = anchor => {
+      if (!anchor) return 0;
+      if (typeof anchor.top === 'number' && Number.isFinite(anchor.top)) return anchor.top;
+      if (anchor.element instanceof HTMLElement) return getElementTopRelative(anchor.element, container);
+      return 0;
+    };
+    if (line <= anchors[0].line) {
+      return Math.min(resolveTop(anchors[0]), maxScroll);
+    }
+    for (let i = 1; i < anchors.length; i++) {
+      const current = anchors[i];
+      const previous = anchors[i - 1];
+      if (line <= current.line) {
+        const prevTop = resolveTop(previous);
+        const nextTop = resolveTop(current);
+        const spanStart = previous.line;
+        const spanEnd = typeof previous.lineEnd === 'number' ? previous.lineEnd : current.line;
+        const span = Math.max(spanEnd - spanStart, 1);
+        const ratio = Math.min(Math.max((line - spanStart) / span, 0), 1);
+        const interpolated = prevTop + ratio * (nextTop - prevTop);
+        return Math.min(Math.max(interpolated, 0), maxScroll);
+      }
+    }
+    const last = anchors[anchors.length - 1];
+    const lastTop = resolveTop(last);
+    const endLine = typeof last.lineEnd === 'number' ? last.lineEnd : totalLines - 1;
+    const remainingLines = Math.max(endLine - last.line, 1);
+    const overflowRatio = Math.min(Math.max((line - last.line) / remainingLines, 0), 1);
+    const extended = lastTop + overflowRatio * Math.max(maxScroll - lastTop, 0);
+    return Math.min(Math.max(extended, lastTop), maxScroll);
+  }
+
+  function refreshMarkdownAnchorPositions(container) {
+    if (!container) return;
+    const anchors = markdownScrollSyncState.anchors || [];
+    if (!Array.isArray(anchors) || !anchors.length) return;
+    anchors.forEach(anchor => {
+      if (!anchor || !(anchor.element instanceof HTMLElement)) return;
+      anchor.top = getElementTopRelative(anchor.element, container);
+    });
+    if (anchors.length) {
+      const last = anchors[anchors.length - 1];
+      if (typeof last.lineEnd !== 'number') {
+        const fallbackEnd = Math.max(markdownScrollSyncState.sourceLineCount - 1, last.line);
+        last.lineEnd = fallbackEnd;
+      }
+    }
+  }
+
+  function estimateMarkdownLineFromAnchors(targetPosition, anchors, container, totalLines, useCenter = true) {
+    if (!container) {
+      return 0;
+    }
+    if (!anchors.length) {
+      const maxScroll = Math.max(container.scrollHeight - container.clientHeight, 1);
+      const ratio = maxScroll ? targetPosition / maxScroll : 0;
+      return Math.round(ratio * Math.max(totalLines - 1, 0));
+    }
+    const resolveTop = anchor => {
+      if (!anchor) return 0;
+      if (typeof anchor.top === 'number' && Number.isFinite(anchor.top)) return anchor.top;
+      if (anchor.element instanceof HTMLElement) return getElementTopRelative(anchor.element, container);
+      return 0;
+    };
+    const maxScroll = Math.max(container.scrollHeight - container.clientHeight, 0);
+    const clamped = Math.min(Math.max(targetPosition, 0), maxScroll);
+    const targetPoint = useCenter ? (clamped + container.clientHeight / 2) : clamped;
+    if (targetPoint <= resolveTop(anchors[0])) {
+      return anchors[0].line;
+    }
+    for (let i = 1; i < anchors.length; i++) {
+      const current = anchors[i];
+      const previous = anchors[i - 1];
+      const prevTop = resolveTop(previous);
+      const currentTop = resolveTop(current);
+      if (targetPoint <= currentTop) {
+        const spanTop = Math.max(currentTop - prevTop, 1);
+        const ratio = (targetPoint - prevTop) / spanTop;
+        const lineStart = previous.line;
+        const lineEnd = typeof previous.lineEnd === 'number' ? previous.lineEnd : current.line;
+        const lineSpan = Math.max(lineEnd - lineStart, 0);
+        return Math.round(lineStart + ratio * lineSpan);
+      }
+    }
+    const last = anchors[anchors.length - 1];
+    const lastTop = resolveTop(last);
+    const remainingSpan = Math.max(maxScroll - lastTop, 1);
+    const overflowRatio = remainingSpan ? (targetPoint - lastTop) / remainingSpan : 0;
+    const endLine = typeof last.lineEnd === 'number' ? last.lineEnd : totalLines - 1;
+    const totalLinesSpan = Math.max(endLine - last.line, 1);
+    return Math.round(last.line + overflowRatio * totalLinesSpan);
+  }
+
+  function syncMarkdownPreviewScroll(editor) {
+    const cm = editor || markdownScrollSyncState.boundEditor;
+    if (!cm || typeof cm.getScrollInfo !== 'function') return;
+    if (!markdownScrollSyncState.enabled) return;
+    if (currentEditMode !== 'markdown') return;
+    const preview = document.getElementById('markdown-preview-content');
+    const wrapper = document.getElementById('markdown-preview');
+    const container = getMarkdownScrollContainer(preview, wrapper);
+    if (!container) return;
+    const rawCMScroller = typeof cm.getScrollerElement === 'function' ? cm.getScrollerElement() : null;
+    const scroller = markdownScrollSyncState.editorScroller || resolveEditorScrollElement(cm);
+    const usingCMScroller = rawCMScroller && scroller === rawCMScroller;
+    if (!scroller) return;
+    const scrollerTop = scroller.scrollTop;
+    const scrollerHeight = scroller.scrollHeight;
+    const scrollerClient = scroller.clientHeight;
+    const docScrollable = Math.max(scrollerHeight - scrollerClient, 1);
+    const docLineCount = typeof cm.lineCount === 'function' ? cm.lineCount() : Math.max(markdownScrollSyncState.sourceLineCount, 1);
+    const maxLineIndex = Math.max(docLineCount - 1, 0);
+    let referenceLine = docScrollable ? (scrollerTop / docScrollable) * maxLineIndex : 0;
+    if (usingCMScroller && typeof cm.lineAtHeight === 'function') {
+      const midpoint = scrollerTop + (scrollerClient / 2);
+      referenceLine = cm.lineAtHeight(midpoint, 'local');
+      if (!Number.isFinite(referenceLine)) {
+        referenceLine = docScrollable ? (scrollerTop / docScrollable) * maxLineIndex : referenceLine;
+      }
+    }
+    referenceLine = Math.floor(Number.isFinite(referenceLine) ? referenceLine : 0);
+    referenceLine = Math.min(Math.max(referenceLine, 0), maxLineIndex);
+    const anchors = getActiveAnchors(true);
+    refreshMarkdownAnchorPositions(container);
+    const maxContainerScroll = Math.max(container.scrollHeight - container.clientHeight, 0);
+    let targetTop;
+    if (anchors.length >= 2) {
+      targetTop = computeScrollTargetFromAnchors(referenceLine, anchors, container, docLineCount);
+    } else {
+      const ratio = docScrollable ? scrollerTop / docScrollable : 0;
+      targetTop = ratio * maxContainerScroll;
+    }
+    if (!Number.isFinite(targetTop)) return;
+
+    const clampedTarget = Math.max(Math.min(targetTop, maxContainerScroll), 0);
+    const currentTop = container.scrollTop;
+    if (Math.abs(currentTop - clampedTarget) <= MARKDOWN_SCROLL_THRESHOLD) {
+      return;
+    }
+
+    markdownScrollSyncState.isSyncingFromEditor = true;
+    if (typeof container.scrollTo === 'function') {
+      container.scrollTo({top: clampedTarget, behavior: 'auto'});
+    } else {
+      container.scrollTop = clampedTarget;
+    }
+    window.requestAnimationFrame(() => {
+      markdownScrollSyncState.isSyncingFromEditor = false;
+    });
+  }
+
+  function scheduleMarkdownPreviewSync(editor) {
+    if (!markdownScrollSyncState.enabled) return;
+    markdownScrollSyncState.pendingEditor = editor || null;
+    if (markdownScrollSyncState.rafHandle) return;
+    markdownScrollSyncState.rafHandle = window.requestAnimationFrame(() => {
+      markdownScrollSyncState.rafHandle = 0;
+      syncMarkdownPreviewScroll(markdownScrollSyncState.pendingEditor);
+      markdownScrollSyncState.pendingEditor = null;
+    });
+  }
+
+  function syncMarkdownEditorToPreview(container) {
+    if (!markdownScrollSyncState.enabled) return;
+    if (!singleEditor) return;
+    if (!container) return;
+    const rawCMScroller = typeof singleEditor.getScrollerElement === 'function' ? singleEditor.getScrollerElement() : null;
+    const scroller = markdownScrollSyncState.editorScroller || resolveEditorScrollElement(singleEditor);
+    const usingCMScroller = rawCMScroller && scroller === rawCMScroller;
+    const scrollerHeight = scroller ? scroller.scrollHeight : 0;
+    const scrollerClient = scroller ? scroller.clientHeight : 0;
+    const totalLines = typeof singleEditor.lineCount === 'function' ? singleEditor.lineCount() : Math.max(markdownScrollSyncState.sourceLineCount, 1);
+    if (totalLines <= 0) return;
+    const anchors = getActiveAnchors(true);
+    refreshMarkdownAnchorPositions(container);
+    const targetLine = estimateMarkdownLineFromAnchors(container.scrollTop, anchors, container, totalLines, false);
+    const maxLineIndex = Math.max(totalLines - 1, 0);
+    const clampedLine = Math.min(Math.max(targetLine, 0), maxLineIndex);
+    const docScrollable = Math.max(scrollerHeight - scrollerClient, 0);
+    let desiredTop = 0;
+    if (usingCMScroller && typeof singleEditor.heightAtLine === 'function') {
+      const lineTop = singleEditor.heightAtLine(clampedLine, 'local');
+      desiredTop = Math.min(Math.max(lineTop - scrollerClient * 0.5, 0), docScrollable);
+    } else if (maxLineIndex > 0) {
+      const ratio = clampedLine / maxLineIndex;
+      desiredTop = ratio * docScrollable;
+    }
+    if (!scroller) return;
+
+    const clampedTop = Math.max(Math.min(desiredTop, docScrollable), 0);
+    const currentEditorTop = scroller.scrollTop;
+    if (Math.abs(currentEditorTop - clampedTop) <= MARKDOWN_SCROLL_THRESHOLD) {
+      return;
+    }
+
+    markdownScrollSyncState.isSyncingFromPreview = true;
+    scroller.scrollTop = clampedTop;
+    if (usingCMScroller && typeof singleEditor.scrollTo === 'function') {
+      singleEditor.scrollTo(null, clampedTop);
+    }
+    window.requestAnimationFrame(() => {
+      markdownScrollSyncState.isSyncingFromPreview = false;
+    });
+  }
+
+  function bindMarkdownEditorScrollSync(editor) {
+    if (!editor || typeof editor.getScrollerElement !== 'function') return;
+    if (markdownScrollSyncState.editorScroller && markdownScrollSyncState.editorScrollHandler) {
+      markdownScrollSyncState.editorScroller.removeEventListener('scroll', markdownScrollSyncState.editorScrollHandler);
+    }
+    if (markdownScrollSyncState.boundEditor && typeof markdownScrollSyncState.boundEditor.off === 'function' && markdownScrollSyncState.editorCMHandler) {
+      markdownScrollSyncState.boundEditor.off('scroll', markdownScrollSyncState.editorCMHandler);
+    }
+
+    const scroller = resolveEditorScrollElement(editor);
+    const handleScroll = () => {
+      if (!markdownScrollSyncState.enabled) return;
+      if (markdownScrollSyncState.isSyncingFromPreview) return;
+      if (currentEditMode !== 'markdown') return;
+      scheduleMarkdownPreviewSync(editor);
+    };
+
+    const scrollerHandler = () => handleScroll();
+    scroller.addEventListener('scroll', scrollerHandler, {passive: true});
+
+    const cmHandler = () => handleScroll();
+    if (typeof editor.on === 'function') {
+      editor.on('scroll', cmHandler);
+    }
+
+    markdownScrollSyncState.boundEditor = editor;
+    markdownScrollSyncState.editorScroller = scroller;
+    markdownScrollSyncState.editorScrollHandler = scrollerHandler;
+    markdownScrollSyncState.editorHandler = cmHandler;
+    markdownScrollSyncState.editorCMHandler = cmHandler;
+
+    if (markdownScrollSyncState.enabled) {
+      scheduleMarkdownPreviewSync(editor);
+    }
+  }
+
+  function clearMarkdownScrollAnchors() {
+    markdownScrollSyncState.anchors = [];
+    markdownScrollSyncState.sourceLineCount = 0;
+  }
+
+  function bindMarkdownPreviewScrollSync(container) {
+    if (!container) {
+      if (markdownScrollSyncState.previewContainer && markdownScrollSyncState.previewHandler) {
+        markdownScrollSyncState.previewContainer.removeEventListener('scroll', markdownScrollSyncState.previewHandler);
+      }
+      markdownScrollSyncState.previewContainer = null;
+      markdownScrollSyncState.previewHandler = null;
+      return;
+    }
+    if (markdownScrollSyncState.previewContainer && markdownScrollSyncState.previewHandler) {
+      markdownScrollSyncState.previewContainer.removeEventListener('scroll', markdownScrollSyncState.previewHandler);
+    }
+    const handler = () => {
+      if (!markdownScrollSyncState.enabled) return;
+      if (markdownScrollSyncState.isSyncingFromEditor) return;
+      if (currentEditMode !== 'markdown') return;
+      syncMarkdownEditorToPreview(container);
+    };
+    container.addEventListener('scroll', handler, {passive: true});
+    markdownScrollSyncState.previewContainer = container;
+    markdownScrollSyncState.previewHandler = handler;
+  }
+
+  function updateMarkdownSyncVisualState() {
+    const button = markdownScrollSyncState.button || document.getElementById('markdown-sync-toggle');
+    if (button) {
+      markdownScrollSyncState.button = button;
+      const isEnabled = !!markdownScrollSyncState.enabled;
+      button.classList.toggle('active', isEnabled);
+      button.setAttribute('aria-pressed', isEnabled ? 'true' : 'false');
+      button.dataset.syncActive = isEnabled ? '1' : '0';
+      const label = isEnabled ? '已启用 Markdown 同步滚动，点击可关闭' : '点击启用 Markdown 与预览同步滚动';
+      button.setAttribute('title', label);
+      button.setAttribute('aria-label', label);
+    }
+    const shouldGlow = !!markdownScrollSyncState.enabled && currentEditMode === 'markdown';
+    const editorContainer = document.getElementById('editor-container');
+    const markdownContainer = document.getElementById('markdown-preview');
+    [editorContainer, markdownContainer].forEach(el => {
+      if (!el) return;
+      el.classList.toggle('markdown-sync-glow', shouldGlow);
+    });
+  }
+
+  function setMarkdownScrollSyncEnabled(enabled) {
+    const normalized = !!enabled;
+    if (markdownScrollSyncState.enabled === normalized) {
+      updateMarkdownSyncVisualState();
+      if (normalized && currentEditMode === 'markdown' && singleEditor) {
+        scheduleMarkdownPreviewSync(singleEditor);
+      }
+      return;
+    }
+    markdownScrollSyncState.enabled = normalized;
+    updateMarkdownSyncVisualState();
+    if (normalized && currentEditMode === 'markdown' && singleEditor) {
+      scheduleMarkdownPreviewSync(singleEditor);
+    }
+  }
+
+  function toggleMarkdownScrollSync() {
+    setMarkdownScrollSyncEnabled(!markdownScrollSyncState.enabled);
+  }
+
+  function initMarkdownScrollSyncToggle() {
+    const button = document.getElementById('markdown-sync-toggle');
+    if (!button || button.dataset.syncToggleBound === '1') {
+      updateMarkdownSyncVisualState();
+      return;
+    }
+    markdownScrollSyncState.button = button;
+    button.dataset.syncToggleBound = '1';
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      toggleMarkdownScrollSync();
+    });
+    updateMarkdownSyncVisualState();
+  }
+
   function renderMarkdownPreview() {
     const wrapper = document.getElementById('markdown-preview');
     const preview = document.getElementById('markdown-preview-content') || wrapper;
     if (!wrapper || !preview) return;
+    const container = getMarkdownScrollContainer(preview, wrapper);
     const md = pagesData[currentPageIdx]?.notes || '';
     applyMarkdownStyles();
     if (md.trim()) {
-      preview.innerHTML = marked.parse(md);
+      const tokensForAnchors = marked.lexer(md);
+      annotateMarkdownTokenSourceLines(tokensForAnchors, md);
+      const tokensForHtml = cloneMarkedTokens(tokensForAnchors);
+      if (tokensForAnchors && typeof tokensForAnchors === 'object' && 'links' in tokensForAnchors) {
+        tokensForHtml.links = tokensForAnchors.links;
+      }
+      preview.innerHTML = marked.parser(tokensForHtml);
+      markdownScrollSyncState.anchors = buildMarkdownScrollAnchors(tokensForAnchors, preview, container);
+      markdownScrollSyncState.sourceLineCount = md.split(/\r?\n/).length;
     } else {
       preview.innerHTML = '<p class="text-muted mb-0">暂无 Markdown 内容</p>';
+      clearMarkdownScrollAnchors();
     }
     enhanceMarkdownHeadingAnchors(preview, wrapper);
     enhanceMarkdownImages(preview);
@@ -2991,6 +3580,14 @@
         .then(() => enhanceMathCopy(preview))
         .catch(err => console.warn('MathJax 渲染失败', err));
     }
+    if (markdownScrollSyncState.enabled && currentEditMode === 'markdown' && singleEditor) {
+      scheduleMarkdownPreviewSync(singleEditor);
+    }
+    if (container) {
+      refreshMarkdownAnchorPositions(container);
+      bindMarkdownPreviewScrollSync(container);
+    }
+    updateMarkdownSyncVisualState();
   }
 
   function safeDecodeURIComponent(value) {
@@ -3604,6 +4201,7 @@
     }
     updateModeToggleUI();
     syncPaneHeights();
+    updateMarkdownSyncVisualState();
   }
 
   function setEditMode(mode) {
@@ -3614,6 +4212,7 @@
 
   updateModeToggleUI();
   window.addEventListener('resize', syncPaneHeights);
+  initMarkdownScrollSyncToggle();
   
   function renderTabsModal() {
     const tabs = document.getElementById('page-tabs');
@@ -3906,6 +4505,7 @@
       saveProject();
       queueCompile();
     });
+    bindMarkdownEditorScrollSync(singleEditor);
     const scriptInput = document.getElementById('page-script');
     scriptInput.value = page.script || '';
     updateModeToggleUI();

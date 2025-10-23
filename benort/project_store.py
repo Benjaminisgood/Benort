@@ -1214,6 +1214,15 @@ def save_project(data):
         incoming_pages = []
         incoming['pages'] = incoming_pages
 
+    reserved_ids: set[str] = set()
+    for raw_page in incoming_pages:
+        if not isinstance(raw_page, dict):
+            continue
+        raw_pid = raw_page.get('pageId') or raw_page.get('id')
+        if isinstance(raw_pid, str) and raw_pid.strip():
+            reserved_ids.add(raw_pid.strip())
+
+    assigned_ids: set[str] = set()
     incoming_resources_map: dict[str, tuple[bool, list[str]]] = {}
     for idx, page in enumerate(incoming_pages):
         if isinstance(page, dict):
@@ -1229,26 +1238,41 @@ def save_project(data):
         else:
             page = {}
             incoming_pages[idx] = page
-        page_id = page.get('pageId') or page.get('id')
-        if not isinstance(page_id, str) or not page_id.strip():
+        raw_page_id = page.get('pageId') or page.get('id')
+        page_id = raw_page_id.strip() if isinstance(raw_page_id, str) else ''
+        if page_id and page_id in assigned_ids:
+            page_id = ''
+        if not page_id:
             fingerprint = _page_fingerprint(page)
             matched = ''
             if fingerprint:
                 candidates = existing_fp_map.get(fingerprint) or []
-                if candidates:
-                    matched = candidates.pop(0)
+                while candidates:
+                    candidate = candidates.pop(0)
+                    candidate = candidate.strip() if isinstance(candidate, str) else ''
+                    if not candidate:
+                        continue
+                    if candidate in reserved_ids or candidate in assigned_ids:
+                        continue
+                    matched = candidate
+                    break
             if not matched and idx < len(existing_pages):
                 candidate = existing_pages[idx]
                 if isinstance(candidate, dict):
                     cid = candidate.get('pageId')
-                    if isinstance(cid, str) and cid.strip():
-                        matched = cid.strip()
+                    if isinstance(cid, str):
+                        cid = cid.strip()
+                        if cid and cid not in reserved_ids and cid not in assigned_ids:
+                            matched = cid
             if not matched:
                 matched = uuid.uuid4().hex
             page_id = matched
         else:
             page_id = page_id.strip()
+        if page_id in assigned_ids:
+            page_id = uuid.uuid4().hex
         page['pageId'] = page_id
+        assigned_ids.add(page_id)
         if 'id' in page:
             try:
                 if page['id'] != page_id:

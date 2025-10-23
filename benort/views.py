@@ -1950,20 +1950,97 @@ def export_project_bundle():
                 archive.write(file_path, arcname)
                 added_any = True
 
-        project_prefix = os.path.join("project_data", secure_filename(project_name) or project_name)
-        _add_directory(project_root, project_prefix)
-        _add_directory(attachments_folder, os.path.join("project_data", "attachments"))
-        _add_directory(resources_folder, os.path.join("project_data", "resources"))
+        def _add_project_data() -> None:
+            project_prefix = os.path.join("project_data", secure_filename(project_name) or project_name)
+            _add_directory(project_root, project_prefix)
+            _add_directory(attachments_folder, os.path.join("project_data", "attachments"))
+            _add_directory(resources_folder, os.path.join("project_data", "resources"))
 
-        if include_code:
+        def _add_repo_tree() -> None:
+            nonlocal added_any
             app_root = current_app.root_path
             repo_root = os.path.abspath(os.path.join(app_root, os.pardir))
-            code_prefix = "app_source"
-            skip_in_app = {'projects', 'attachments_store', 'resources_store', 'temps', '__pycache__', 'build', '.pytest_cache'}
-            _add_directory(app_root, os.path.join(code_prefix, 'benort'), skip_dirs=skip_in_app)
-            _add_directory(os.path.join(repo_root, 'tests'), os.path.join(code_prefix, 'tests'))
-            for fname in ("pyproject.toml", "README.md", "MANIFEST.in"):
-                _add_file(os.path.join(repo_root, fname), os.path.join(code_prefix, fname))
+            repo_name = os.path.basename(repo_root.rstrip(os.sep)) or 'project'
+            skip_dirs = {'.git', '.pytest_cache', '.mypy_cache', '.idea', 'venv', 'build', 'temps', '__pycache__', '.sass-cache', 'benort.egg-info'}
+            allowed_root_files = {'README.md', 'pyproject.toml'}
+
+            for root, dirs, files in os.walk(repo_root):
+                rel_dir = os.path.relpath(root, repo_root)
+                parts = [] if rel_dir == '.' else rel_dir.split(os.sep)
+
+                if parts and parts[0] in skip_dirs:
+                    dirs[:] = []
+                    continue
+
+                if len(parts) >= 2 and parts[0] == 'benort' and parts[1] == 'projects':
+                    if len(parts) == 2:
+                        dirs[:] = [d for d in dirs if d == project_name]
+                        files[:] = []
+                        continue
+                    if len(parts) >= 3 and parts[2] != project_name:
+                        dirs[:] = []
+                        continue
+
+                if len(parts) >= 2 and parts[0] == 'benort' and parts[1] in {'attachments_store', 'resources_store'}:
+                    if len(parts) == 2:
+                        dirs[:] = [d for d in dirs if d == project_name]
+                        files[:] = []
+                        continue
+                    if len(parts) >= 3 and parts[2] != project_name:
+                        dirs[:] = []
+                        continue
+
+                dirs[:] = [d for d in sorted(dirs) if d not in skip_dirs and not d.startswith('.') and d != '__pycache__']
+                selected_files = []
+                for fname in sorted(files):
+                    if fname.startswith('.') or fname in {'.DS_Store', 'Thumbs.db'}:
+                        continue
+                    if os.path.splitext(fname)[1] in {'.pyc', '.pyo', '.pyd'}:
+                        continue
+                    if rel_dir == '.':
+                        if fname.lower().endswith('.zip'):
+                            continue
+                        if fname not in allowed_root_files:
+                            continue
+                    if fname.lower() in {'flask.log', 'server.info'} and rel_dir == '.':
+                        continue
+                    selected_files.append(fname)
+
+                for fname in selected_files:
+                    file_path = os.path.join(root, fname)
+                    rel_path = fname if rel_dir == '.' else os.path.join(rel_dir, fname)
+                    archive.write(file_path, os.path.join(repo_name, rel_path))
+                    added_any = True
+
+            setup_script = """#!/usr/bin/env bash
+set -e
+
+if [ ! -f "pyproject.toml" ]; then
+  echo "请在项目根目录运行此脚本"
+  exit 1
+fi
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e .
+
+if [ -f ".env.example" ] && [ ! -f ".env" ]; then
+  cp .env.example .env
+fi
+
+echo "安装完成。可以运行以下命令启动项目："
+echo "source .venv/bin/activate"
+echo "flask --app benort run"
+"""
+            archive.writestr(os.path.join(repo_name, 'setup_project.sh'), setup_script)
+            added_any = True
+
+        if include_code:
+            _add_project_data()
+            _add_repo_tree()
+        else:
+            _add_project_data()
 
     if not added_any:
         return api_error("没有可导出的项目内容", 404)

@@ -2013,6 +2013,10 @@ def export_project_bundle():
                     added_any = True
 
             setup_script = """#!/usr/bin/env bash
+# chmod +x setup_project.sh
+# ./setup_project.sh
+# bash setup_project.sh
+
 set -e
 
 if [ ! -f "pyproject.toml" ]; then
@@ -2037,7 +2041,6 @@ echo "flask --app benort run"
             added_any = True
 
         if include_code:
-            _add_project_data()
             _add_repo_tree()
         else:
             _add_project_data()

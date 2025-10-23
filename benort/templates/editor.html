@@ -1593,6 +1593,14 @@
             <label class="form-check-label" for="exportAttachmentsOption">导出 资料、附件和 yaml (zip)</label>
           </div>
           <div class="form-check">
+            <input class="form-check-input" type="radio" name="exportOption" id="exportProjectDataOption" value="project_bundle_data">
+            <label class="form-check-label" for="exportProjectDataOption">导出 项目全量（仅数据）</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="exportOption" id="exportProjectCodeOption" value="project_bundle_code">
+            <label class="form-check-label" for="exportProjectCodeOption">导出 项目全量（含源代码）</label>
+          </div>
+          <div class="form-check">
             <input class="form-check-input" type="radio" name="exportOption" id="exportAudioOption" value="audio">
             <label class="form-check-label" for="exportAudioOption">导出 全部讲稿语音 (MP3)</label>
           </div>
@@ -4933,6 +4941,35 @@ function syncMarkdownEditorToPreview(container) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = 'attachments.zip'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
         showStatus('资料与附件已导出', 'success', 2500);
+      }).catch(e=>alert('导出失败：'+e.message));
+      return;
+    }
+    if(opt === 'project_bundle_data' || opt === 'project_bundle_code') {
+      const includeCode = opt === 'project_bundle_code';
+      fetch(`/export_project_bundle?include_code=${includeCode ? '1' : '0'}`).then(res => {
+        if(res.ok) {
+          return res.blob().then(blob => ({blob, res}));
+        }
+        return res.json().then(data=>{throw new Error(data.error||'导出失败')});
+      }).then(({blob, res}) => {
+        const projectSlug = (typeof currentProject === 'string' && currentProject.trim()) ? currentProject.trim() : 'project';
+        let filename = includeCode ? `${projectSlug}_with_code.zip` : `${projectSlug}_data_only.zip`;
+        const disposition = res.headers.get('Content-Disposition');
+        if (disposition) {
+          const match = disposition.match(/filename="?([^";]+)"?/i);
+          if (match && match[1]) {
+            filename = match[1];
+          }
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showStatus(includeCode ? '项目全量包（含源代码）已导出' : '项目全量数据已导出', 'success', 3000);
       }).catch(e=>alert('导出失败：'+e.message));
       return;
     }

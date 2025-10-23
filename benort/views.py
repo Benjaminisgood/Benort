@@ -35,6 +35,7 @@ from .project_store import (
     get_project_metadata,
     get_project_password_hash,
     get_project_paths,
+    get_projects_root,
     get_project_learn_path,
     is_safe_project_name,
     issue_project_cookie,
@@ -1899,6 +1900,84 @@ def export_attachments():
         mimetype="application/zip",
         as_attachment=True,
         download_name=f"{archive_name}.zip",
+    )
+
+
+@bp.route("/export_project_bundle", methods=["GET"])
+def export_project_bundle():
+    """导出当前项目的完整数据，并可选包含应用源代码。"""
+
+    project_name = get_project_from_request()
+    include_param = request.args.get("mode") or request.args.get("include_code") or request.args.get("includeCode") or ""
+    include_code = str(include_param).strip().lower() in {"1", "true", "yes", "on", "code", "with_code", "full"}
+
+    try:
+        load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
+    except Exception as exc:  # pragma: no cover - unexpected runtime errors
+        return api_error(str(exc), 500)
+
+    attachments_folder, _, _, resources_folder, _ = get_project_paths(project_name)
+    project_root = os.path.join(get_projects_root(), project_name)
+
+    mem_zip = io.BytesIO()
+    added_any = False
+
+    with zipfile.ZipFile(mem_zip, "w", zipfile.ZIP_DEFLATED) as archive:
+
+        def _add_directory(source_path: str, arc_prefix: str, skip_dirs: set[str] | None = None) -> None:
+            nonlocal added_any
+            if not os.path.exists(source_path):
+                return
+            skip = set(skip_dirs or ())
+            for root, dirs, files in os.walk(source_path):
+                dirs[:] = [d for d in sorted(dirs) if d not in skip and not d.startswith('.') and d != '__pycache__']
+                for fname in sorted(files):
+                    if fname.startswith('.') or fname in {'.DS_Store', 'Thumbs.db'}:
+                        continue
+                    if os.path.splitext(fname)[1] in {'.pyc', '.pyo', '.pyd'}:
+                        continue
+                    file_path = os.path.join(root, fname)
+                    rel_dir = os.path.relpath(root, source_path)
+                    rel_path = fname if rel_dir == '.' else os.path.join(rel_dir, fname)
+                    archive.write(file_path, os.path.join(arc_prefix, rel_path))
+                    added_any = True
+
+        def _add_file(file_path: str, arcname: str) -> None:
+            nonlocal added_any
+            if os.path.isfile(file_path):
+                archive.write(file_path, arcname)
+                added_any = True
+
+        project_prefix = os.path.join("project_data", secure_filename(project_name) or project_name)
+        _add_directory(project_root, project_prefix)
+        _add_directory(attachments_folder, os.path.join("project_data", "attachments"))
+        _add_directory(resources_folder, os.path.join("project_data", "resources"))
+
+        if include_code:
+            app_root = current_app.root_path
+            repo_root = os.path.abspath(os.path.join(app_root, os.pardir))
+            code_prefix = "app_source"
+            skip_in_app = {'projects', 'attachments_store', 'resources_store', 'temps', '__pycache__', 'build', '.pytest_cache'}
+            _add_directory(app_root, os.path.join(code_prefix, 'benort'), skip_dirs=skip_in_app)
+            _add_directory(os.path.join(repo_root, 'tests'), os.path.join(code_prefix, 'tests'))
+            for fname in ("pyproject.toml", "README.md", "MANIFEST.in"):
+                _add_file(os.path.join(repo_root, fname), os.path.join(code_prefix, fname))
+
+    if not added_any:
+        return api_error("没有可导出的项目内容", 404)
+
+    mem_zip.seek(0)
+    safe = secure_filename(project_name) or project_name
+    suffix = "with_code" if include_code else "data_only"
+    timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    download_name = f"{safe}_{suffix}_{timestamp}.zip"
+    return send_file(
+        mem_zip,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=download_name,
     )
 
 

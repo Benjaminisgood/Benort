@@ -1858,7 +1858,8 @@
     editorScroller: null,
     editorScrollHandler: null,
     editorCMHandler: null,
-    lastScrollLeader: ''
+    lastScrollLeader: '',
+    previewLeaderTimer: null
   };
   let currentEditMode = 'markdown';
   let currentProject = '';
@@ -3338,6 +3339,9 @@
     referenceLine = Math.min(Math.max(referenceLine, 0), maxLineIndex);
     const anchors = getActiveAnchors(true);
     const previewLeading = markdownScrollSyncState.lastScrollLeader === 'preview';
+    if (previewLeading && !markdownScrollSyncState.isSyncingFromPreview) {
+      return;
+    }
     refreshMarkdownAnchorPositions(container);
     const maxContainerScroll = Math.max(container.scrollHeight - container.clientHeight, 0);
     let targetTop;
@@ -3400,46 +3404,39 @@ function syncMarkdownEditorToPreview(container) {
 
     const previewLeading = markdownScrollSyncState.lastScrollLeader === 'preview';
 
-    if (previewLeading && typeof singleEditor.scrollIntoView === 'function') {
-      const doc = typeof singleEditor.getDoc === 'function' ? singleEditor.getDoc() : null;
-      const firstLine = doc && typeof doc.firstLine === 'function' ? doc.firstLine() : 0;
-      const lastLine = doc && typeof doc.lastLine === 'function' ? doc.lastLine() : maxLineIndex;
-      const lineToReveal = Math.min(Math.max(clampedLine, firstLine), lastLine);
-      markdownScrollSyncState.isSyncingFromPreview = true;
-      markdownScrollSyncState.lastScrollLeader = 'preview';
-      singleEditor.scrollIntoView({line: lineToReveal, ch: 0}, 80);
-      window.requestAnimationFrame(() => {
-        markdownScrollSyncState.isSyncingFromPreview = false;
-      });
-      return;
-    }
+    if (!scroller) return;
 
     const containerScrollable = Math.max(container.scrollHeight - container.clientHeight, 1);
     const ratioTarget = containerScrollable ? (container.scrollTop / containerScrollable) * docScrollable : 0;
 
     let desiredTop = ratioTarget;
-    if (usingCMScroller && typeof singleEditor.heightAtLine === 'function') {
-      const lineTop = singleEditor.heightAtLine(clampedLine, 'local');
-      desiredTop = Math.min(Math.max(lineTop - (scroller ? scroller.clientHeight : 0) * 0.5, 0), docScrollable);
-    } else if (anchors.length >= 2 && maxLineIndex > 0) {
-      const ratio = clampedLine / maxLineIndex;
-      desiredTop = ratio * docScrollable;
-    }
+    if (!previewLeading) {
+      if (usingCMScroller && typeof singleEditor.heightAtLine === 'function') {
+        const lineTop = singleEditor.heightAtLine(clampedLine, 'local');
+        desiredTop = Math.min(Math.max(lineTop - scroller.clientHeight * 0.5, 0), docScrollable);
+      } else if (anchors.length >= 2 && maxLineIndex > 0) {
+        const ratio = clampedLine / maxLineIndex;
+        desiredTop = ratio * docScrollable;
+      }
 
-    if (anchors.length >= 2) {
-      const discrepancy = Math.abs(desiredTop - ratioTarget);
-      const allowed = Math.max(docScrollable * 0.02, MARKDOWN_SCROLL_THRESHOLD * 6);
-      if (!Number.isFinite(desiredTop) || discrepancy > allowed) {
-        desiredTop = ratioTarget;
-      } else {
-        desiredTop = (desiredTop * 0.7) + (ratioTarget * 0.3);
+      if (anchors.length >= 2) {
+        const discrepancy = Math.abs(desiredTop - ratioTarget);
+        const allowed = Math.max(docScrollable * 0.02, MARKDOWN_SCROLL_THRESHOLD * 6);
+        if (!Number.isFinite(desiredTop) || discrepancy > allowed) {
+          desiredTop = ratioTarget;
+        } else {
+          desiredTop = (desiredTop * 0.5) + (ratioTarget * 0.5);
+        }
       }
     }
 
-    if (!scroller) return;
     const clampedTop = Math.max(Math.min(desiredTop, docScrollable), 0);
     const currentEditorTop = scroller.scrollTop;
-    if (Math.abs(currentEditorTop - clampedTop) <= MARKDOWN_SCROLL_THRESHOLD) {
+    const threshold = previewLeading ? 0.5 : MARKDOWN_SCROLL_THRESHOLD;
+    if (Math.abs(currentEditorTop - clampedTop) <= threshold) {
+      if (previewLeading) {
+        markdownScrollSyncState.lastScrollLeader = 'preview';
+      }
       return;
     }
 
@@ -3468,6 +3465,11 @@ function syncMarkdownEditorToPreview(container) {
       if (!markdownScrollSyncState.enabled) return;
       if (markdownScrollSyncState.isSyncingFromPreview) return;
       if (currentEditMode !== 'markdown') return;
+      if (markdownScrollSyncState.lastScrollLeader === 'preview') return;
+      if (markdownScrollSyncState.previewLeaderTimer) {
+        window.clearTimeout(markdownScrollSyncState.previewLeaderTimer);
+        markdownScrollSyncState.previewLeaderTimer = null;
+      }
       markdownScrollSyncState.lastScrollLeader = 'editor';
       scheduleMarkdownPreviewSync(editor);
     };
@@ -3512,7 +3514,16 @@ function syncMarkdownEditorToPreview(container) {
       if (!markdownScrollSyncState.enabled) return;
       if (markdownScrollSyncState.isSyncingFromEditor) return;
       if (currentEditMode !== 'markdown') return;
+      if (markdownScrollSyncState.previewLeaderTimer) {
+        window.clearTimeout(markdownScrollSyncState.previewLeaderTimer);
+      }
       markdownScrollSyncState.lastScrollLeader = 'preview';
+      markdownScrollSyncState.previewLeaderTimer = window.setTimeout(() => {
+        markdownScrollSyncState.previewLeaderTimer = null;
+        if (!markdownScrollSyncState.isSyncingFromPreview) {
+          markdownScrollSyncState.lastScrollLeader = '';
+        }
+      }, 180);
       syncMarkdownEditorToPreview(container);
     };
     container.addEventListener('scroll', handler, {passive: true});
@@ -3557,6 +3568,10 @@ function syncMarkdownEditorToPreview(container) {
     }
     if (!normalized) {
       markdownScrollSyncState.lastScrollLeader = '';
+      if (markdownScrollSyncState.previewLeaderTimer) {
+        window.clearTimeout(markdownScrollSyncState.previewLeaderTimer);
+        markdownScrollSyncState.previewLeaderTimer = null;
+      }
     }
   }
 

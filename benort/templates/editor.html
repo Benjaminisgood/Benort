@@ -4033,7 +4033,7 @@ function syncMarkdownEditorToPreview(container) {
     if (!pageId) return null;
     const slug = ((heading.dataset && heading.dataset.markdownHeadingId) || heading.id || '').trim();
     if (!slug) return null;
-    return `[跳转到目标页](?pageId=${pageId}#${slug})`;
+    return `[${slug}](?pageId=${pageId}#${slug})`;
   }
 
   async function copyMarkdownHeadingLink(heading) {

@@ -976,11 +976,14 @@
                 <div class="modal-body">
                   <div class="mb-3 text-muted">当前页: <span id="resources-current-page">1</span></div>
 
-                  <div class="input-group mb-3">
-                    <input id="modal-resource-upload-input" type="file" class="form-control" />
-                    <button id="modal-resource-upload-btn" class="btn btn-primary">上传到本页</button>
-                    <button id="modal-resource-upload-global-btn" class="btn btn-secondary">上传为全局</button>
+                  <div class="input-group mb-2">
+                    <input id="modal-resource-upload-input" type="file" class="form-control" multiple />
+                    <button id="modal-resource-select-folder-btn" class="btn btn-outline-secondary" type="button" title="选择文件夹上传">选择文件夹</button>
+                    <button id="modal-resource-upload-btn" class="btn btn-primary" type="button">上传到本页</button>
+                    <button id="modal-resource-upload-global-btn" class="btn btn-secondary" type="button">上传为全局</button>
                   </div>
+                  <input id="modal-resource-upload-dir-input" type="file" class="d-none" multiple webkitdirectory />
+                  <div class="form-text text-muted mb-3" id="modal-resource-upload-hint">可一次选择多个文件，或使用“选择文件夹”上传整个目录结构。</div>
 
                   <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="mb-0">本页资源</h6>
@@ -1912,6 +1915,7 @@
   let markdownHeadingActiveEl = null;
 
   let resourceRenameTarget = null;
+  let resourceRenameBasePath = '';
   let attachmentRenameTarget = null;
   const SCRIPT_ROOT = {{ request.script_root|tojson }} || '';
   function buildApiUrl(path){
@@ -1935,6 +1939,40 @@
   const resourceRenameInput = document.getElementById('resource-rename-input');
   const resourceRenamePreview = document.getElementById('resource-rename-preview');
   const resourceRenameConfirm = document.getElementById('resource-rename-confirm');
+  const resourceUploadInput = document.getElementById('modal-resource-upload-input');
+  const resourceUploadDirInput = document.getElementById('modal-resource-upload-dir-input');
+  const resourceUploadSelectFolderBtn = document.getElementById('modal-resource-select-folder-btn');
+  const resourceUploadHint = document.getElementById('modal-resource-upload-hint');
+  if(resourceRenameInput){
+    resourceRenameInput.addEventListener('input', () => updateResourceRenamePreviewText(resourceRenameInput.value));
+  }
+  if(resourceUploadInput){
+    resourceUploadInput.addEventListener('change', () => {
+      if(resourceUploadDirInput){
+        resourceUploadDirInput.value = '';
+      }
+      updateResourceUploadHint();
+    });
+  }
+  if(resourceUploadDirInput){
+    resourceUploadDirInput.addEventListener('change', () => {
+      if(resourceUploadInput){
+        resourceUploadInput.value = '';
+      }
+      updateResourceUploadHint();
+    });
+  }
+  if(resourceUploadSelectFolderBtn && resourceUploadDirInput){
+    resourceUploadSelectFolderBtn.addEventListener('click', () => {
+      resourceUploadDirInput.value = '';
+      if(resourceUploadInput){
+        resourceUploadInput.value = '';
+      }
+      updateResourceUploadHint();
+      resourceUploadDirInput.click();
+    });
+  }
+  updateResourceUploadHint();
   const resourcePreviewModalEl = document.getElementById('resourcePreviewModal');
   const resourcePreviewImage = document.getElementById('resource-preview-image');
   const resourcePreviewMeta = document.getElementById('resource-preview-meta');
@@ -1988,6 +2026,7 @@
   if(resourceRenameModalEl){
     resourceRenameModalEl.addEventListener('hidden.bs.modal', () => {
       resourceRenameTarget = null;
+      resourceRenameBasePath = '';
       if(resourceRenameInput) {
         resourceRenameInput.value = '';
         resourceRenameInput.removeAttribute('title');
@@ -7215,13 +7254,20 @@ loadProjects().then(()=>{
     const left = document.createElement('div');
     left.className = 'resource-name me-md-3 flex-grow-1';
     const name = document.createElement('a');
+    const resourcePath = (f.path || '').toString();
+    const displayName = (f.name || '').toString().trim() || (resourcePath.includes('/') ? resourcePath.slice(resourcePath.lastIndexOf('/') + 1) : resourcePath);
     const localUrl = f.localUrl || '';
     const ossUrl = f.ossUrl || '';
     const preferredUrl = f.url || f.preferredUrl || localUrl || ossUrl || '';
     const hasLocal = !!localUrl && f.exists !== false ? true : !!localUrl;
     const hasRemote = !!ossUrl;
     name.href = preferredUrl || '#';
-    name.textContent = f.name || '';
+    name.textContent = displayName || resourcePath || '未命名资源';
+    if(resourcePath){
+      name.title = resourcePath;
+    } else if(displayName){
+      name.title = displayName;
+    }
     if(preferredUrl){
       name.target = '_blank';
     } else {
@@ -7264,6 +7310,13 @@ loadProjects().then(()=>{
         badge.textContent = '仅本地';
       }
       left.appendChild(badge);
+    }
+
+    if(resourcePath){
+      const pathInfo = document.createElement('div');
+      pathInfo.className = 'small text-muted text-break mt-1';
+      pathInfo.textContent = resourcePath;
+      left.appendChild(pathInfo);
     }
 
     if(ossUrl){
@@ -7310,7 +7363,8 @@ loadProjects().then(()=>{
 
     const actions = document.createElement('div');
     actions.className = 'resource-actions d-flex flex-wrap gap-1';
-    const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test((f.name || '').toString());
+    const nameForType = (resourcePath || f.name || '').toString();
+    const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test(nameForType);
     const targetUrl = f.localUrl || f.ossUrl || preferredUrl;
 
     const previewBtn = document.createElement('button');
@@ -7329,7 +7383,8 @@ loadProjects().then(()=>{
           if(f.ossUrl && f.exists){
             parts.push('已同步');
           }
-          resourcePreviewMeta.textContent = `${f.name}${parts.length ? '（' + parts.join('，') + '）' : ''}`;
+          const label = displayName || resourcePath || '';
+          resourcePreviewMeta.textContent = label ? `${label}${parts.length ? '（' + parts.join('，') + '）' : ''}` : parts.join('，');
         }
         if(resourcePreviewOpen){
           resourcePreviewOpen.href = targetUrl;
@@ -7396,14 +7451,19 @@ loadProjects().then(()=>{
         alert('当前界面不支持重命名');
         return;
       }
-      resourceRenameTarget = f.name;
-      resourceRenameInput.value = f.name || '';
-      if(resourceRenamePreview) resourceRenamePreview.textContent = f.name ? `完整名称：${f.name}` : '';
-      if(f.name){
-        resourceRenameInput.title = f.name;
+      const fullPath = resourcePath || displayName || '';
+      resourceRenameTarget = fullPath;
+      resourceRenameBasePath = fullPath && fullPath.includes('/') ? fullPath.slice(0, fullPath.lastIndexOf('/')) : '';
+      const initialName = f.name || (fullPath.includes('/') ? fullPath.slice(fullPath.lastIndexOf('/') + 1) : fullPath);
+      resourceRenameInput.value = initialName || '';
+      if(fullPath){
+        resourceRenameInput.title = fullPath;
+      } else if(initialName){
+        resourceRenameInput.title = initialName;
       } else {
         resourceRenameInput.removeAttribute('title');
       }
+      updateResourceRenamePreviewText(initialName);
       const modal = bootstrap.Modal.getOrCreateInstance(resourceRenameModalEl);
       modal.show();
     };
@@ -7416,8 +7476,19 @@ loadProjects().then(()=>{
         ? '确认移除当前页对该资源的关联吗？'
         : (scope === 'global' ? '确认从全局资源中移除此文件吗？' : '确认删除此资源及其文件吗？');
       if(!confirm(confirmText)) return;
+      const identifier = resourcePath || displayName;
+      if(!identifier){
+        alert('无法确定资源标识');
+        return;
+      }
+      const baseName = identifier.includes('/') ? identifier.slice(identifier.lastIndexOf('/') + 1) : identifier;
+      const matchesEntry = value => {
+        if(typeof value !== 'string') return false;
+        const normalized = value.trim();
+        return normalized === identifier || normalized === resourcePath || normalized === baseName;
+      };
       try{
-        const payload = {name: f.name};
+        const payload = {path: identifier, name: identifier};
         if(scope === 'page' && pageIndex !== null){
           payload.scope = 'page';
           payload.page = pageIndex;
@@ -7432,21 +7503,21 @@ loadProjects().then(()=>{
           } else {
             const body = parsed.json || {};
             if(body.globalRemoved){
-              globalResources = globalResources.filter(name => name !== f.name);
+              globalResources = globalResources.filter(name => !matchesEntry(name));
             }
             if(Array.isArray(body.pagesRemoved)){
               body.pagesRemoved.forEach(num => {
                 const idx = Number(num) - 1;
                 if(idx >= 0 && pagesData[idx] && Array.isArray(pagesData[idx].resources)){
-                  pagesData[idx].resources = pagesData[idx].resources.filter(name => name !== f.name);
+                  pagesData[idx].resources = pagesData[idx].resources.filter(name => !matchesEntry(name));
                 }
               });
             }
             if(body.fileRemoved){
-              globalResources = globalResources.filter(name => name !== f.name);
+              globalResources = globalResources.filter(name => !matchesEntry(name));
               pagesData.forEach(p => {
                 if(Array.isArray(p.resources)){
-                  p.resources = p.resources.filter(name => name !== f.name);
+                  p.resources = p.resources.filter(name => !matchesEntry(name));
                 }
               });
             }
@@ -7521,8 +7592,14 @@ loadProjects().then(()=>{
       }
       const pageFiles = Array.isArray(pageData.files) ? pageData.files : [];
       const globalFiles = Array.isArray(globalData.files) ? globalData.files : [];
-      const pageNames = pageFiles.map(f => f && f.name).filter(Boolean);
-      const globalNames = globalFiles.map(f => f && f.name).filter(Boolean);
+      const pageNames = pageFiles.map(f => {
+        if(f && (f.path || f.name)) return String(f.path || f.name);
+        return '';
+      }).filter(Boolean);
+      const globalNames = globalFiles.map(f => {
+        if(f && (f.path || f.name)) return String(f.path || f.name);
+        return '';
+      }).filter(Boolean);
       const serverPageId = pageData && typeof pageData.pageId === 'string' ? pageData.pageId : null;
       const currentPage = pagesData[pageIdx];
       if(currentPage && typeof currentPage === 'object' && typeof currentPage.pageId === 'string' && serverPageId && currentPage.pageId === serverPageId) {
@@ -7542,83 +7619,133 @@ loadProjects().then(()=>{
     }
   }
 
-  // modal upload handlers
-  const modalUploadBtn = document.getElementById('modal-resource-upload-btn');
-  if(modalUploadBtn) modalUploadBtn.addEventListener('click', async function(){
-    const input = document.getElementById('modal-resource-upload-input');
-    if(!input.files || input.files.length === 0) return alert('请选择文件');
-    const file = input.files[0];
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('page', getCurrentPageIndex());
-    this.disabled = true;
-    this.textContent = '上传中...';
+  function getSelectedResourceFiles(){
+    const files = [];
+    if(resourceUploadInput && resourceUploadInput.files){
+      files.push(...resourceUploadInput.files);
+    }
+    if(resourceUploadDirInput && resourceUploadDirInput.files){
+      files.push(...resourceUploadDirInput.files);
+    }
+    return files;
+  }
+
+  function updateResourceUploadHint(){
+    if(!resourceUploadHint) return;
+    const files = getSelectedResourceFiles();
+    if(!files.length){
+      resourceUploadHint.textContent = '可一次选择多个文件，或使用“选择文件夹”上传整个目录结构。';
+      return;
+    }
+    const count = files.length;
+    const hasNested = files.some(file => {
+      const rel = file.webkitRelativePath || file.relativePath || '';
+      return rel && rel.includes('/');
+    });
+    if(hasNested){
+      const roots = new Set();
+      files.forEach(file => {
+        const rel = file.webkitRelativePath || file.relativePath || '';
+        if(rel && rel.includes('/')){
+          roots.add(rel.split('/')[0]);
+        }
+      });
+      const folderCount = roots.size || 1;
+      resourceUploadHint.textContent = `已选择 ${count} 个文件，覆盖 ${folderCount} 个目录。`;
+    } else {
+      resourceUploadHint.textContent = `已选择 ${count} 个文件。`;
+    }
+  }
+
+  function resetResourceUploadInputs(){
+    if(resourceUploadInput){
+      resourceUploadInput.value = '';
+    }
+    if(resourceUploadDirInput){
+      resourceUploadDirInput.value = '';
+    }
+    updateResourceUploadHint();
+  }
+
+  async function performResourceUpload(triggerBtn, options){
+    const files = getSelectedResourceFiles();
+    if(!files.length){
+      alert('请选择文件或文件夹');
+      return;
+    }
+    const scope = options && options.scope === 'page' ? 'page' : 'global';
+    const pageIndex = scope === 'page' ? (typeof options.pageIndex === 'number' ? options.pageIndex : getCurrentPageIndex()) : null;
+    const formData = new FormData();
+    files.forEach((file, idx) => {
+      formData.append('files[]', file);
+      const rel = file.webkitRelativePath || file.relativePath || file.name || `file_${idx}`;
+      formData.append('paths[]', rel);
+    });
+    formData.append('scope', scope);
+    if(scope === 'page' && pageIndex !== null){
+      formData.append('page', String(pageIndex));
+    }
+
+    const otherBtn = triggerBtn === modalUploadBtn ? modalUploadGlobalBtn : modalUploadBtn;
+    const originalText = triggerBtn.textContent;
+    triggerBtn.disabled = true;
+    triggerBtn.textContent = '上传中...';
+    if(otherBtn){
+      otherBtn.disabled = true;
+    }
+
     try{
-      const res = await fetch('/upload_resource', {method: 'POST', body: fd});
+      const res = await fetch('/upload_resource', {method: 'POST', body: formData});
       const parsed = await parseJsonSafe(res);
-      if(res.ok){
-        if(parsed.json && parsed.json.success === false){
-          alert('上传失败：' + (parsed.json.error || parsed.text || '未知错误'));
-        } else {
-          input.value = '';
-          const payload = parsed.json || {};
-          if(payload.scope === 'page' && typeof payload.page === 'number' && payload.name){
-            const idx = payload.page;
+      if(res.ok && (!parsed.json || parsed.json.success !== false)){
+        const payload = parsed.json || {};
+        const uploaded = Array.isArray(payload.files) ? payload.files : [];
+        uploaded.forEach(entry => {
+          if(!entry) return;
+          const rawPath = entry.path || entry.name;
+          if(!rawPath) return;
+          const relPath = String(rawPath);
+          const entryScope = entry.scope || payload.scope || scope;
+          const entryPage = typeof entry.page === 'number' ? entry.page : (typeof payload.page === 'number' ? payload.page : null);
+          if(entryScope === 'page' && typeof entryPage === 'number'){
+            const idx = entryPage;
             if(pagesData[idx]){
               const list = Array.isArray(pagesData[idx].resources) ? pagesData[idx].resources : (pagesData[idx].resources = []);
-              if(!list.includes(payload.name)) list.push(payload.name);
+              if(!list.includes(relPath)) list.push(relPath);
             }
+          } else if(!globalResources.includes(relPath)){
+            globalResources.push(relPath);
           }
-          await loadResourcesModal();
-          await refreshResourceLists();
-          queueCompile();
-        }
+        });
+        resetResourceUploadInputs();
+        await loadResourcesModal();
+        await refreshResourceLists();
+        queueCompile();
       } else {
-        alert('上传失败：' + (parsed.json && parsed.json.error ? parsed.json.error : parsed.text || ('HTTP ' + res.status)));
+        const message = parsed.json && parsed.json.error ? parsed.json.error : (parsed.text || (`HTTP ${res.status}`));
+        alert('上传失败：' + message);
       }
-    }catch(e){ console.error(e); alert('上传失败：' + e.message); }
-    this.disabled = false;
-    this.textContent = '上传到本页';
+    } catch (e){
+      console.error(e);
+      alert('上传失败：' + (e && e.message ? e.message : String(e || '未知错误')));
+    } finally {
+      triggerBtn.textContent = originalText || '上传';
+      triggerBtn.disabled = false;
+      if(otherBtn){
+        otherBtn.disabled = false;
+      }
+    }
+  }
+
+  // modal upload handlers
+  const modalUploadBtn = document.getElementById('modal-resource-upload-btn');
+  if(modalUploadBtn) modalUploadBtn.addEventListener('click', async () => {
+    await performResourceUpload(modalUploadBtn, {scope: 'page', pageIndex: getCurrentPageIndex()});
   });
 
   const modalUploadGlobalBtn = document.getElementById('modal-resource-upload-global-btn');
-  if(modalUploadGlobalBtn) modalUploadGlobalBtn.addEventListener('click', async function(){
-    const input = document.getElementById('modal-resource-upload-input');
-    if(!input.files || input.files.length === 0) return alert('请选择文件');
-    const file = input.files[0];
-    const fd = new FormData();
-    fd.append('file', file);
-    this.disabled = true;
-    this.textContent = '上传中...';
-    try{
-      const res = await fetch('/upload_resource', {method: 'POST', body: fd});
-      const parsed = await parseJsonSafe(res);
-      if(res.ok){
-        if(parsed.json && parsed.json.success === false){
-          alert('上传失败：' + (parsed.json.error || parsed.text || '未知错误'));
-        } else {
-          input.value = '';
-          const payload = parsed.json || {};
-          if(payload.scope === 'global' && payload.name){
-            if(!globalResources.includes(payload.name)) globalResources.push(payload.name);
-          } else if(payload.scope === 'page' && typeof payload.page === 'number' && payload.name){
-            const idx = payload.page;
-            if(pagesData[idx]){
-              const list = Array.isArray(pagesData[idx].resources) ? pagesData[idx].resources : (pagesData[idx].resources = []);
-              if(!list.includes(payload.name)) list.push(payload.name);
-            }
-          }
-          await loadResourcesModal();
-          await refreshResourceLists();
-          queueCompile();
-        }
-      } else {
-        const message = parsed.json && parsed.json.error ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
-        alert('上传失败：' + message);
-      }
-    }catch(e){ console.error(e); alert('上传失败：' + e.message); }
-    this.disabled = false;
-    this.textContent = '上传为全局';
+  if(modalUploadGlobalBtn) modalUploadGlobalBtn.addEventListener('click', async () => {
+    await performResourceUpload(modalUploadGlobalBtn, {scope: 'global'});
   });
 
   let attachmentsCache = [];
@@ -7690,6 +7817,39 @@ loadProjects().then(()=>{
       clearBtn.textContent = '一键清除';
     }
     await loadAttachmentsModal();
+  }
+
+  function computeResourceRenameDestination(inputValue) {
+    const raw = (inputValue || '').toString().trim().replace(/\\/g, '/');
+    if(!raw) return '';
+    if(raw.startsWith('/')){
+      return raw.replace(/^\/+/, '');
+    }
+    if(raw.includes('/')){
+      return raw;
+    }
+    if(resourceRenameBasePath){
+      return `${resourceRenameBasePath}/${raw}`.replace(/\/+/g, '/');
+    }
+    if(resourceRenameTarget && resourceRenameTarget.includes('/')){
+      const dir = resourceRenameTarget.slice(0, resourceRenameTarget.lastIndexOf('/'));
+      if(dir){
+        return `${dir}/${raw}`.replace(/\/+/g, '/');
+      }
+    }
+    return raw;
+  }
+
+  function updateResourceRenamePreviewText(value) {
+    if(!resourceRenamePreview) return;
+    const proposal = computeResourceRenameDestination(value);
+    if(proposal){
+      resourceRenamePreview.textContent = `新路径：${proposal}`;
+    } else if(resourceRenameTarget){
+      resourceRenamePreview.textContent = `当前路径：${resourceRenameTarget}`;
+    } else {
+      resourceRenamePreview.textContent = '';
+    }
   }
 
   function setAttachmentsFilter(term) {
@@ -8172,24 +8332,36 @@ loadProjects().then(()=>{
         alert('无法读取新文件名');
         return;
       }
-      const newName = resourceRenameInput.value.trim();
-      if(!newName){
+      const trimmedInput = resourceRenameInput.value.trim();
+      if(!trimmedInput){
         alert('文件名不能为空');
+        return;
+      }
+      const proposedPath = computeResourceRenameDestination(trimmedInput);
+      if(!proposedPath){
+        alert('文件名或路径无效');
         return;
       }
       const originalText = this.textContent;
       this.disabled = true;
       this.textContent = '保存中...';
+      const requestBody = {
+        oldPath: resourceRenameTarget,
+        newPath: proposedPath,
+        oldName: resourceRenameTarget,
+        newName: trimmedInput,
+      };
       try{
-        const res = await fetch('/resources/rename', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({oldName: resourceRenameTarget, newName})});
+        const res = await fetch('/resources/rename', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(requestBody)});
         const parsed = await parseJsonSafe(res);
         if(res.ok && (!parsed.json || parsed.json.success !== false)){
-          if(parsed.json && parsed.json.name && parsed.json.name !== newName){
+          if(parsed.json && parsed.json.name && parsed.json.name !== trimmedInput){
             alert(`文件名已更新为：${parsed.json.name}`);
           }
           const modal = resourceRenameModalEl ? bootstrap.Modal.getInstance(resourceRenameModalEl) : null;
           if(modal) modal.hide();
           resourceRenameTarget = null;
+          resourceRenameBasePath = '';
           await loadResourcesModal();
           await refreshResourceLists();
           queueCompile();

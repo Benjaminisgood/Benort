@@ -341,8 +341,28 @@ def _normalize_link_target(value: object) -> str:
     return cleaned.strip()
 
 
+def _normalize_resource_path(value: str) -> str:
+    if not isinstance(value, str):
+        return ""
+    cleaned = value.strip().replace("\\", "/")
+    cleaned = re.sub(r"/+", "/", cleaned)
+    cleaned = cleaned.lstrip("/")
+    if cleaned in {"", ".", ".."}:
+        return ""
+    parts: list[str] = []
+    for segment in cleaned.split("/"):
+        if segment in {"", ".", ".."}:
+            continue
+        sanitized = secure_filename(segment)
+        if not sanitized:
+            continue
+        parts.append(sanitized)
+    return "/".join(parts)
+
+
 def _collect_resource_usage(project: dict) -> dict[str, dict[str, object]]:
     """Map resource filenames to page/global references."""
+
 
     usage: dict[str, dict[str, object]] = {}
     pages = project.get("pages", [])
@@ -353,20 +373,20 @@ def _collect_resource_usage(project: dict) -> dict[str, dict[str, object]]:
             for res_name in page.get("resources", []) or []:
                 if not isinstance(res_name, str):
                     continue
-                sanitized = os.path.basename(res_name.strip())
-                if not sanitized:
+                normalized = _normalize_resource_path(res_name)
+                if not normalized:
                     continue
-                entry = usage.setdefault(sanitized, {"pages": set(), "global": False})
+                entry = usage.setdefault(normalized, {"pages": set(), "global": False})
                 entry["pages"].add(idx)
     global_resources = project.get("resources", [])
     if isinstance(global_resources, list):
         for res_name in global_resources:
             if not isinstance(res_name, str):
                 continue
-            sanitized = os.path.basename(res_name.strip())
-            if not sanitized:
+            normalized = _normalize_resource_path(res_name)
+            if not normalized:
                 continue
-            entry = usage.setdefault(sanitized, {"pages": set(), "global": False})
+            entry = usage.setdefault(normalized, {"pages": set(), "global": False})
             entry["global"] = True
     return usage
 
@@ -2555,84 +2575,118 @@ def oss_sync_now():
 def upload_resource():
     """上传资源文件，可按需挂载到指定页面或全局。"""
 
-    if 'file' not in request.files:
+    files = request.files.getlist('files[]') or request.files.getlist('files')
+    if not files and 'file' in request.files:
+        files = [request.files['file']]
+    if not files:
         return jsonify({'success': False, 'error': 'No file part'}), 400
-    file_storage = request.files['file']
-    if file_storage.filename == '':
-        return jsonify({'success': False, 'error': 'No selected file'}), 400
 
-    page = request.form.get('page') or request.args.get('page')
+    scope_param = (request.form.get('scope') or request.args.get('scope') or '').strip().lower()
+    page_raw = request.form.get('page') or request.args.get('page')
     try:
-        page_idx = int(page) if page is not None else None
+        requested_page_idx = int(page_raw) if page_raw is not None else None
     except Exception:
-        page_idx = None
+        requested_page_idx = None
+    effective_scope = 'page' if scope_param == 'page' and requested_page_idx is not None else 'global'
 
-    filename = secure_filename(file_storage.filename)
-    if not filename:
-        return jsonify({'success': False, 'error': 'Invalid filename'}), 400
+    paths_hint = request.form.getlist('paths[]') or request.form.getlist('paths') or []
 
     project_name = get_project_from_request()
-    _, _, _, resources_folder, _ = get_project_paths(project_name)
-    os.makedirs(resources_folder, exist_ok=True)
-
-    save_path = os.path.join(resources_folder, filename)
-    if os.path.exists(save_path):
-        base, ext = os.path.splitext(filename)
-        counter = 1
-        while True:
-            candidate = f"{base}_{counter}{ext}"
-            candidate_path = os.path.join(resources_folder, candidate)
-            if not os.path.exists(candidate_path):
-                filename = candidate
-                save_path = candidate_path
-                break
-            counter += 1
-
-    file_storage.save(save_path)
-
     try:
         project = load_project()
     except ProjectLockedError:
         return api_error(_LOCKED_ERROR, 401)
-    name = filename
-    if page_idx is not None:
-        pages = project.get('pages', [])
-        if 0 <= page_idx < len(pages) and isinstance(pages[page_idx], dict):
-            resources = pages[page_idx].setdefault('resources', [])
-            if name not in resources:
-                resources.append(name)
+
+    _, _, _, resources_folder, _ = get_project_paths(project_name)
+    os.makedirs(resources_folder, exist_ok=True)
+
+    uploads: list[dict[str, object]] = []
+    pages = project.get('pages') if isinstance(project.get('pages'), list) else []
+
+    def _ensure_page_resources(index: int) -> list[str]:
+        if not isinstance(pages, list) or not (0 <= index < len(pages)) or not isinstance(pages[index], dict):
+            return []
+        res_list = pages[index].setdefault('resources', [])
+        if not isinstance(res_list, list):
+            res_list = pages[index]['resources'] = []
+        return res_list
+
+    project.setdefault('resources', [])
+    if not isinstance(project['resources'], list):
+        project['resources'] = []
+
+    for idx, file_storage in enumerate(files):
+        if not file_storage or file_storage.filename == '':
+            continue
+        raw_path = paths_hint[idx] if idx < len(paths_hint) else file_storage.filename
+        normalized_hint = _normalize_resource_path(raw_path or file_storage.filename)
+        if not normalized_hint:
+            fallback_name = secure_filename(file_storage.filename or f'file_{idx}')
+            normalized_hint = fallback_name or f'file_{idx}'
+        parts = [secure_filename(part) for part in normalized_hint.split('/') if secure_filename(part)]
+        if not parts:
+            fallback = secure_filename(file_storage.filename or f'file_{idx}')
+            if not fallback:
+                continue
+            parts = [fallback]
+
+        rel_path = '/'.join(parts)
+        dest_path = os.path.join(resources_folder, *parts)
+        dest_dir = os.path.dirname(dest_path)
+        os.makedirs(dest_dir, exist_ok=True)
+        if os.path.exists(dest_path):
+            base, ext = os.path.splitext(parts[-1])
+            counter = 1
+            original_base = base or 'file'
+            while True:
+                candidate = secure_filename(f"{original_base}_{counter}{ext}") or f"{original_base}_{counter}{ext}"
+                parts[-1] = candidate
+                rel_path = '/'.join(parts)
+                dest_path = os.path.join(resources_folder, *parts)
+                if not os.path.exists(dest_path):
+                    break
+                counter += 1
+
+        file_storage.save(dest_path)
+        name = parts[-1]
+
+        scope_for_file = effective_scope
+        page_idx = requested_page_idx if scope_for_file == 'page' else None
+        if scope_for_file == 'page' and page_idx is not None:
+            res_list = _ensure_page_resources(page_idx)
+            if rel_path not in res_list:
+                res_list.append(rel_path)
         else:
-            project.setdefault('resources', [])
-            if name not in project['resources']:
-                project['resources'].append(name)
-    else:
-        project.setdefault('resources', [])
-        if name not in project['resources']:
-            project['resources'].append(name)
+            scope_for_file = 'global'
+            if rel_path not in project['resources']:
+                project['resources'].append(rel_path)
+
+        local_url = f'/projects/{project_name}/resources/{rel_path}'
+        oss_url = None
+        if bool(project.get('ossSyncEnabled')) and oss_is_configured():
+            try:
+                oss_url = oss_upload_file(project_name, rel_path, dest_path, category='resources')
+            except Exception as exc:
+                try:
+                    current_app.logger.warning('OSS 上传资源失败 %s: %s', rel_path, exc)
+                except Exception:
+                    pass
+
+        uploads.append({
+            'path': rel_path,
+            'name': name,
+            'scope': scope_for_file,
+            'page': page_idx,
+            'localUrl': local_url,
+            'ossUrl': oss_url,
+            'url': oss_url or local_url,
+        })
+
+    if not uploads:
+        return jsonify({'success': False, 'error': 'No valid files'}), 400
 
     save_project(project)
-    local_url = f'/projects/{project_name}/resources/{name}'
-    oss_url = None
-    if bool(project.get('ossSyncEnabled')) and oss_is_configured():
-        try:
-            oss_url = oss_upload_file(project_name, name, save_path, category='resources')
-        except Exception as exc:
-            try:
-                current_app.logger.warning('OSS 上传资源失败 %s: %s', name, exc)
-            except Exception:
-                pass
-
-    url = local_url or oss_url or ''
-    scope = 'page' if page_idx is not None else 'global'
-    return api_success({
-        'url': url,
-        'preferredUrl': url,
-        'name': name,
-        'scope': scope,
-        'page': page_idx,
-        'localUrl': local_url,
-        'ossUrl': oss_url,
-    })
+    return api_success({'files': uploads, 'scope': effective_scope, 'page': requested_page_idx})
 
 
 def _serve_resource_file(project_name: str, filename: str):
@@ -2679,16 +2733,24 @@ def rename_resource():
     """重命名资源文件并同步更新引用及 OSS。"""
 
     data = request.get_json(silent=True) or request.form or {}
-    old_name = (data.get('oldName') or data.get('from') or data.get('old') or '').strip()
-    new_name = (data.get('newName') or data.get('to') or data.get('name') or '').strip()
-    if not old_name or not new_name:
-        return api_error('oldName and newName required', 400)
-    if any(sep in old_name for sep in ('..', '/', '\\')):
-        return api_error('invalid oldName', 400)
-
-    sanitized_new = secure_filename(new_name)
-    if not sanitized_new:
-        return api_error('invalid newName', 400)
+    raw_old = (
+        data.get('oldPath')
+        or data.get('oldName')
+        or data.get('from')
+        or data.get('old')
+        or ''
+    )
+    raw_new = (
+        data.get('newPath')
+        or data.get('newName')
+        or data.get('to')
+        or data.get('name')
+        or ''
+    )
+    old_value = str(raw_old).strip()
+    new_value = str(raw_new).strip()
+    if not old_value or not new_value:
+        return api_error('oldPath and newPath required', 400)
 
     project_name = get_project_from_request()
     try:
@@ -2699,60 +2761,95 @@ def rename_resource():
     _, _, _, resources_folder, _ = get_project_paths(project_name)
     os.makedirs(resources_folder, exist_ok=True)
 
-    original_path = os.path.join(resources_folder, old_name)
-    if not os.path.exists(original_path):
-        original_path = _find_resource_file(resources_folder, os.path.basename(old_name)) or ''
+    normalized_old = _normalize_resource_path(old_value)
+    if not normalized_old:
+        sanitized = secure_filename(old_value)
+        if not sanitized:
+            return api_error('invalid oldPath', 400)
+        normalized_old = sanitized
 
-    if not original_path or not os.path.exists(original_path):
-        return api_error('file not found', 404)
+    old_abs = os.path.join(resources_folder, *normalized_old.split('/'))
+    if not os.path.exists(old_abs):
+        fallback = _find_resource_file(resources_folder, os.path.basename(normalized_old))
+        if fallback and os.path.exists(fallback):
+            old_abs = fallback
+            rel = os.path.relpath(fallback, resources_folder)
+            normalized_old = _normalize_resource_path(rel)
+        else:
+            return api_error('file not found', 404)
 
     try:
-        common = os.path.commonpath([os.path.abspath(original_path), os.path.abspath(resources_folder)])
+        common = os.path.commonpath([os.path.abspath(old_abs), os.path.abspath(resources_folder)])
     except ValueError:
         return api_error('invalid path', 400)
     if common != os.path.abspath(resources_folder):
         return api_error('invalid path', 400)
 
-    old_base = os.path.basename(original_path)
+    parent_rel = os.path.dirname(normalized_old)
 
-    if old_base == sanitized_new:
+    normalized_new = _normalize_resource_path(new_value)
+    if not normalized_new:
+        sanitized_new = secure_filename(new_value)
+        if not sanitized_new:
+            return api_error('invalid newPath', 400)
+        normalized_new = '/'.join(filter(None, [parent_rel, sanitized_new]))
+    new_abs = os.path.join(resources_folder, *normalized_new.split('/'))
+
+    if os.path.abspath(new_abs) == os.path.abspath(old_abs):
         return api_success({
-            'name': sanitized_new,
-            'localUrl': f"/projects/{project_name}/resources/{os.path.relpath(original_path, resources_folder).replace(os.sep, '/')}"
+            'name': os.path.basename(normalized_new),
+            'path': normalized_new,
+            'localUrl': f"/projects/{project_name}/resources/{normalized_new}",
         })
 
-    target_dir = os.path.dirname(original_path)
-    new_path = os.path.join(target_dir, sanitized_new)
-    if os.path.exists(new_path):
+    if os.path.exists(new_abs):
         return api_error('target filename already exists', 409)
 
+    os.makedirs(os.path.dirname(new_abs), exist_ok=True)
+
     try:
-        os.rename(original_path, new_path)
+        os.rename(old_abs, new_abs)
     except OSError as exc:
         return api_error(str(exc), 500)
 
-    # 更新项目引用的资源名称
-    def _update_names(container: list[str] | None) -> list[str] | None:
+    old_leaf = os.path.basename(normalized_old)
+    new_leaf = os.path.basename(normalized_new)
+
+    def _rewrite_entries(container: list[str] | None) -> list[str] | None:
         if not isinstance(container, list):
             return container
         updated: list[str] = []
         for entry in container:
-            entry_str = str(entry)
-            base = os.path.basename(entry_str)
-            if base == old_base:
-                prefix = entry_str[:-len(base)] if entry_str.endswith(base) else ''
-                updated.append(prefix + sanitized_new)
+            if not isinstance(entry, str):
+                updated.append(entry)
+                continue
+            normalized_entry = _normalize_resource_path(entry)
+            if not normalized_entry:
+                updated.append(entry)
+                continue
+            if normalized_entry in {normalized_old, old_leaf}:
+                updated.append(normalized_new)
             else:
                 updated.append(entry)
-        return updated
+        # 去重，保持顺序
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for item in updated:
+            if isinstance(item, str):
+                marker = _normalize_resource_path(item) or item
+                if marker in seen:
+                    continue
+                seen.add(marker)
+            deduped.append(item)
+        return deduped
 
     if isinstance(project.get('resources'), list):
-        project['resources'] = _update_names(project['resources'])  # type: ignore[assignment]
+        project['resources'] = _rewrite_entries(project['resources'])  # type: ignore[assignment]
 
     if isinstance(project.get('pages'), list):
         for page in project['pages']:
             if isinstance(page, dict) and isinstance(page.get('resources'), list):
-                page['resources'] = _update_names(page['resources'])  # type: ignore[assignment]
+                page['resources'] = _rewrite_entries(page['resources'])  # type: ignore[assignment]
 
     save_project(project)
 
@@ -2760,28 +2857,28 @@ def rename_resource():
     if bool(project.get('ossSyncEnabled')) and oss_is_configured():
         oss_status = {'uploaded': False, 'deleted': False}
         try:
-            oss_upload_file(project_name, sanitized_new, new_path, category='resources')
+            oss_upload_file(project_name, normalized_new, new_abs, category='resources')
             oss_status['uploaded'] = True
         except Exception as exc:
             oss_status['error'] = str(exc)
             try:
-                current_app.logger.warning('OSS 上传资源失败 %s→%s: %s', old_name, sanitized_new, exc)
+                current_app.logger.warning('OSS 上传资源失败 %s→%s: %s', normalized_old, normalized_new, exc)
             except Exception:
                 pass
         try:
-            oss_delete_file(project_name, old_base, category='resources')
+            oss_delete_file(project_name, normalized_old, category='resources')
             oss_status['deleted'] = True
         except Exception as exc:
             oss_status['delete_error'] = str(exc)
             try:
-                current_app.logger.warning('OSS 删除旧资源失败 %s: %s', old_name, exc)
+                current_app.logger.warning('OSS 删除旧资源失败 %s: %s', normalized_old, exc)
             except Exception:
                 pass
 
-    relative_new = os.path.relpath(new_path, resources_folder).replace(os.sep, '/')
     payload = {
-        'name': sanitized_new,
-        'localUrl': f"/projects/{project_name}/resources/{relative_new}",
+        'name': new_leaf,
+        'path': normalized_new,
+        'localUrl': f"/projects/{project_name}/resources/{normalized_new}",
         'ossStatus': oss_status,
     }
     return api_success(payload)
@@ -2951,19 +3048,19 @@ def list_resources():
     except Exception:
         page_idx = None
 
-    names = []
+    names: list[str] = []
     page_id = None
     if page_idx is not None:
         pages = project.get('pages', [])
         if 0 <= page_idx < len(pages) and isinstance(pages[page_idx], dict):
             res_list = pages[page_idx].get('resources', [])
             if isinstance(res_list, list):
-                names = res_list
+                names = [str(name) for name in res_list if isinstance(name, str)]
             page_id = pages[page_idx].get('pageId')
     else:
         res_list = project.get('resources', [])
         if isinstance(res_list, list):
-            names = res_list
+            names = [str(name) for name in res_list if isinstance(name, str)]
 
     usage_map = _collect_resource_usage(project)
     local_map: dict[str, str] = {}
@@ -2971,7 +3068,13 @@ def list_resources():
         for fname in file_names:
             rel_root = os.path.relpath(root, resources_folder)
             rel_path = fname if rel_root in ('.', '') else os.path.join(rel_root, fname)
-            local_map.setdefault(os.path.basename(rel_path), f'/projects/{project_name}/resources/{rel_path.replace(os.sep, "/")}')
+            norm_rel = _normalize_resource_path(rel_path)
+            if not norm_rel:
+                continue
+            local_url = f'/projects/{project_name}/resources/{norm_rel}'
+            local_map.setdefault(norm_rel, local_url)
+            base_name = os.path.basename(norm_rel)
+            local_map.setdefault(base_name, local_url)
 
     remote_map: dict[str, str] = {}
     oss_error: str | None = None
@@ -2980,7 +3083,11 @@ def list_resources():
         try:
             raw_remote = oss_list_files(project_name, category='resources')
             for rel_name, url in raw_remote.items():
-                remote_map.setdefault(os.path.basename(rel_name), url)
+                norm_rel = _normalize_resource_path(rel_name)
+                if not norm_rel:
+                    continue
+                remote_map.setdefault(norm_rel, url)
+                remote_map.setdefault(os.path.basename(norm_rel), url)
         except Exception as exc:
             oss_error = str(exc)
             try:
@@ -2990,12 +3097,21 @@ def list_resources():
 
     files = []
     for name in names:
-        sanitized = os.path.basename(str(name))
+        normalized = _normalize_resource_path(name)
+        if not normalized:
+            sanitized = secure_filename(str(name))
+            normalized = sanitized
+        else:
+            sanitized = os.path.basename(normalized) or normalized
+        local_url = local_map.get(normalized) or local_map.get(sanitized) or ''
+        oss_url = remote_map.get(normalized) or remote_map.get(sanitized) or ''
+        preferred = local_url or oss_url or ''
+        if normalized in usage_map:
+            usage_entry = usage_map[normalized]
+        else:
+            usage_entry = usage_map.get(sanitized, {'pages': set(), 'global': False})
         if not sanitized:
             continue
-        local_url = local_map.get(sanitized)
-        oss_url = remote_map.get(sanitized)
-        preferred = local_url or oss_url or ''
         if local_url and oss_url:
             location = 'synced'
         elif local_url and not oss_url:
@@ -3004,11 +3120,10 @@ def list_resources():
             location = 'oss'
         else:
             location = 'missing'
-        usage_entry = usage_map.get(sanitized, {'pages': set(), 'global': False})
         files.append(
             {
                 'name': sanitized,
-                'path': sanitized,
+                'path': normalized,
                 'url': preferred,
                 'preferredUrl': preferred,
                 'localUrl': local_url,

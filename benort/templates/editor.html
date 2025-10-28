@@ -91,6 +91,99 @@
       color: #38bdf8;
       text-shadow: 0 0 8px rgba(56, 189, 248, 0.48);
     }
+    .mobile-floating-actions {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: calc(clamp(18px, 6vw, 26px) + env(safe-area-inset-bottom, 0px));
+      display: none;
+      flex-direction: column-reverse;
+      align-items: center;
+      gap: clamp(16px, 4vw, 22px);
+      z-index: 1200;
+      pointer-events: none;
+    }
+    .mobile-floating-actions.open,
+    .mobile-floating-actions.force-visible {
+      pointer-events: none;
+    }
+    .mobile-floating-actions .mobile-fab-main {
+      pointer-events: auto;
+      width: clamp(68px, 16vw, 86px);
+      height: clamp(68px, 16vw, 86px);
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.98), rgba(14, 165, 233, 0.95));
+      color: #fff;
+      font-weight: 700;
+      font-size: clamp(17px, 4.8vw, 22px);
+      letter-spacing: 0.06em;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.4);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+    }
+    .mobile-floating-actions .mobile-fab-main:focus-visible,
+    .mobile-floating-actions .mobile-fab-main:hover {
+      transform: scale(1.05);
+      box-shadow: 0 26px 48px rgba(15, 23, 42, 0.46);
+    }
+    .mobile-floating-actions .mobile-fab-main[aria-expanded="true"] {
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.95), rgba(59, 130, 246, 0.98));
+    }
+    .mobile-floating-actions .mobile-fab-menu {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(12px, 3.4vw, 18px);
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+      transition: opacity 0.22s ease, transform 0.22s ease;
+      pointer-events: none;
+    }
+    .mobile-floating-actions.open .mobile-fab-menu {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+    .mobile-floating-actions .mobile-fab-btn {
+      pointer-events: auto;
+      min-width: clamp(160px, 48vw, 220px);
+      padding: clamp(12px, 3.4vw, 16px) clamp(14px, 4vw, 20px);
+      border-radius: 18px;
+      border: none;
+      background: rgba(15, 23, 42, 0.92);
+      color: #f8fafc;
+      font-weight: 600;
+      font-size: clamp(15px, 4.2vw, 19px);
+      box-shadow: 0 16px 32px rgba(15, 23, 42, 0.35);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35em;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+    }
+    .mobile-floating-actions .mobile-fab-btn[data-variant="accent"] {
+      background: linear-gradient(135deg, rgba(234, 179, 8, 0.94), rgba(249, 115, 22, 0.92));
+      color: #fffdf5;
+    }
+    .mobile-floating-actions .mobile-fab-btn[data-variant="secondary"] {
+      background: linear-gradient(135deg, rgba(15, 118, 110, 0.92), rgba(56, 189, 248, 0.92));
+    }
+    .mobile-floating-actions .mobile-fab-btn[data-variant="neutral"] {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 64, 175, 0.9));
+    }
+    .mobile-floating-actions .mobile-fab-btn:focus-visible,
+    .mobile-floating-actions .mobile-fab-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 20px 36px rgba(15, 23, 42, 0.45);
+    }
+    .mobile-floating-actions .mobile-fab-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      filter: grayscale(0.1);
+    }
     #editor-container,
     #pdf-container,
     #markdown-preview {
@@ -771,18 +864,53 @@
       cursor: grabbing;
     }
     @media (max-width: 1024px) {
-      body.mobile-compact nav.navbar .navbar-nav > li { display: none !important; }
-      body.mobile-compact nav.navbar .navbar-nav > li.mobile-allowed { display: flex !important; align-items: center; justify-content: center; }
-      body.mobile-compact nav.navbar .navbar-nav > li hr { display: none !important; }
-      body.mobile-compact #project-dropdown { display: none !important; }
-      body.mobile-compact nav.navbar .navbar-nav { width: 100%; justify-content: center; }
-      body.mobile-compact nav.navbar .navbar-nav > li.mobile-allowed { margin: 0 auto; width: 100%; padding: 0 12px; }
-      body.mobile-compact .mobile-page-control-group { width: 100%; gap: 0.85rem; }
-      body.mobile-compact .mobile-page-control-group .mobile-page-btn { flex: 1; padding: 16px 0; font-size: 1.25rem; border-radius: 1.8rem; }
-      body.mobile-compact .mobile-page-control-group #page-status { flex: 1.3; }
+      body.mobile-compact nav.navbar { display: none !important; }
       body.mobile-compact .preview-pane { display: none !important; }
-      body.mobile-compact .editor-pane { flex: 1 1 100%; max-width: 100%; padding: 0 8px 16px; }
-      body.mobile-compact #pages-list { padding: 6px 0; }
+      body.mobile-compact .markdown-sync-toggle-wrapper { display: none !important; }
+      body.mobile-compact.mobile-preview-active .preview-pane { display: flex !important; }
+      body.mobile-compact.mobile-preview-active .editor-pane { display: none !important; }
+      body.mobile-compact .mobile-top-bar {
+        display: flex;
+        position: sticky;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1150;
+        padding: clamp(14px, 5.2vw, 22px) clamp(16px, 6vw, 28px);
+        padding-top: calc(clamp(14px, 5.2vw, 22px) + env(safe-area-inset-top, 0px));
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 64, 175, 0.92));
+        color: #f8fafc;
+        align-items: center;
+        justify-content: space-between;
+        gap: clamp(12px, 4vw, 20px);
+        border-bottom-left-radius: 18px;
+        border-bottom-right-radius: 18px;
+        box-shadow: 0 18px 32px rgba(15, 23, 42, 0.38);
+      }
+      body.mobile-compact .mobile-top-bar__project {
+        font-size: clamp(16px, 4.5vw, 19px);
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        flex: 1 1 auto;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      body.mobile-compact .mobile-top-bar__page {
+        font-size: clamp(15px, 4.2vw, 18px);
+        font-weight: 500;
+        opacity: 0.9;
+      }
+      body.mobile-compact .mobile-top-bar__mode {
+        font-size: clamp(14px, 3.8vw, 17px);
+        background: rgba(148, 163, 184, 0.22);
+        padding: clamp(6px, 2.5vw, 10px) clamp(10px, 3.2vw, 14px);
+        border-radius: 999px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+      }
+      body.mobile-compact .editor-pane { flex: 1 1 100%; max-width: 100%; padding: clamp(18px, 5vw, 26px); }
+      body.mobile-compact #pages-list { padding: clamp(10px, 3vw, 16px) 0; }
       body.mobile-compact #project-search-btn,
       body.mobile-compact #mode-switch-btn,
       body.mobile-compact #add-page,
@@ -800,21 +928,75 @@
       body.mobile-compact #manage-sync,
       body.mobile-compact .page-script-container { display: none !important; }
       body.mobile-compact .js-nav-btn { font-size: 1.1rem; border-radius: 1.5rem; }
+      body.mobile-compact #editor-container {
+        height: calc(100vh - clamp(180px, 33vw, 240px));
+        border-radius: 22px;
+        border: none;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 24px 42px rgba(15, 23, 42, 0.28);
+        overflow: hidden;
+      }
+      body.theme-dark.mobile-compact #editor-container {
+        background: rgba(15, 23, 42, 0.92);
+        box-shadow: 0 24px 42px rgba(9, 14, 22, 0.55);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+      }
       body.mobile-compact .CodeMirror,
       body.mobile-compact .CodeMirror-scroll {
-        font-size: clamp(1.15rem, 4.5vw, 1.35rem);
+        font-size: clamp(19px, 4.8vw, 22px);
+        line-height: 1.9;
       }
-      body.mobile-compact .CodeMirror { min-height: 72vh; border-radius: 1.2rem; }
-      body.mobile-compact .CodeMirror pre { font-size: inherit; line-height: 1.7; }
-      body.mobile-compact .CodeMirror-scroll { padding: 14px 18px; }
+      body.mobile-compact .CodeMirror {
+        min-height: 100%;
+        border-radius: 0;
+        background: transparent;
+      }
+      body.mobile-compact .CodeMirror pre {
+        font-size: inherit;
+        line-height: inherit;
+        padding: 0;
+      }
+      body.mobile-compact .CodeMirror-scroll {
+        padding: clamp(20px, 5.6vw, 28px) clamp(22px, 6.2vw, 32px);
+      }
       body.mobile-compact textarea.form-control {
-        font-size: clamp(1.15rem, 4.5vw, 1.35rem);
-        line-height: 1.7;
-        border-radius: 1.2rem;
-        padding: 16px 18px;
+        font-size: clamp(19px, 4.6vw, 22px);
+        line-height: 1.9;
+        border-radius: 20px;
+        padding: clamp(18px, 5vw, 26px) clamp(20px, 5.6vw, 30px);
       }
-      body.mobile-compact .editor-pane textarea::placeholder { font-size: clamp(1rem, 3.6vw, 1.1rem); }
-      body.mobile-compact #pages-list .CodeMirror { box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18); }
+      body.mobile-compact .editor-pane textarea::placeholder { font-size: clamp(17px, 4.1vw, 20px); }
+      body.mobile-compact #markdown-preview {
+        border-radius: 24px;
+        border: none;
+        background: rgba(250, 250, 252, 0.96);
+        box-shadow: 0 24px 42px rgba(15, 23, 42, 0.24);
+        padding: clamp(22px, 5.5vw, 32px) clamp(24px, 6vw, 36px);
+        height: calc(100vh - clamp(180px, 33vw, 240px));
+        overflow-y: auto;
+      }
+      body.theme-dark.mobile-compact #markdown-preview {
+        background: rgba(15, 23, 42, 0.94);
+        box-shadow: 0 24px 42px rgba(9, 14, 22, 0.55);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+      }
+      body.mobile-compact #markdown-preview-content {
+        font-size: clamp(18px, 4.4vw, 22px);
+        line-height: 1.9;
+      }
+      body.mobile-compact #markdown-preview-content h1,
+      body.mobile-compact #markdown-preview-content h2,
+      body.mobile-compact #markdown-preview-content h3 {
+        margin-top: clamp(20px, 5vw, 28px);
+        margin-bottom: clamp(12px, 3.2vw, 16px);
+      }
+      body.mobile-compact #markdown-preview-content p,
+      body.mobile-compact #markdown-preview-content li {
+        margin-bottom: clamp(12px, 3.6vw, 18px);
+      }
+      body.mobile-compact #editor-preview-wrapper {
+        padding-top: clamp(16px, 5vw, 24px);
+      }
       body.mobile-compact #tabsModal .modal-dialog { max-width: 95vw; margin: 1.5rem auto; }
       body.mobile-compact #tabsModal .modal-content { border-radius: 1.25rem; padding: 18px 16px; }
       body.mobile-compact #page-tabs { gap: 1rem; justify-content: center; }
@@ -827,6 +1009,9 @@
       body.mobile-compact #tabs-actions,
       body.mobile-compact #tabs-actions-hint {
         display: none !important;
+      }
+      body.mobile-compact .mobile-floating-actions {
+        display: flex;
       }
     }
   </style>
@@ -844,7 +1029,7 @@
         </ul>
       </div>
     </div>
-  <div class="navbar-collapse show ms-3">
+    <div class="navbar-collapse show ms-3">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
 
         <li class="nav-item mobile-allowed">
@@ -865,21 +1050,25 @@
         <li class="nav-item"><button class="btn btn-outline-info me-2 js-nav-btn" id="edit-template" title="编辑LaTeX样式模板">样式</button></li>
         <li><hr class="dropdown-divider m-1"></li>
 
-  <li class="nav-item"><button class="btn btn-outline-success me-2 js-nav-btn" id="export-btn" title="导出">导出</button></li>
+        <li class="nav-item"><button class="btn btn-outline-success me-2 js-nav-btn" id="export-btn" title="导出">导出</button></li>
         <li><hr class="dropdown-divider m-1"></li>
 
         <li class="nav-item"><button class="btn btn-outline-danger me-2 js-nav-btn" id="ai-optimize" title="Latex优化">tex优化</button></li>
-  <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-note-optimize" title="Markdown优化">md优化</button></li>
-  <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-script-optimize" title="Speech script优化">script优化</button></li>
-  <li class="nav-item"><button class="btn btn-outline-success me-2 js-nav-btn" id="ai-learn-helper" title="AI学习助手">ai助理</button></li>
+        <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-note-optimize" title="Markdown优化">md优化</button></li>
+        <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-script-optimize" title="Speech script优化">script优化</button></li>
+        <li class="nav-item"><button class="btn btn-outline-success me-2 js-nav-btn" id="ai-learn-helper" title="AI学习助手">ai助理</button></li>
         <li><hr class="dropdown-divider m-1"></li>
-  <li class="nav-item"><button class="btn btn-outline-dark me-2 js-nav-btn" id="play-note" title="播放当前页讲稿">播放讲稿</button></li>
+        <li class="nav-item"><button class="btn btn-outline-dark me-2 js-nav-btn" id="play-note" title="播放当前页讲稿">播放讲稿</button></li>
         <li><hr class="dropdown-divider m-1"></li>
 
         <li class="nav-item"><button class="btn btn-outline-primary me-2 js-nav-btn" id="edit-bib" title="管理文献">管理文献</button></li>
         <li class="nav-item"><button class="btn btn-outline-primary me-2 js-nav-btn" id="manage-resources" title="管理资源">管理资源</button></li>
         <li class="nav-item"><button class="btn btn-outline-primary me-2 js-nav-btn" id="manage-attachments" title="管理附件">管理附件</button></li>
         <li class="nav-item"><button class="btn btn-outline-primary me-2 js-nav-btn" id="manage-sync" title="OSS 同步设置">同步设置</button></li>
+      </ul>
+    </div>
+  </div>
+</nav>
 
       <div class="modal fade" id="bibModal" tabindex="-1" aria-labelledby="bibModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -1525,7 +1714,6 @@
         </div>
       </div>
     </div>
-
     <div class="markdown-sync-toggle-wrapper">
       <button type="button" id="markdown-sync-toggle" class="markdown-sync-toggle" aria-label="切换 Markdown 编辑器与预览的同步滚动" aria-pressed="false">
         <span aria-hidden="true">
@@ -1638,6 +1826,35 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="mobileProjectModal" tabindex="-1" aria-labelledby="mobileProjectModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="mobileProjectModalLabel">选择项目</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="mobile-project-list" class="list-group">
+          <div class="list-group-item text-center text-muted">加载中...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="mobile-attachment-input" class="d-none" accept="image/*,application/pdf" capture="environment" />
+<div id="mobile-floating-actions" class="mobile-floating-actions" data-open="false">
+  <div class="mobile-fab-menu" id="mobile-fab-menu">
+    <button type="button" class="mobile-fab-btn" id="mobile-fab-project" title="切换项目">切换项目</button>
+    <button type="button" class="mobile-fab-btn" data-variant="secondary" id="mobile-fab-next" title="下一页">下一页</button>
+    <button type="button" class="mobile-fab-btn" data-variant="accent" id="mobile-fab-prev" title="上一页">上一页</button>
+    <button type="button" class="mobile-fab-btn" data-variant="neutral" id="mobile-fab-toggle-preview" title="切换编辑/预览">切换预览</button>
+    <button type="button" class="mobile-fab-btn" data-variant="neutral" id="mobile-fab-upload" title="拍照或上传附件">上传附件</button>
+  </div>
+  <button type="button" class="mobile-fab-main" id="mobile-main-fab" aria-expanded="false" title="当前页">1 / 1</button>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/stex/stex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/markdown/markdown.min.js"></script>
@@ -1719,23 +1936,65 @@
     }
   }
 
-  
+
   function updatePageNumLabel() {
-    document.getElementById('page-num').textContent = currentPageIdx+1;
-    document.getElementById('page-count').textContent = pagesData.length;
+    const pageNumEl = document.getElementById('page-num');
+    const pageCountEl = document.getElementById('page-count');
+    const totalPages = Array.isArray(pagesData) ? pagesData.length : 0;
+    const currentPageNumber = totalPages ? Math.min(currentPageIdx + 1, totalPages) : 0;
+    if(pageNumEl) pageNumEl.textContent = currentPageNumber;
+    if(pageCountEl) pageCountEl.textContent = totalPages;
+    updateMobileUiState();
   }
 
-  function jumpToPage(targetIdx) {
-    if (!Array.isArray(pagesData) || !pagesData.length) return;
-    let idx = Number(targetIdx);
-    if (!Number.isFinite(idx)) idx = 0;
-    idx = Math.trunc(idx);
-    if (idx < 0) idx = 0;
-    if (idx >= pagesData.length) idx = pagesData.length - 1;
-    if (idx === currentPageIdx) return;
-    currentPageIdx = idx;
-    renderSingleEditor();
-    updatePageNumLabel();
+function jumpToPage(targetIdx) {
+  if (!Array.isArray(pagesData) || !pagesData.length) return;
+  let idx = Number(targetIdx);
+  if (!Number.isFinite(idx)) idx = 0;
+  idx = Math.trunc(idx);
+  if (idx < 0) idx = 0;
+  if (idx >= pagesData.length) idx = pagesData.length - 1;
+  if (idx === currentPageIdx) return;
+  currentPageIdx = idx;
+  renderSingleEditor();
+  updatePageNumLabel();
+  refreshPreview();
+}
+
+  function updateMobileUiState() {
+    const totalPages = Math.max(Array.isArray(pagesData) ? pagesData.length : 0, 1);
+    const currentPageNumber = Math.min(currentPageIdx + 1, totalPages);
+
+    if(mobileMainFab){
+      mobileMainFab.textContent = `${currentPageNumber} / ${totalPages}`;
+      mobileMainFab.title = `当前：第 ${currentPageNumber} / ${totalPages} 页，点击展开快捷操作`;
+    }
+    if(mobileFabPrev){
+      mobileFabPrev.disabled = currentPageNumber <= 1;
+      mobileFabPrev.title = currentPageNumber <= 1 ? '已经是第一页' : '上一页';
+    }
+    if(mobileFabNext){
+      mobileFabNext.disabled = currentPageNumber >= totalPages;
+      mobileFabNext.title = currentPageNumber >= totalPages ? '已经是最后一页' : '下一页';
+    }
+    if(mobileFabProject){
+      const meta = (typeof getProjectMeta === 'function') ? getProjectMeta(currentProject) : {};
+      const suffix = meta && meta.locked ? (meta.unlocked ? '（已解锁）' : '（已加密）') : '';
+      mobileFabProject.title = currentProject ? `当前项目：${currentProject}${suffix}，点击切换` : '切换项目';
+      mobileFabProject.textContent = currentProject ? `项目：${currentProject}` : '切换项目';
+    }
+    if(mobileFabTogglePreview){
+      const canToggle = currentEditMode === 'markdown';
+      mobileFabTogglePreview.disabled = !canToggle;
+      mobileFabTogglePreview.textContent = mobilePreviewActive ? '返回编辑' : '切换预览';
+      mobileFabTogglePreview.title = canToggle ? (mobilePreviewActive ? '返回编辑视图' : '切换到预览视图') : 'LaTeX 模式不支持预览切换';
+    }
+    if(mobileFabUpload){
+      mobileFabUpload.title = '拍照或上传附件';
+    }
+    if(mobileFloatingActions && !document.body.classList.contains('mobile-compact')){
+      setMobileFabOpen(false);
+    }
   }
 
   
@@ -1911,6 +2170,7 @@
   let isMobileCompactView = false;
   let mobileEditingDisabled = false;
   let mobileWarnedProject = '';
+  let mobilePreviewActive = false;
   let markdownHeadingHighlightTimer = null;
   let markdownHeadingActiveEl = null;
 
@@ -1994,7 +2254,160 @@
   const ossSyncRunBtn = document.getElementById('oss-sync-run');
   const searchInputEl = document.getElementById('search-modal-input');
   const searchSubmitBtn = document.getElementById('search-modal-submit');
+  const mobileFloatingActions = document.getElementById('mobile-floating-actions');
+  const mobileMainFab = document.getElementById('mobile-main-fab');
+  const mobileFabMenu = document.getElementById('mobile-fab-menu');
+  const mobileFabProject = document.getElementById('mobile-fab-project');
+  const mobileFabNext = document.getElementById('mobile-fab-next');
+  const mobileFabPrev = document.getElementById('mobile-fab-prev');
+  const mobileFabTogglePreview = document.getElementById('mobile-fab-toggle-preview');
+  const mobileFabUpload = document.getElementById('mobile-fab-upload');
+  const mobileAttachmentInput = document.getElementById('mobile-attachment-input');
+  const mobileProjectModalEl = document.getElementById('mobileProjectModal');
+  const mobileProjectList = document.getElementById('mobile-project-list');
+
+  function setMobileFabOpen(opened) {
+    if(!mobileFloatingActions || !mobileMainFab) return;
+    const isOpen = !!opened;
+    mobileFloatingActions.classList.toggle('open', isOpen);
+    mobileFloatingActions.dataset.open = isOpen ? 'true' : 'false';
+    mobileMainFab.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  }
+
+  function toggleMobileFabMenu() {
+    if(!mobileFloatingActions) return;
+    const currentlyOpen = mobileFloatingActions.classList.contains('open');
+    setMobileFabOpen(!currentlyOpen);
+  }
+
+  function closeMobileFabMenu() {
+    if(!mobileFloatingActions) return;
+    if(!mobileFloatingActions.classList.contains('open')) return;
+    setMobileFabOpen(false);
+  }
+
+  if(mobileMainFab){
+    mobileMainFab.addEventListener('click', () => {
+      toggleMobileFabMenu();
+    });
+  }
+
+  if(mobileFabProject){
+    mobileFabProject.addEventListener('click', () => {
+      closeMobileFabMenu();
+      renderMobileProjectList();
+      if(mobileProjectModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal){
+        const modal = bootstrap.Modal.getOrCreateInstance(mobileProjectModalEl);
+        modal.show();
+      } else {
+        showStatus('当前界面不支持切换项目', 'danger', 5000);
+      }
+    });
+  }
+
+  if(mobileFabPrev){
+    mobileFabPrev.addEventListener('click', () => {
+      closeMobileFabMenu();
+      if(typeof goToPrevPage === 'function'){
+        goToPrevPage();
+      } else {
+        goToPrevPageMobile();
+      }
+    });
+  }
+
+  if(mobileFabNext){
+    mobileFabNext.addEventListener('click', () => {
+      closeMobileFabMenu();
+      if(typeof goToNextPage === 'function'){
+        goToNextPage();
+      } else {
+        goToNextPageMobile();
+      }
+    });
+  }
+
+  if(mobileFabTogglePreview){
+    mobileFabTogglePreview.addEventListener('click', () => {
+      closeMobileFabMenu();
+      setMobilePreviewActive(!mobilePreviewActive);
+    });
+  }
+
+  if(mobileFabUpload && mobileAttachmentInput){
+    mobileFabUpload.addEventListener('click', () => {
+      closeMobileFabMenu();
+      mobileAttachmentInput.click();
+    });
+  }
+
+  if(mobileAttachmentInput){
+    mobileAttachmentInput.addEventListener('change', handleMobileAttachmentSelection);
+  }
+  function goToPrevPageMobile(){
+    if(currentPageIdx > 0){
+      currentPageIdx -= 1;
+      renderSingleEditor();
+      refreshPreview();
+      updatePageNumLabel();
+    }
+  }
+
+  function goToNextPageMobile(){
+    const total = Array.isArray(pagesData) ? pagesData.length : 0;
+    if(currentPageIdx < total - 1){
+      currentPageIdx += 1;
+      renderSingleEditor();
+      refreshPreview();
+      updatePageNumLabel();
+    }
+  }
+
+  const prevPageBtn = document.getElementById('prev-page');
+  if(prevPageBtn){
+    prevPageBtn.addEventListener('click', () => {
+      if(typeof goToPrevPage === 'function'){
+        goToPrevPage();
+      } else {
+        goToPrevPageMobile();
+      }
+    });
+  }
+  const nextPageBtn = document.getElementById('next-page');
+  if(nextPageBtn){
+    nextPageBtn.addEventListener('click', () => {
+      if(typeof goToNextPage === 'function'){
+        goToNextPage();
+      } else {
+        goToNextPageMobile();
+      }
+    });
+  }
+
+  if(mobilePrevPageBubble){
+    mobilePrevPageBubble.addEventListener('click', () => {
+      if(typeof goToPrevPage === 'function'){
+        goToPrevPage();
+      } else {
+        goToPrevPageMobile();
+      }
+    });
+  }
+  if(mobileNextPageBubble){
+    mobileNextPageBubble.addEventListener('click', () => {
+      const total = Array.isArray(pagesData) ? pagesData.length : 0;
+      if(typeof goToNextPage === 'function'){
+        goToNextPage();
+      } else {
+        goToNextPageMobile();
+      }
+    });
+  }
+  if(mobileAttachmentInput){
+    mobileAttachmentInput.addEventListener('change', handleMobileAttachmentSelection);
+  }
   let projectMetadata = {};
+  let projectListCache = [];
   let projectRenameTarget = '';
   let projectDeleteTarget = '';
   let projectPasswordTarget = '';
@@ -2480,22 +2893,12 @@
           badge.textContent = meta.unlocked ? '已解锁' : '需密码';
           btn.appendChild(badge);
         }
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
           menu.querySelectorAll('.dropdown-item').forEach(item => item.classList.remove('active'));
           btn.classList.add('active');
-          currentProject = name;
-          currentPageIdx = 0;
-          handleLearningProjectSwitch(name);
-          updateProjectButtonLabel();
-          const metaNow = getProjectMeta(name);
-          if(metaNow.locked && !metaNow.unlocked){
-            closeProjectDropdown();
-            showStatus('项目已加密，请输入密码后继续', 'warning', 6000);
-            openProjectUnlockModal(name);
-            return;
-          }
-          closeProjectDropdown();
-          loadProject();
+          await selectProjectByName(name, {closeDropdown: true}).catch(err => {
+            console.error('切换项目失败:', err);
+          });
         });
         li.appendChild(btn);
         menu.appendChild(li);
@@ -2563,6 +2966,76 @@
       label: '锁定当前项目',
       handler: lockCurrentProject,
       disabled: !(hasProject && locked && unlocked),
+    });
+  }
+
+  async function selectProjectByName(name, options = {}) {
+    if(!name) return;
+    const closeDropdown = !!options.closeDropdown;
+    const modalInstance = options.modal && typeof options.modal.hide === 'function' ? options.modal : null;
+    currentProject = name;
+    currentPageIdx = 0;
+    handleLearningProjectSwitch(name);
+    updateProjectButtonLabel();
+    if(closeDropdown) {
+      closeProjectDropdown();
+    }
+    const metaNow = getProjectMeta(name);
+    if(metaNow.locked && !metaNow.unlocked){
+      if(modalInstance){
+        try { modalInstance.hide(); } catch (_) {}
+      }
+      showStatus('项目已加密，请输入密码后继续', 'warning', 6000);
+      openProjectUnlockModal(name);
+      return;
+    }
+    if(modalInstance){
+      try { modalInstance.hide(); } catch (_) {}
+    }
+    try{
+      await loadProject();
+    }catch(err){
+      console.error('切换项目失败:', err);
+      showStatus('切换项目失败：' + (err && err.message ? err.message : '未知错误'), 'danger', 6000);
+    }
+  }
+
+  function renderMobileProjectList(){
+    if(!mobileProjectList) return;
+    mobileProjectList.innerHTML = '';
+    if(!Array.isArray(projectListCache) || !projectListCache.length){
+      const empty = document.createElement('div');
+      empty.className = 'list-group-item text-center text-muted';
+      empty.textContent = '暂无可用项目';
+      mobileProjectList.appendChild(empty);
+      return;
+    }
+    projectListCache.forEach(name => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+      if(name === currentProject){
+        item.classList.add('active');
+      }
+      const label = document.createElement('span');
+      label.textContent = name;
+      item.appendChild(label);
+      const meta = getProjectMeta(name);
+      if(meta.locked){
+        const badge = document.createElement('span');
+        badge.className = 'badge rounded-pill ' + (meta.unlocked ? 'bg-success' : 'bg-warning text-dark');
+        badge.textContent = meta.unlocked ? '已解锁' : '需密码';
+        item.appendChild(badge);
+      }
+      item.addEventListener('click', async () => {
+        const modal = (mobileProjectModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal)
+          ? bootstrap.Modal.getOrCreateInstance(mobileProjectModalEl)
+          : null;
+        await selectProjectByName(name, {modal}).catch(err => {
+          console.error('切换项目失败:', err);
+        });
+      });
+      mobileProjectList.appendChild(item);
     });
   }
 
@@ -2693,6 +3166,7 @@
     if(!currentProject){
       btn.textContent = 'Benort';
       renderProjectActionsSection(document.getElementById('project-menu'));
+      updateMobileUiState();
       return;
     }
     const meta = getProjectMeta(currentProject);
@@ -2702,6 +3176,7 @@
     }
     btn.textContent = `Benort · ${currentProject}${suffix}`;
     renderProjectActionsSection(document.getElementById('project-menu'));
+    updateMobileUiState();
   }
 
   function normalizeTemplateText(text) {
@@ -3578,7 +4053,21 @@ function syncMarkdownEditorToPreview(container) {
     markdownScrollSyncState.previewHandler = handler;
   }
 
+  function shouldShowMarkdownSyncToggle() {
+    if (typeof window === 'undefined') return false;
+    if (document.body.classList.contains('mobile-compact')) return false;
+    if (currentEditMode !== 'markdown') return false;
+    const previewPane = document.querySelector('.preview-pane');
+    if (!previewPane) return false;
+    const style = window.getComputedStyle(previewPane);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    const rect = previewPane.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    return true;
+  }
+
   function updateMarkdownSyncVisualState() {
+    const showToggle = shouldShowMarkdownSyncToggle();
     const button = markdownScrollSyncState.button || document.getElementById('markdown-sync-toggle');
     if (button) {
       markdownScrollSyncState.button = button;
@@ -3589,8 +4078,10 @@ function syncMarkdownEditorToPreview(container) {
       const label = isEnabled ? '已启用 Markdown 同步滚动，点击可关闭' : '点击启用 Markdown 与预览同步滚动';
       button.setAttribute('title', label);
       button.setAttribute('aria-label', label);
+      button.style.display = showToggle ? '' : 'none';
+      button.disabled = !showToggle;
     }
-    const shouldGlow = !!markdownScrollSyncState.enabled && currentEditMode === 'markdown';
+    const shouldGlow = !!markdownScrollSyncState.enabled && currentEditMode === 'markdown' && showToggle;
     const editorContainer = document.getElementById('editor-container');
     const markdownContainer = document.getElementById('markdown-preview');
     [editorContainer, markdownContainer].forEach(el => {
@@ -4311,10 +4802,19 @@ function syncMarkdownEditorToPreview(container) {
     if (currentEditMode === mode) return;
     currentEditMode = mode;
     renderSingleEditor();
+    if (currentEditMode !== 'markdown' && mobilePreviewActive) {
+      mobilePreviewActive = false;
+      applyMobilePreviewState();
+    }
+    updateMobileUiState();
+    updateMarkdownSyncVisualState();
   }
 
   updateModeToggleUI();
-  window.addEventListener('resize', syncPaneHeights);
+  window.addEventListener('resize', () => {
+    syncPaneHeights();
+    updateMarkdownSyncVisualState();
+  });
   initMarkdownScrollSyncToggle();
   
   function renderTabsModal() {
@@ -4373,28 +4873,50 @@ function syncMarkdownEditorToPreview(container) {
       }
       const scriptEl = document.getElementById('page-script');
       if (scriptEl) scriptEl.disabled = false;
+      applyMobilePreviewState();
       return;
     }
-    const isDefaultProject = !currentProject || currentProject === 'default';
     navButtons.forEach(btn => {
       if (!btn) return;
-      const allow = isDefaultProject && (btn.id === 'prev-page' || btn.id === 'next-page' || btn.id === 'page-status');
-      btn.disabled = !allow;
+      btn.disabled = false;
     });
     const scriptEl = document.getElementById('page-script');
     if (scriptEl) scriptEl.disabled = true;
-    if (!isDefaultProject) {
-      if (mobileWarnedProject !== currentProject) {
-        showStatus('移动端仅支持 default 项目，功能暂不可用。', 'warning', 3500);
-        mobileWarnedProject = currentProject;
-      }
-      mobileEditingDisabled = true;
-    } else {
-      mobileEditingDisabled = false;
-      mobileWarnedProject = '';
-    }
+    mobileEditingDisabled = false;
+    mobileWarnedProject = '';
     if (singleEditor) {
-      singleEditor.setOption('readOnly', mobileEditingDisabled ? 'nocursor' : false);
+      singleEditor.setOption('readOnly', false);
+    }
+    applyMobilePreviewState();
+  }
+
+  function applyMobilePreviewState() {
+    const active = isMobileCompactView && mobilePreviewActive;
+    document.body.classList.toggle('mobile-preview-active', active);
+    if (mobilePreviewBubbleLabel) {
+      mobilePreviewBubbleLabel.textContent = active ? '编辑' : '预览';
+    }
+    if (mobilePreviewBubble) {
+      mobilePreviewBubble.setAttribute('aria-pressed', active ? 'true' : 'false');
+      mobilePreviewBubble.title = active ? '返回编辑视图' : '切换到预览视图';
+    }
+    updateMobileUiState();
+    updateMarkdownSyncVisualState();
+  }
+
+  function setMobilePreviewActive(active) {
+    const boolActive = !!active;
+    if (mobilePreviewActive === boolActive && document.body.classList.contains('mobile-preview-active') === (isMobileCompactView && boolActive)) {
+      if (boolActive) refreshPreview();
+      return;
+    }
+    mobilePreviewActive = boolActive;
+    applyMobilePreviewState();
+    if (boolActive) {
+      refreshPreview();
+    }
+    if(document.body.classList.contains('mobile-compact')){
+      showStatus(boolActive ? '已切换到移动预览视图' : '已切换回编辑视图', 'info', 1800);
     }
   }
 
@@ -4413,6 +4935,8 @@ function syncMarkdownEditorToPreview(container) {
         if (singleEditor) singleEditor.setOption('readOnly', false);
       }
       updateMobileControlStates();
+      updateMobileUiState();
+      updateMarkdownSyncVisualState();
       return;
     }
     isMobileCompactView = boolEnabled;
@@ -4428,8 +4952,14 @@ function syncMarkdownEditorToPreview(container) {
       if (singleEditor) {
         singleEditor.setOption('readOnly', false);
       }
+      if (mobilePreviewActive) {
+        mobilePreviewActive = false;
+        applyMobilePreviewState();
+      }
     }
     updateMobileControlStates();
+    updateMobileUiState();
+    updateMarkdownSyncVisualState();
   }
 
   function applyMobileRestrictions() {
@@ -4571,6 +5101,100 @@ function syncMarkdownEditorToPreview(container) {
           console.warn('刷新附件列表失败', refreshErr);
         }
       }
+    }
+  }
+
+  async function handleMobileAttachmentSelection(event) {
+    const input = event && event.target && event.target.files ? event.target : mobileAttachmentInput;
+    if(!input) return;
+    const files = Array.from(input.files || []);
+    if(!files.length) return;
+    showStatus(files.length > 1 ? `正在上传 ${files.length} 个附件...` : '正在上传附件...', 'info', 2200);
+    if(mobileUploadBubble){
+      mobileUploadBubble.disabled = true;
+      mobileUploadBubble.classList.add('disabled');
+    }
+    try{
+      for(const file of files){
+        if(!file) continue;
+        await uploadMobileAttachmentForMobile(file);
+      }
+    }finally{
+      try{ input.value = ''; }catch(_){}
+      if(mobileUploadBubble){
+        mobileUploadBubble.disabled = false;
+        mobileUploadBubble.classList.remove('disabled');
+      }
+    }
+  }
+
+  async function uploadMobileAttachmentForMobile(file) {
+    if(!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    const endpoint = buildApiUrl('/mobile/attachments/upload');
+    let response;
+    try{
+      response = await fetch(endpoint, {method: 'POST', body: fd});
+    }catch(err){
+      console.error('附件上传失败', err);
+      showStatus('上传附件失败：' + (err && err.message ? err.message : '网络错误'), 'danger', 5000);
+      return;
+    }
+    const parsed = await parseJsonSafe(response);
+    if(response.ok && (!parsed.json || parsed.json.success !== false)){
+      const payload = parsed.json || {};
+      let snippet = typeof payload.snippet === 'string' ? payload.snippet : '';
+      if(!snippet && Array.isArray(payload.attachments)){
+        const lines = payload.attachments.map(item => {
+          if(!item) return '';
+          const url = item.preferredUrl || item.url || item.localUrl || item.ossUrl;
+          const name = item.name || '';
+          if(!url) return '';
+          return `![${name}](${url})`;
+        }).filter(Boolean);
+        if(lines.length){
+          snippet = lines.join('\n') + '\n';
+        }
+      }
+      if(singleEditor && snippet){
+        if(typeof currentEditMode === 'string' && currentEditMode !== 'markdown' && typeof setEditMode === 'function'){
+          setEditMode('markdown');
+        }
+        const doc = singleEditor.getDoc();
+        const cursor = doc.getCursor();
+        doc.replaceRange(snippet, cursor);
+        const endIndex = doc.indexFromPos(cursor) + snippet.length;
+        const endPos = doc.posFromIndex(endIndex);
+        doc.setCursor(endPos);
+      }
+      const statusMessage = (payload && typeof payload.message === 'string' && payload.message.trim()) ? payload.message : '附件已上传并插入引用';
+      const rawLevel = (payload && typeof payload.level === 'string') ? payload.level.toLowerCase() : 'success';
+      const allowedLevels = new Set(['success', 'warning', 'info', 'danger']);
+      const displayLevel = allowedLevels.has(rawLevel) ? rawLevel : 'success';
+      const displayDuration = displayLevel === 'warning' ? 4500 : 3200;
+      showStatus(statusMessage, displayLevel, displayDuration);
+      queueCompile();
+  if(mobilePreviewActive){
+        refreshPreview();
+        showStatus('已切换到移动预览视图', 'info', 1800);
+      } else {
+        showStatus('已切换回编辑视图', 'info', 1800);
+      }
+      const attachmentsModalEl = document.getElementById('attachmentsModal');
+      if(attachmentsModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal){
+        const modalInstance = bootstrap.Modal.getInstance(attachmentsModalEl);
+        if(modalInstance && typeof loadAttachmentsModal === 'function'){
+          try{
+            await loadAttachmentsModal();
+          }catch(refErr){
+            console.warn('刷新附件列表失败', refErr);
+          }
+        }
+      }
+    } else {
+      const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || (`HTTP ${response.status}`));
+      showStatus('上传附件失败：' + message, 'danger', 5000);
     }
   }
   
@@ -5154,6 +5778,7 @@ function syncMarkdownEditorToPreview(container) {
         updateProjectButtonLabel();
         renderSingleEditor();
         applyMobileRestrictions();
+        applyMobilePreviewState();
         updatePageNumLabel();
         ensureTemplatesLoaded().then(() => detectAllTemplates()).catch(() => {});
         applyMarkdownStyles();
@@ -5279,23 +5904,6 @@ function syncMarkdownEditorToPreview(container) {
     document.getElementById('page-count').textContent = pagesData.length;
   }
 
-  document.getElementById('prev-page').addEventListener('click', function() {
-    if(currentPageIdx > 0) {
-      currentPageIdx--;
-      renderSingleEditor();
-      refreshPreview();
-      document.getElementById('page-num').textContent = currentPageIdx+1;
-    }
-  });
-  document.getElementById('next-page').addEventListener('click', function() {
-    if(currentPageIdx < pagesData.length-1) {
-      currentPageIdx++;
-      renderSingleEditor();
-      refreshPreview();
-      document.getElementById('page-num').textContent = currentPageIdx+1;
-    }
-  });
-
 // --- multi-project client helpers ---
 (function(){
   function getSelectedProject() {
@@ -5392,6 +6000,7 @@ function syncMarkdownEditorToPreview(container) {
       const data = await res.json();
       const projects = Array.isArray(data.projects) ? data.projects : [];
       projectMetadata = data && typeof data.metadata === 'object' && data.metadata ? data.metadata : {};
+      projectListCache = projects.slice();
 
       if(currentProject && projects.length && !projects.includes(currentProject)){
         currentProject = projects[0];
@@ -5407,6 +6016,7 @@ function syncMarkdownEditorToPreview(container) {
       if(menu){
         buildProjectMenu(menu, projects);
       }
+      renderMobileProjectList();
       updateProjectButtonLabel();
       applyMobileRestrictions();
       return data;
@@ -8435,6 +9045,8 @@ loadProjects().then(()=>{
     mobileMediaQuery.addListener(handleMobileMediaQuery);
   }
   applyMobileRestrictions();
+  applyMobilePreviewState();
+  updateMobileUiState();
 
   // Side-panel upload handlers removed — resource management is modal-only
 

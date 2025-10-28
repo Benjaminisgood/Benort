@@ -71,6 +71,11 @@ from .template_store import get_default_header, get_default_template, list_templ
 from .template_store import get_default_markdown_template
 from .responses import api_error, api_success
 
+try:  # pragma: no cover - optional dependency
+    from pdf2image import convert_from_path  # type: ignore
+except Exception:  # pragma: no cover - graceful degradation
+    convert_from_path = None
+
 
 _DOI_PATTERN = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", flags=re.IGNORECASE)
 
@@ -81,6 +86,8 @@ _LATEX_URL_RE = re.compile(r"\\url\{([^}]+)\}")
 _MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 _HTML_SRC_RE = re.compile(r'\bsrc=["\']([^"\']+)["\']', re.IGNORECASE)
 _HTML_HREF_RE = re.compile(r'\bhref=["\']([^"\']+)["\']', re.IGNORECASE)
+
+_IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.heic', '.heif'}
 
 _MARKDOWN_RENDERER = (
     MarkdownIt("commonmark", {"html": True, "linkify": True, "typographer": True})
@@ -1227,6 +1234,99 @@ def upload_attachment():
     )
 
 
+@bp.route("/mobile/attachments/upload", methods=["POST"])
+def mobile_upload_attachment():
+    """移动端附件上传，支持 PDF 转图片并返回插入片段。"""
+
+    if "file" not in request.files:
+        return api_error("No file part", 400)
+    file_storage = request.files["file"]
+    if not file_storage or not file_storage.filename:
+        return api_error("No selected file", 400)
+
+    project_name = get_project_from_request()
+    try:
+        project_data = load_project() or {}
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
+
+    attachments_folder, _, _, _, _ = get_project_paths(project_name)
+    os.makedirs(attachments_folder, exist_ok=True)
+
+    try:
+        stored = _store_attachment_file(file_storage, project_name)
+    except ValueError as exc:
+        return api_error(str(exc), 400)
+
+    filename = stored.filename
+    full_path = os.path.join(attachments_folder, filename)
+    _, ext = os.path.splitext(filename)
+    ext_lower = ext.lower()
+
+    attachments_info = [
+        {
+            "name": filename,
+            "localUrl": stored.local_url,
+            "ossUrl": stored.oss_url,
+            "preferredUrl": stored.preferred_url,
+        }
+    ]
+    snippet = ""
+    message = ""
+    message_level = "success"
+
+    if ext_lower == ".pdf":
+        base_name = os.path.splitext(filename)[0]
+        converted_files, error = _convert_pdf_to_images(full_path, attachments_folder, base_name)
+        if converted_files:
+            generated_infos = []
+            for generated in converted_files:
+                generated_path = os.path.join(attachments_folder, generated)
+                generated_infos.append(
+                    _prepare_attachment_payload(project_data, project_name, generated, generated_path)
+                )
+            attachments_info.extend(generated_infos)
+            snippet_lines = []
+            for info in generated_infos:
+                url = info.get("preferredUrl") or info.get("localUrl") or info.get("ossUrl")
+                if url:
+                    snippet_lines.append(f"![{info.get('name', '')}]({url})")
+            if snippet_lines:
+                snippet = "\n".join(snippet_lines) + "\n"
+            message = f"PDF 已转换为 {len(generated_infos)} 张图片并插入引用"
+        else:
+            url = stored.preferred_url or stored.local_url or stored.oss_url
+            if url:
+                snippet = f"[{filename}]({url})\n"
+            if error:
+                try:
+                    current_app.logger.warning('PDF 转图片失败 %s: %s', filename, error)
+                except Exception:
+                    pass
+                message = f"PDF 转图片失败：{error}"
+                message_level = "warning"
+            else:
+                message = "PDF 转图片失败"
+                message_level = "warning"
+    else:
+        url = stored.preferred_url or stored.local_url or stored.oss_url
+        if url:
+            if ext_lower in _IMAGE_EXTENSIONS:
+                snippet = f"![{filename}]({url})\n"
+            else:
+                snippet = f"[{filename}]({url})\n"
+        message = "附件已上传并插入引用"
+
+    payload = {
+        "attachments": attachments_info,
+        "snippet": snippet,
+    }
+    if message:
+        payload["message"] = message
+        payload["level"] = message_level
+    return api_success(payload)
+
+
 @bp.route("/project", methods=["POST"])
 def save_project_api():
     """持久化前端传入的项目数据。"""
@@ -2258,6 +2358,61 @@ def ensure_safe_project(project_name: str) -> bool:
     if not is_safe_project_name(project_name):
         return False
     return project_name in list_projects()
+
+
+def _prepare_attachment_payload(
+    project_data: dict | None,
+    project_name: str,
+    filename: str,
+    full_path: str,
+) -> dict[str, object]:
+    local_url = f"/projects/{project_name}/uploads/{filename}"
+    preferred_url = local_url
+    oss_url: str | None = None
+    sync_enabled = bool(project_data.get('ossSyncEnabled')) if isinstance(project_data, dict) else False
+    if sync_enabled and oss_is_configured():
+        try:
+            oss_url = oss_upload_file(project_name, filename, full_path)
+            if oss_url:
+                preferred_url = oss_url
+        except Exception as exc:  # pragma: no cover - logging only
+            try:
+                current_app.logger.warning('OSS 上传附件失败 %s: %s', filename, exc)
+            except Exception:
+                pass
+    return {
+        'name': filename,
+        'localUrl': local_url,
+        'ossUrl': oss_url,
+        'preferredUrl': preferred_url,
+    }
+
+
+def _convert_pdf_to_images(pdf_path: str, output_dir: str, base_name: str) -> tuple[list[str], str | None]:
+    if convert_from_path is None:  # pragma: no cover - requires optional dependency
+        return [], '未安装 pdf2image，无法转换 PDF'
+    try:
+        images = convert_from_path(pdf_path, fmt='png', dpi=200)
+    except Exception as exc:  # pragma: no cover - conversion environment specific
+        return [], str(exc)
+    if not images:
+        return [], 'PDF 不包含可转换的页面'
+    sanitized_base = secure_filename(base_name) or base_name or 'pdf_image'
+    saved: list[str] = []
+    for idx, image in enumerate(images, start=1):
+        candidate_name = f"{sanitized_base}-p{idx}.png"
+        candidate_path = os.path.join(output_dir, candidate_name)
+        counter = 1
+        while os.path.exists(candidate_path):
+            candidate_name = f"{sanitized_base}-p{idx}-{counter}.png"
+            candidate_path = os.path.join(output_dir, candidate_name)
+            counter += 1
+        try:
+            image.save(candidate_path, "PNG")
+        except Exception as exc:  # pragma: no cover - filesystem dependent
+            return saved, f'保存图片失败: {exc}'
+        saved.append(candidate_name)
+    return saved, None
 
 
 def _run_full_oss_sync(project_name: str, attachments_folder: str, resources_folder: str, yaml_path: str) -> dict[str, object]:

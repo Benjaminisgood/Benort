@@ -201,6 +201,121 @@
       display: flex;
       pointer-events: auto;
     }
+    .actionable-card {
+      position: relative;
+      border-radius: 0.75rem;
+      transition: background-color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .actionable-card:hover {
+      background-color: rgba(59, 130, 246, 0.08);
+    }
+    .actionable-card--active {
+      background-color: rgba(59, 130, 246, 0.12);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+    }
+    body.theme-dark .actionable-card:hover {
+      background-color: rgba(165, 243, 252, 0.08);
+    }
+    body.theme-dark .actionable-card--active {
+      background-color: rgba(14, 165, 233, 0.12);
+      box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.35);
+    }
+    .action-bubble {
+      position: absolute;
+      z-index: 2050;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.5rem;
+      border-radius: 999px;
+      background: var(--bs-body-bg, #ffffff);
+      box-shadow: 0 14px 32px rgba(15, 23, 42, 0.22);
+      border: 1px solid rgba(99, 102, 241, 0.12);
+      opacity: 0;
+      transform: translateY(-4px) scale(0.96);
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    body.theme-dark .action-bubble {
+      background: rgba(15, 23, 42, 0.92);
+      border-color: rgba(148, 163, 184, 0.18);
+      box-shadow: 0 18px 44px rgba(15, 23, 42, 0.6);
+    }
+    .action-bubble--visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+    .action-bubble--align-left {
+      transform-origin: 100% 50%;
+    }
+    .action-bubble__btn {
+      font-size: 0.82rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .action-bubble__btn + .action-bubble__btn {
+      margin-left: 0;
+    }
+    @media (max-width: 640px) {
+      .action-bubble {
+        flex-direction: column;
+        align-items: stretch;
+        border-radius: 0.9rem;
+        gap: 0.35rem;
+        padding: 0.45rem 0.6rem;
+      }
+      .action-bubble__btn {
+        width: 100%;
+        text-align: center;
+      }
+    }
+    .learning-prompt-card {
+      position: relative;
+      padding: 0.95rem 1.1rem;
+      border: 1px solid rgba(99, 102, 241, 0.18);
+      border-radius: 0.85rem;
+      background: rgba(255, 255, 255, 0.96);
+      min-width: min(100%, 240px);
+      max-width: 100%;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+    .learning-prompt-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.14);
+      border-color: rgba(59, 130, 246, 0.35);
+    }
+    .learning-prompt-card--stacked {
+      width: 100%;
+    }
+    .learning-prompt-card__title {
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 0.25rem;
+    }
+    .learning-prompt-card__description {
+      color: #4b5563;
+      font-size: 0.85rem;
+      margin-bottom: 0.35rem;
+    }
+    .learning-prompt-card__meta {
+      color: #6b7280;
+      font-size: 0.75rem;
+      letter-spacing: 0.01em;
+    }
+    body.theme-dark .learning-prompt-card {
+      background: rgba(17, 24, 39, 0.92);
+      border-color: rgba(148, 163, 184, 0.24);
+    }
+    body.theme-dark .learning-prompt-card__title {
+      color: #e2e8f0;
+    }
+    body.theme-dark .learning-prompt-card__description,
+    body.theme-dark .learning-prompt-card__meta {
+      color: #cbd5f5;
+    }
     .mobile-floating-actions .fab-icon {
       display: inline-flex;
       align-items: center;
@@ -2503,6 +2618,186 @@ function jumpToPage(targetIdx) {
   const mobileAttachmentInput = document.getElementById('mobile-attachment-input');
   const mobileProjectModalEl = document.getElementById('mobileProjectModal');
   const mobileProjectList = document.getElementById('mobile-project-list');
+  let activeActionBubble = null;
+  let activeActionBubbleAnchor = null;
+
+  function closeActionBubble(reason) {
+    if (activeActionBubble) {
+      activeActionBubble.remove();
+      activeActionBubble = null;
+    }
+    if (activeActionBubbleAnchor) {
+      activeActionBubbleAnchor.classList.remove('actionable-card--active');
+      activeActionBubbleAnchor = null;
+    }
+    document.removeEventListener('click', handleActionBubbleOutside, true);
+    document.removeEventListener('keydown', handleActionBubbleKeydown, true);
+    window.removeEventListener('resize', handleActionBubbleWindowChange);
+    window.removeEventListener('scroll', handleActionBubbleWindowChange, true);
+  }
+
+  function handleActionBubbleOutside(event) {
+    if (!activeActionBubble) return;
+    if (activeActionBubble.contains(event.target)) return;
+    if (activeActionBubbleAnchor && activeActionBubbleAnchor.contains(event.target)) return;
+    closeActionBubble('outside');
+  }
+
+  function handleActionBubbleKeydown(event) {
+    if (event.key === 'Escape') {
+      closeActionBubble('escape');
+    }
+  }
+
+  function handleActionBubbleWindowChange() {
+    if (!activeActionBubble || !activeActionBubbleAnchor) {
+      closeActionBubble('detach');
+      return;
+    }
+    positionActionBubble(activeActionBubble, activeActionBubbleAnchor);
+  }
+
+  function resolveActionBubbleButtonClass(action) {
+    const base = ['btn', 'btn-sm', 'action-bubble__btn'];
+    const variant = (action && action.variant) || 'outline-primary';
+    switch (variant) {
+      case 'primary':
+        base.push('btn-primary');
+        break;
+      case 'danger':
+        base.push('btn-danger');
+        break;
+      case 'warning':
+        base.push('btn-warning');
+        break;
+      case 'outline-secondary':
+        base.push('btn-outline-secondary');
+        break;
+      case 'outline-success':
+        base.push('btn-outline-success');
+        break;
+      case 'outline-danger':
+        base.push('btn-outline-danger');
+        break;
+      case 'outline-primary':
+      default:
+        base.push('btn-outline-primary');
+        break;
+    }
+    return base.join(' ');
+  }
+
+  function positionActionBubble(bubble, anchor) {
+    if (!bubble || !anchor) return;
+    bubble.style.left = '-9999px';
+    bubble.style.top = '-9999px';
+    bubble.classList.remove('action-bubble--align-left');
+    const rect = anchor.getBoundingClientRect();
+    const bubbleRect = bubble.getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportScrollY = window.scrollY || window.pageYOffset || 0;
+    const viewportScrollX = window.scrollX || window.pageXOffset || 0;
+    const margin = 14;
+    let left = viewportScrollX + rect.right + margin;
+    let top = viewportScrollY + rect.top + rect.height / 2 - bubbleRect.height / 2;
+
+    if (left + bubbleRect.width > viewportScrollX + viewportWidth - margin) {
+      left = viewportScrollX + rect.left - bubbleRect.width - margin;
+      bubble.classList.add('action-bubble--align-left');
+    }
+    const maxTop = viewportScrollY + window.innerHeight - bubbleRect.height - margin;
+    const minTop = viewportScrollY + margin;
+    if (top < minTop) top = minTop;
+    if (top > maxTop) top = maxTop;
+    bubble.style.left = `${Math.max(left, viewportScrollX + margin)}px`;
+    bubble.style.top = `${top}px`;
+  }
+
+  function openActionBubble(anchorElement, actions) {
+    if (!anchorElement) return;
+    const resolved = typeof actions === 'function' ? actions(anchorElement) : actions;
+    const list = Array.isArray(resolved) ? resolved.filter(Boolean) : [];
+    if (!list.length) {
+      closeActionBubble('empty');
+      return;
+    }
+    if (activeActionBubbleAnchor === anchorElement) {
+      closeActionBubble('toggle');
+      return;
+    }
+    closeActionBubble('replace');
+    const bubble = document.createElement('div');
+    bubble.className = 'action-bubble';
+    list.forEach(action => {
+      const label = typeof action?.label === 'function' ? action.label(anchorElement) : action?.label;
+      if (!label) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = resolveActionBubbleButtonClass(action);
+      if (action?.title) {
+        btn.title = action.title;
+      }
+      if (action?.disabled) {
+        btn.disabled = true;
+      }
+      const icon = action?.icon ? String(action.icon).trim() : '';
+      const text = String(label).trim();
+      btn.textContent = icon ? `${icon} ${text}` : text;
+      btn.addEventListener('click', event => {
+        event.stopPropagation();
+        if (btn.disabled) return;
+        closeActionBubble('action');
+        if (typeof action?.onClick === 'function') {
+          action.onClick(anchorElement, action);
+        }
+      });
+      bubble.appendChild(btn);
+    });
+    if (!bubble.childElementCount) {
+      return;
+    }
+    document.body.appendChild(bubble);
+    activeActionBubble = bubble;
+    activeActionBubbleAnchor = anchorElement;
+    anchorElement.classList.add('actionable-card--active');
+    positionActionBubble(bubble, anchorElement);
+    requestAnimationFrame(() => bubble.classList.add('action-bubble--visible'));
+    document.addEventListener('click', handleActionBubbleOutside, true);
+    document.addEventListener('keydown', handleActionBubbleKeydown, true);
+    window.addEventListener('resize', handleActionBubbleWindowChange);
+    window.addEventListener('scroll', handleActionBubbleWindowChange, true);
+  }
+
+  function bindActionBubbleTrigger(element, actionsBuilder) {
+    if (!element) return;
+    element.classList.add('actionable-card');
+    if (!element.hasAttribute('tabindex')) {
+      element.setAttribute('tabindex', '0');
+    }
+    element.addEventListener('click', event => {
+      if (event.defaultPrevented) return;
+      if (event.target && activeActionBubble && activeActionBubble.contains(event.target)) {
+        return;
+      }
+      const anchor = event.target.closest('a[href]');
+      if (anchor) {
+        if (event.metaKey || event.ctrlKey || anchor.dataset.actionBubbleAllowNav === 'true') {
+          closeActionBubble('nav');
+          return;
+        }
+        event.preventDefault();
+      }
+      openActionBubble(element, typeof actionsBuilder === 'function' ? () => actionsBuilder(element, event) : actionsBuilder);
+    });
+    element.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openActionBubble(element, typeof actionsBuilder === 'function' ? () => actionsBuilder(element, event) : actionsBuilder);
+      } else if (event.key === 'Escape') {
+        closeActionBubble('key');
+      }
+    });
+  }
   function setMobileFabOpen(opened) {
     if(!mobileFloatingActions || !mobileMainFab) return;
     const isOpen = !!opened;
@@ -7040,6 +7335,7 @@ loadProjects().then(()=>{
   }
 
   function renderLearningPrompts() {
+    closeActionBubble('prompts-refresh');
     const defaultContainer = document.getElementById('ai-learn-default-prompts');
     const customContainer = document.getElementById('ai-learn-custom-prompts');
     if (defaultContainer) defaultContainer.innerHTML = '';
@@ -7067,50 +7363,69 @@ loadProjects().then(()=>{
   }
 
   function buildLearningPromptItem(prompt, stacked = false) {
-    const wrapper = document.createElement('div');
-    wrapper.className = stacked ? 'd-flex flex-column flex-sm-row align-items-sm-center gap-2' : 'd-flex flex-wrap align-items-center gap-2';
-    wrapper.dataset.promptId = prompt.id || '';
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn btn-sm btn-outline-primary';
-    btn.textContent = prompt.name || prompt.id;
-    btn.addEventListener('click', () => runLearningPrompt(prompt, btn));
-    wrapper.appendChild(btn);
-
-    if (prompt.description) {
-      const desc = document.createElement('small');
-      desc.className = 'text-muted';
-      desc.textContent = prompt.description;
-      wrapper.appendChild(desc);
+    const card = document.createElement('div');
+    card.className = 'learning-prompt-card';
+    if (stacked) {
+      card.classList.add('learning-prompt-card--stacked');
+    }
+    if (prompt && prompt.id) {
+      card.dataset.promptId = prompt.id;
     }
 
-    const actions = document.createElement('div');
-    actions.className = 'btn-group btn-group-sm';
-    const editBtn = document.createElement('button');
-    editBtn.type = 'button';
-    editBtn.className = 'btn btn-outline-secondary';
-    editBtn.textContent = '编辑';
-    editBtn.addEventListener('click', evt => {
-      evt.stopPropagation();
-      openPromptEditor(prompt);
-    });
-    actions.appendChild(editBtn);
+    const titleEl = document.createElement('div');
+    titleEl.className = 'learning-prompt-card__title';
+    titleEl.textContent = prompt && (prompt.name || prompt.id) ? (prompt.name || prompt.id) : '未命名提示词';
+    card.appendChild(titleEl);
 
-    const delBtn = document.createElement('button');
-    delBtn.type = 'button';
-    delBtn.className = 'btn btn-outline-danger';
-    delBtn.textContent = '删除';
-    if (!prompt.allowDelete) {
-      delBtn.disabled = true;
+    if (prompt && prompt.description) {
+      const descEl = document.createElement('div');
+      descEl.className = 'learning-prompt-card__description';
+      descEl.textContent = prompt.description;
+      card.appendChild(descEl);
     }
-    delBtn.addEventListener('click', evt => {
-      evt.stopPropagation();
-      deletePrompt(prompt);
-    });
-    actions.appendChild(delBtn);
 
-    wrapper.appendChild(actions);
-    return wrapper;
+    const metaParts = [];
+    if (prompt && prompt.source) {
+      metaParts.push(prompt.source === 'custom' ? '自定义提示' : '默认提示');
+    }
+    if (prompt && prompt.id) {
+      metaParts.push(`ID: ${prompt.id}`);
+    }
+    if (metaParts.length) {
+      const metaEl = document.createElement('div');
+      metaEl.className = 'learning-prompt-card__meta';
+      metaEl.textContent = metaParts.join(' · ');
+      card.appendChild(metaEl);
+    }
+
+    bindActionBubbleTrigger(card, () => {
+      const actions = [];
+      actions.push({
+        label: '运行提示词',
+        icon: '🚀',
+        variant: 'primary',
+        onClick: () => runLearningPrompt(prompt, null),
+      });
+      actions.push({
+        label: '编辑',
+        icon: '✏️',
+        variant: 'outline-secondary',
+        onClick: () => openPromptEditor(prompt),
+      });
+      actions.push({
+        label: '删除',
+        icon: '🗑️',
+        variant: 'outline-danger',
+        disabled: !prompt?.allowDelete,
+        onClick: () => {
+          if (!prompt?.allowDelete) return;
+          deletePrompt(prompt);
+        },
+      });
+      return actions;
+    });
+
+    return card;
   }
 
   function openLearningModal() {
@@ -7832,6 +8147,7 @@ loadProjects().then(()=>{
     const globalCount = document.getElementById('bib-global-count');
     const pageEntries = currentPageBib();
     bibData = normalizeBibList(bibData);
+    closeActionBubble('bib-refresh');
 
     pageList.innerHTML = '';
     globalList.innerHTML = '';
@@ -7893,49 +8209,56 @@ loadProjects().then(()=>{
 
       header.appendChild(meta);
 
-      const actions = document.createElement('div');
-      actions.className = 'd-flex flex-column gap-1';
-
-      const insertBtn = document.createElement('button');
-      insertBtn.type = 'button';
-      insertBtn.className = 'btn btn-sm btn-outline-primary';
-      insertBtn.textContent = '插入引用';
-      insertBtn.onclick = () => insertBibIntoEditor(entry);
-      actions.appendChild(insertBtn);
-
-      const editBtn = document.createElement('button');
-      editBtn.type = 'button';
-      editBtn.className = 'btn btn-sm btn-outline-secondary';
-      editBtn.textContent = '编辑信息';
-      editBtn.onclick = () => openBibEditModal(entry, scope);
-      actions.appendChild(editBtn);
-
-      const deleteBtn = document.createElement('button');
-      deleteBtn.type = 'button';
-      deleteBtn.className = 'btn btn-sm btn-outline-danger';
-      deleteBtn.textContent = '删除';
-      deleteBtn.onclick = () => {
-        if (!confirm('确认删除这条文献吗？')) return;
-        if (scope === 'page') {
-          const idx = findBibIndex(pageEntries, entry.id);
-          if (idx > -1) {
-            pageEntries.splice(idx, 1);
-            saveProject();
-            queueCompile();
-          }
-        } else {
-          const idx = findBibIndex(bibData, entry.id);
-          if (idx > -1) {
-            bibData.splice(idx, 1);
-            saveGlobalBib();
-          }
-        }
-        renderBibList();
-      };
-      actions.appendChild(deleteBtn);
-
-      header.appendChild(actions);
       item.appendChild(header);
+      bindActionBubbleTrigger(item, () => {
+        const actions = [];
+        actions.push({
+          label: '插入引用',
+          icon: '➕',
+          variant: 'primary',
+          onClick: () => insertBibIntoEditor(entry),
+        });
+        actions.push({
+          label: '编辑信息',
+          icon: '✏️',
+          variant: 'outline-secondary',
+          onClick: () => openBibEditModal(entry, scope),
+        });
+        actions.push({
+          label: '删除',
+          icon: '🗑️',
+          variant: 'outline-danger',
+          onClick: () => {
+            if (!confirm('确认删除这条文献吗？')) return;
+            if (scope === 'page') {
+              const idx = findBibIndex(pageEntries, entry.id);
+              if (idx > -1) {
+                pageEntries.splice(idx, 1);
+                saveProject();
+                queueCompile();
+              }
+            } else {
+              const idx = findBibIndex(bibData, entry.id);
+              if (idx > -1) {
+                bibData.splice(idx, 1);
+                saveGlobalBib();
+              }
+            }
+            renderBibList();
+          },
+        });
+        if (entry.link) {
+          actions.unshift({
+            label: '打开链接',
+            icon: '🔗',
+            variant: 'outline-secondary',
+            onClick: () => {
+              window.open(entry.link, '_blank', 'noopener');
+            },
+          });
+        }
+        return actions;
+      });
       return item;
     };
 
@@ -8132,7 +8455,6 @@ loadProjects().then(()=>{
     wrapper.className = 'd-flex flex-column flex-md-row justify-content-between align-items-start gap-2';
     const left = document.createElement('div');
     left.className = 'resource-name me-md-3 flex-grow-1';
-    const name = document.createElement('a');
     const resourcePath = (f.path || '').toString();
     const displayName = (f.name || '').toString().trim() || (resourcePath.includes('/') ? resourcePath.slice(resourcePath.lastIndexOf('/') + 1) : resourcePath);
     const localUrl = f.localUrl || '';
@@ -8140,6 +8462,7 @@ loadProjects().then(()=>{
     const preferredUrl = f.url || f.preferredUrl || localUrl || ossUrl || '';
     const hasLocal = !!localUrl && f.exists !== false ? true : !!localUrl;
     const hasRemote = !!ossUrl;
+    const name = document.createElement('a');
     name.href = preferredUrl || '#';
     name.textContent = displayName || resourcePath || '未命名资源';
     if(resourcePath){
@@ -8149,6 +8472,8 @@ loadProjects().then(()=>{
     }
     if(preferredUrl){
       name.target = '_blank';
+      name.rel = 'noopener';
+      name.dataset.actionBubbleAllowNav = 'true';
     } else {
       name.classList.add('disabled');
     }
@@ -8202,7 +8527,7 @@ loadProjects().then(()=>{
       const remoteLink = document.createElement('div');
       remoteLink.className = 'small text-muted';
       const label = hasLocal ? '远程：' : 'OSS：';
-      remoteLink.innerHTML = `${label}<a href="${ossUrl}" target="_blank">${ossUrl}</a>`;
+      remoteLink.innerHTML = `${label}<a href="${ossUrl}" target="_blank" rel="noopener">${ossUrl}</a>`;
       left.appendChild(remoteLink);
     }
 
@@ -8240,204 +8565,203 @@ loadProjects().then(()=>{
       left.appendChild(info);
     }
 
-    const actions = document.createElement('div');
-    actions.className = 'resource-actions d-flex flex-wrap gap-1';
-    const nameForType = (resourcePath || f.name || '').toString();
-    const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test(nameForType);
-    const targetUrl = f.localUrl || f.ossUrl || preferredUrl;
-
-    const previewBtn = document.createElement('button');
-    previewBtn.className = 'btn btn-sm btn-outline-secondary';
-    previewBtn.textContent = '预览';
-    previewBtn.onclick = function(){
-      if(isImage && resourcePreviewModalEl && resourcePreviewImage){
-        if(!targetUrl){
-          alert('当前资源没有可用的链接');
-          return;
-        }
-        resourcePreviewImage.src = targetUrl;
-        if(resourcePreviewMeta){
-          const parts = [];
-          parts.push(f.exists ? '来源：本地' : (f.ossUrl ? '来源：OSS' : '来源：未知'));
-          if(f.ossUrl && f.exists){
-            parts.push('已同步');
-          }
-          const label = displayName || resourcePath || '';
-          resourcePreviewMeta.textContent = label ? `${label}${parts.length ? '（' + parts.join('，') + '）' : ''}` : parts.join('，');
-        }
-        if(resourcePreviewOpen){
-          resourcePreviewOpen.href = targetUrl;
-          resourcePreviewOpen.classList.toggle('disabled', !targetUrl);
-        }
-        const modal = bootstrap.Modal.getOrCreateInstance(resourcePreviewModalEl);
-        modal.show();
-      } else {
-        if(targetUrl){
-          window.open(targetUrl, '_blank');
-        } else {
-          alert('当前资源没有可用的链接');
-        }
-      }
-    };
-    if(!targetUrl){
-      previewBtn.disabled = true;
-    }
-
-    const openBtn = document.createElement('button');
-    openBtn.className = 'btn btn-sm btn-outline-secondary';
-    openBtn.textContent = '打开';
-    openBtn.onclick = function(){
-      if(preferredUrl){
-        window.open(preferredUrl, '_blank');
-      } else {
-        alert('当前资源没有可用的链接');
-      }
-    };
-    if(!preferredUrl){
-      openBtn.disabled = true;
-    }
-
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'btn btn-sm btn-outline-primary';
-    copyBtn.textContent = '复制链接';
-    copyBtn.onclick = function(){
-      if(!preferredUrl){ alert('当前资源没有可用的链接'); return; }
-      navigator.clipboard.writeText(preferredUrl).then(()=>{
-        copyBtn.textContent = '已复制';
-        setTimeout(()=>{ copyBtn.textContent = '复制链接'; }, 2000);
-      }).catch(()=>alert('复制失败，请手动复制链接'));
-    };
-
-    const copyOssBtn = document.createElement('button');
-    copyOssBtn.className = 'btn btn-sm btn-outline-primary';
-    copyOssBtn.textContent = '拷贝 OSS 链接';
-    copyOssBtn.onclick = function(){
-      if(!ossUrl){ alert('当前资源没有 OSS 链接'); return; }
-      navigator.clipboard.writeText(ossUrl).then(()=>{
-        copyOssBtn.textContent = '已复制';
-        setTimeout(()=>{ copyOssBtn.textContent = '拷贝 OSS 链接'; }, 2000);
-      }).catch(()=>alert('复制失败，请手动复制链接'));
-    };
-    if(!ossUrl){
-      copyOssBtn.disabled = true;
-    }
-
-    const renameBtn = document.createElement('button');
-    renameBtn.className = 'btn btn-sm btn-outline-secondary';
-    renameBtn.textContent = '重命名';
-    renameBtn.onclick = function(){
-      if(!resourceRenameModalEl || !resourceRenameInput){
-        alert('当前界面不支持重命名');
-        return;
-      }
-      const fullPath = resourcePath || displayName || '';
-      resourceRenameTarget = fullPath;
-      resourceRenameBasePath = fullPath && fullPath.includes('/') ? fullPath.slice(0, fullPath.lastIndexOf('/')) : '';
-      const initialName = f.name || (fullPath.includes('/') ? fullPath.slice(fullPath.lastIndexOf('/') + 1) : fullPath);
-      resourceRenameInput.value = initialName || '';
-      if(fullPath){
-        resourceRenameInput.title = fullPath;
-      } else if(initialName){
-        resourceRenameInput.title = initialName;
-      } else {
-        resourceRenameInput.removeAttribute('title');
-      }
-      updateResourceRenamePreviewText(initialName);
-      const modal = bootstrap.Modal.getOrCreateInstance(resourceRenameModalEl);
-      modal.show();
-    };
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'btn btn-sm btn-outline-danger';
-    deleteBtn.textContent = scope === 'page' ? '移除关联' : (scope === 'global' ? '移除全局' : '删除');
-    deleteBtn.onclick = async function(){
-      const confirmText = scope === 'page'
-        ? '确认移除当前页对该资源的关联吗？'
-        : (scope === 'global' ? '确认从全局资源中移除此文件吗？' : '确认删除此资源及其文件吗？');
-      if(!confirm(confirmText)) return;
-      const identifier = resourcePath || displayName;
-      if(!identifier){
-        alert('无法确定资源标识');
-        return;
-      }
-      const baseName = identifier.includes('/') ? identifier.slice(identifier.lastIndexOf('/') + 1) : identifier;
-      const matchesEntry = value => {
-        if(typeof value !== 'string') return false;
-        const normalized = value.trim();
-        return normalized === identifier || normalized === resourcePath || normalized === baseName;
-      };
-      try{
-        const payload = {path: identifier, name: identifier};
-        if(scope === 'page' && pageIndex !== null){
-          payload.scope = 'page';
-          payload.page = pageIndex;
-        } else if(scope === 'global'){
-          payload.scope = 'global';
-        }
-        const res = await fetch('/resources/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-        const parsed = await parseJsonSafe(res);
-        if(res.ok){
-          if(parsed.json && parsed.json.success === false){
-            alert('删除失败：' + (parsed.json.error || (parsed.text ? parsed.text : '未知错误')));
-          } else {
-            const body = parsed.json || {};
-            if(body.globalRemoved){
-              globalResources = globalResources.filter(name => !matchesEntry(name));
-            }
-            if(Array.isArray(body.pagesRemoved)){
-              body.pagesRemoved.forEach(num => {
-                const idx = Number(num) - 1;
-                if(idx >= 0 && pagesData[idx] && Array.isArray(pagesData[idx].resources)){
-                  pagesData[idx].resources = pagesData[idx].resources.filter(name => !matchesEntry(name));
-                }
-              });
-            }
-            if(body.fileRemoved){
-              globalResources = globalResources.filter(name => !matchesEntry(name));
-              pagesData.forEach(p => {
-                if(Array.isArray(p.resources)){
-                  p.resources = p.resources.filter(name => !matchesEntry(name));
-                }
-              });
-            }
-            if(body.stillReferenced && body.stillReferenced.refCount){
-              const refs = [];
-              if(Array.isArray(body.stillReferenced.pages) && body.stillReferenced.pages.length){
-                refs.push(`页面：${body.stillReferenced.pages.join('、')}`);
-              }
-              if(body.stillReferenced.global){
-                refs.push('全局资源列表');
-              }
-              if(refs.length){
-                alert(`资源仍被引用（${refs.join('，')}），文件未删除。`);
-              }
-            }
-            await loadResourcesModal();
-            await refreshResourceLists();
-            queueCompile();
-          }
-        } else {
-          const message = parsed.json && parsed.json.error ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
-          alert('删除失败：' + message);
-        }
-      }catch(e){ console.error(e); alert('删除失败：' + e.message); }
-    };
-
-    actions.appendChild(previewBtn);
-    actions.appendChild(openBtn);
-    actions.appendChild(copyBtn);
-    actions.appendChild(copyOssBtn);
-    actions.appendChild(renameBtn);
-    actions.appendChild(deleteBtn);
-
     wrapper.appendChild(left);
-    wrapper.appendChild(actions);
     item.appendChild(wrapper);
+
+    bindActionBubbleTrigger(item, () => {
+      const actions = [];
+      const targetUrl = f.localUrl || f.ossUrl || preferredUrl;
+      const nameLabel = displayName || resourcePath || f.name || '';
+      actions.push({
+        label: '预览',
+        icon: '👁️',
+        variant: 'outline-secondary',
+        disabled: !targetUrl,
+        onClick: () => {
+          if(!targetUrl){
+            alert('当前资源没有可用的链接');
+            return;
+          }
+          const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test(nameLabel);
+          if(isImage && resourcePreviewModalEl && resourcePreviewImage){
+            resourcePreviewImage.src = targetUrl;
+            if(resourcePreviewMeta){
+              const parts = [];
+              parts.push(f.exists ? '来源：本地' : (ossUrl ? '来源：OSS' : '来源：未知'));
+              if(ossUrl && f.exists){
+                parts.push('已同步');
+              }
+              resourcePreviewMeta.textContent = nameLabel ? `${nameLabel}${parts.length ? '（' + parts.join('，') + '）' : ''}` : parts.join('，');
+            }
+            if(resourcePreviewOpen){
+              resourcePreviewOpen.href = targetUrl;
+              resourcePreviewOpen.classList.toggle('disabled', !targetUrl);
+            }
+            const modal = bootstrap.Modal.getOrCreateInstance(resourcePreviewModalEl);
+            modal.show();
+          } else {
+            window.open(targetUrl, '_blank');
+          }
+        },
+      });
+      actions.push({
+        label: '打开',
+        icon: '🗂️',
+        variant: 'outline-secondary',
+        disabled: !preferredUrl,
+        onClick: () => {
+          if(preferredUrl){
+            window.open(preferredUrl, '_blank');
+          } else {
+            alert('当前资源没有可用的链接');
+          }
+        },
+      });
+      actions.push({
+        label: '复制链接',
+        icon: '🔗',
+        variant: 'outline-secondary',
+        disabled: !preferredUrl,
+        onClick: () => {
+          if(!preferredUrl){
+            alert('当前资源没有可用的链接');
+            return;
+          }
+          navigator.clipboard.writeText(preferredUrl).then(()=>{
+            showStatus('资源链接已复制', 'success', 2000);
+          }).catch(()=>alert('复制失败，请手动复制链接'));
+        },
+      });
+      actions.push({
+        label: '复制 OSS 链接',
+        icon: '☁️',
+        variant: 'outline-secondary',
+        disabled: !ossUrl,
+        onClick: () => {
+          if(!ossUrl){
+            alert('当前资源没有 OSS 链接');
+            return;
+          }
+          navigator.clipboard.writeText(ossUrl).then(()=>{
+            showStatus('OSS 链接已复制', 'success', 2000);
+          }).catch(()=>alert('复制失败，请手动复制链接'));
+        },
+      });
+      actions.push({
+        label: '重命名',
+        icon: '✏️',
+        variant: 'outline-secondary',
+        onClick: () => {
+          if(!resourceRenameModalEl || !resourceRenameInput){
+            alert('当前界面不支持重命名');
+            return;
+          }
+          const fullPath = resourcePath || displayName || '';
+          resourceRenameTarget = fullPath;
+          resourceRenameBasePath = fullPath && fullPath.includes('/') ? fullPath.slice(0, fullPath.lastIndexOf('/')) : '';
+          const initialName = f.name || (fullPath.includes('/') ? fullPath.slice(fullPath.lastIndexOf('/') + 1) : fullPath);
+          resourceRenameInput.value = initialName || '';
+          if(fullPath){
+            resourceRenameInput.title = fullPath;
+          } else if(initialName){
+            resourceRenameInput.title = initialName;
+          } else {
+            resourceRenameInput.removeAttribute('title');
+          }
+          updateResourceRenamePreviewText(initialName);
+          const modal = bootstrap.Modal.getOrCreateInstance(resourceRenameModalEl);
+          modal.show();
+        },
+      });
+      actions.push({
+        label: scope === 'page' ? '移除关联' : (scope === 'global' ? '移除全局' : '删除'),
+        icon: '🗑️',
+        variant: 'outline-danger',
+        onClick: async () => {
+          const confirmText = scope === 'page'
+            ? '确认移除当前页对该资源的关联吗？'
+            : (scope === 'global' ? '确认从全局资源中移除此文件吗？' : '确认删除此资源及其文件吗？');
+          if(!confirm(confirmText)) return;
+          const identifier = resourcePath || displayName;
+          if(!identifier){
+            alert('无法确定资源标识');
+            return;
+          }
+          const baseName = identifier.includes('/') ? identifier.slice(identifier.lastIndexOf('/') + 1) : identifier;
+          const matchesEntry = value => {
+            if(typeof value !== 'string') return false;
+            const normalized = value.trim();
+            return normalized === identifier || normalized === resourcePath || normalized === baseName;
+          };
+          try{
+            const payload = {path: identifier, name: identifier};
+            if(scope === 'page' && pageIndex !== null){
+              payload.scope = 'page';
+              payload.page = pageIndex;
+            } else if(scope === 'global'){
+              payload.scope = 'global';
+            }
+            const res = await fetch('/resources/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+            const parsed = await parseJsonSafe(res);
+            if(res.ok){
+              if(parsed.json && parsed.json.success === false){
+                alert('删除失败：' + (parsed.json.error || (parsed.text ? parsed.text : '未知错误')));
+              } else {
+                const body = parsed.json || {};
+                if(body.globalRemoved){
+                  globalResources = globalResources.filter(name => !matchesEntry(name));
+                }
+                if(Array.isArray(body.pagesRemoved)){
+                  body.pagesRemoved.forEach(num => {
+                    const idx = Number(num) - 1;
+                    if(idx >= 0 && pagesData[idx] && Array.isArray(pagesData[idx].resources)){
+                      pagesData[idx].resources = pagesData[idx].resources.filter(name => !matchesEntry(name));
+                    }
+                  });
+                }
+                if(body.fileRemoved){
+                  globalResources = globalResources.filter(name => !matchesEntry(name));
+                  pagesData.forEach(p => {
+                    if(Array.isArray(p.resources)){
+                      p.resources = p.resources.filter(name => !matchesEntry(name));
+                    }
+                  });
+                }
+                if(body.stillReferenced && body.stillReferenced.refCount){
+                  const refs = [];
+                  if(Array.isArray(body.stillReferenced.pages) && body.stillReferenced.pages.length){
+                    refs.push(`页面：${body.stillReferenced.pages.join('、')}`);
+                  }
+                  if(body.stillReferenced.global){
+                    refs.push('全局资源列表');
+                  }
+                  if(refs.length){
+                    alert(`资源仍被引用（${refs.join('，')}），文件未删除。`);
+                  }
+                }
+                await loadResourcesModal();
+                await refreshResourceLists();
+                queueCompile();
+              }
+            } else {
+              const message = parsed.json && parsed.json.error ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
+              alert('删除失败：' + message);
+            }
+          }catch(e){
+            console.error(e);
+            alert('删除失败：' + e.message);
+          }
+        },
+      });
+      return actions;
+    });
+
     return item;
   }
 
   function renderResourceList(container, files, options){
     if(!container) return;
+    closeActionBubble('resources-refresh');
     container.innerHTML = '';
     const list = Array.isArray(files) ? files : [];
     if(list.length === 0){
@@ -8760,6 +9084,7 @@ loadProjects().then(()=>{
   function renderAttachmentsList(){
     const listEl = document.getElementById('attachments-list-modal');
     if(!listEl) return;
+    closeActionBubble('attachments-refresh');
     listEl.innerHTML = '';
     const files = getFilteredAttachments();
 
@@ -8774,39 +9099,41 @@ loadProjects().then(()=>{
     }
 
     files.forEach(f => {
-        const preferredUrl = f.preferredUrl || f.localUrl || f.ossUrl || '';
-        const item = document.createElement('div');
-        item.className = 'list-group-item';
-        const wrapper = document.createElement('div');
-        wrapper.className = 'd-flex flex-column flex-md-row justify-content-between align-items-start gap-2';
-        const left = document.createElement('div');
-        left.className = 'me-md-3 flex-grow-1';
-        const name = document.createElement('a');
-        name.textContent = f.name;
-        if(preferredUrl){
-          name.href = preferredUrl;
-          name.target = '_blank';
-        } else {
-          name.href = '#';
-          name.classList.add('disabled');
-        }
-        left.appendChild(name);
+      const preferredUrl = f.preferredUrl || f.localUrl || f.ossUrl || '';
+      const item = document.createElement('div');
+      item.className = 'list-group-item';
+      const wrapper = document.createElement('div');
+      wrapper.className = 'd-flex flex-column flex-md-row justify-content-between align-items-start gap-2';
+      const left = document.createElement('div');
+      left.className = 'me-md-3 flex-grow-1';
+      const name = document.createElement('a');
+      name.textContent = f.name;
+      if(preferredUrl){
+        name.href = preferredUrl;
+        name.target = '_blank';
+        name.rel = 'noopener';
+        name.dataset.actionBubbleAllowNav = 'true';
+      } else {
+        name.href = '#';
+        name.classList.add('disabled');
+      }
+      left.appendChild(name);
 
-        if(f.location){
-          const badge = document.createElement('span');
-          badge.className = 'badge rounded-pill ms-2';
-          if(f.location === 'synced'){
-            badge.classList.add('bg-success');
-            badge.textContent = '已同步';
-          } else if(f.location === 'local'){
-            badge.classList.add('bg-secondary');
-            badge.textContent = '仅本地';
-          } else if(f.location === 'oss'){
-            badge.classList.add('bg-info');
-            badge.textContent = '仅 OSS';
-          } else {
-            badge.classList.add('bg-warning');
-            badge.textContent = '未知';
+      if(f.location){
+        const badge = document.createElement('span');
+        badge.className = 'badge rounded-pill ms-2';
+        if(f.location === 'synced'){
+          badge.classList.add('bg-success');
+          badge.textContent = '已同步';
+        } else if(f.location === 'local'){
+          badge.classList.add('bg-secondary');
+          badge.textContent = '仅本地';
+        } else if(f.location === 'oss'){
+          badge.classList.add('bg-info');
+          badge.textContent = '仅 OSS';
+        } else {
+          badge.classList.add('bg-warning');
+          badge.textContent = '未知';
         }
         left.appendChild(badge);
       }
@@ -8831,206 +9158,188 @@ loadProjects().then(()=>{
       if(f.ossUrl && f.localUrl && f.ossUrl !== f.localUrl){
         const remoteLink = document.createElement('div');
         remoteLink.className = 'small text-muted';
-        remoteLink.innerHTML = `远程：<a href="${f.ossUrl}" target="_blank">${f.ossUrl}</a>`;
+        remoteLink.innerHTML = `远程：<a href="${f.ossUrl}" target="_blank" rel="noopener">${f.ossUrl}</a>`;
         left.appendChild(remoteLink);
-        }
+      }
 
-        const actions = document.createElement('div');
-        actions.className = 'd-flex flex-wrap gap-1';
+      wrapper.appendChild(left);
+      item.appendChild(wrapper);
+      listEl.appendChild(item);
 
-        const insertBtn = document.createElement('button');
-        insertBtn.type = 'button';
-        insertBtn.className = 'btn btn-sm btn-primary';
-        insertBtn.textContent = '插入';
-        insertBtn.onclick = function(){
-          if(!singleEditor) return;
-          let mode = typeof currentEditMode === 'string' && currentEditMode === 'markdown' ? 'markdown' : 'latex';
-          const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test(f.name || '');
-          const doc = singleEditor.getDoc();
-          const cursor = doc.getCursor();
-          let snippet = '';
-          if(mode === 'latex'){
-            if(isImage){
-              if(!f.localUrl){
-                alert('该图片仅存在于 OSS，请先同步到本地再在 LaTeX 中引用。');
-                return;
+      bindActionBubbleTrigger(item, () => {
+        const actions = [];
+        const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test(f.name || '');
+        const targetUrl = f.localUrl || f.ossUrl || preferredUrl;
+        actions.push({
+          label: isImage ? '插入图片' : '插入引用',
+          icon: '➕',
+          variant: 'primary',
+          onClick: () => {
+            if(!singleEditor) return;
+            const mode = typeof currentEditMode === 'string' && currentEditMode === 'markdown' ? 'markdown' : 'latex';
+            const doc = singleEditor.getDoc();
+            const cursor = doc.getCursor();
+            let snippet = '';
+            if(mode === 'latex'){
+              if(isImage){
+                if(!f.localUrl){
+                  alert('该图片仅存在于 OSS，请先同步到本地再在 LaTeX 中引用。');
+                  return;
+                }
+                const path = urlToLatexPath(f.localUrl);
+                snippet = `\\begin{center}\n  \\includegraphics[width=0.7\\textwidth]{${path}}\n\\end{center}\n`;
+              } else {
+                if(!preferredUrl){
+                  alert('当前附件没有可用的访问链接');
+                  return;
+                }
+                snippet = `\\textbf{附件:} \\href{${preferredUrl}}{${f.name}}\n`;
               }
-              const path = urlToLatexPath(f.localUrl);
-              snippet = `\\begin{center}\n  \\includegraphics[width=0.7\\textwidth]{${path}}\n\\end{center}\n`;
             } else {
               if(!preferredUrl){
                 alert('当前附件没有可用的访问链接');
                 return;
               }
-              snippet = `\\textbf{附件:} \\href{${preferredUrl}}{${f.name}}\n`;
+              snippet = isImage ? `![${f.name}](${preferredUrl})\n` : `[${f.name}](${preferredUrl})\n`;
             }
-          } else {
-            if(!preferredUrl){
-              alert('当前附件没有可用的访问链接');
+            doc.replaceRange(snippet, cursor);
+          },
+        });
+        actions.push({
+          label: '插入 OSS 链接',
+          icon: '☁️',
+          variant: 'outline-secondary',
+          disabled: !f.ossUrl,
+          onClick: () => {
+            if(!singleEditor) return;
+            if(!f.ossUrl){
+              alert('当前附件没有 OSS 链接');
               return;
             }
-            snippet = isImage ? `![${f.name}](${preferredUrl})\n` : `[${f.name}](${preferredUrl})\n`;
-          }
-          doc.replaceRange(snippet, cursor);
-        };
-
-        const insertOssBtn = document.createElement('button');
-        insertOssBtn.type = 'button';
-        insertOssBtn.className = 'btn btn-sm btn-outline-primary';
-        insertOssBtn.textContent = '插入为 OSS 链接';
-        if(!f.ossUrl){
-          insertOssBtn.disabled = true;
-        }
-        insertOssBtn.onclick = function(){
-          if(!singleEditor) return;
-          if(!f.ossUrl){
-            alert('当前附件没有 OSS 链接');
-            return;
-          }
-          const doc = singleEditor.getDoc();
-          const cursor = doc.getCursor();
-          const mode = typeof currentEditMode === 'string' && currentEditMode === 'markdown' ? 'markdown' : 'latex';
-          const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test(f.name || '');
-          const ossUrl = f.ossUrl;
-          let snippet = '';
-          if(mode === 'latex'){
-            if(isImage){
-              snippet = `\\href{${ossUrl}}{${f.name}}\n`;
+            const doc = singleEditor.getDoc();
+            const cursor = doc.getCursor();
+            const mode = typeof currentEditMode === 'string' && currentEditMode === 'markdown' ? 'markdown' : 'latex';
+            const ossUrl = f.ossUrl;
+            if(mode === 'latex'){
+              const snippet = isImage ? `\\href{${ossUrl}}{${f.name}}\n` : `\\textbf{附件:} \\href{${ossUrl}}{${f.name}}\n`;
+              doc.replaceRange(snippet, cursor);
             } else {
-              snippet = `\\textbf{附件:} \\href{${ossUrl}}{${f.name}}\n`;
+              const snippet = isImage ? `![${f.name}](${ossUrl})\n` : `[${f.name}](${ossUrl})\n`;
+              doc.replaceRange(snippet, cursor);
             }
-          } else {
-            snippet = isImage ? `![${f.name}](${ossUrl})\n` : `[${f.name}](${ossUrl})\n`;
-          }
-          doc.replaceRange(snippet, cursor);
-        };
-
-        const previewBtn = document.createElement('button');
-        previewBtn.type = 'button';
-        previewBtn.className = 'btn btn-sm btn-outline-secondary';
-        previewBtn.textContent = '预览';
-        previewBtn.onclick = function(){
-          const isImage = /\.(png|jpe?g|gif|svg|webp|bmp|heic|heif)$/i.test(f.name || '');
-          const targetUrl = f.localUrl || f.ossUrl || preferredUrl;
-          if(isImage && attachmentPreviewModalEl && attachmentPreviewImage){
-            if(!targetUrl){
+          },
+        });
+        actions.push({
+          label: '预览',
+          icon: '👁️',
+          variant: 'outline-secondary',
+          disabled: !targetUrl,
+          onClick: () => {
+            const finalUrl = targetUrl;
+            if(!finalUrl){
               alert('当前附件没有可用的访问链接');
               return;
             }
-            attachmentPreviewImage.src = targetUrl;
-            if(attachmentPreviewMeta){
-              const parts = [];
-              parts.push(f.location === 'oss' ? '来源：OSS' : '来源：本地');
-              if(f.ossUrl && f.localUrl && f.ossUrl !== f.localUrl){
-                parts.push('已同步');
+            if(isImage && attachmentPreviewModalEl && attachmentPreviewImage){
+              attachmentPreviewImage.src = finalUrl;
+              if(attachmentPreviewMeta){
+                const parts = [];
+                parts.push(f.location === 'oss' ? '来源：OSS' : '来源：本地');
+                if(f.ossUrl && f.localUrl && f.ossUrl !== f.localUrl){
+                  parts.push('已同步');
+                }
+                attachmentPreviewMeta.textContent = `${f.name}${parts.length ? '（' + parts.join('，') + '）' : ''}`;
               }
-              attachmentPreviewMeta.textContent = `${f.name}${parts.length ? '（' + parts.join('，') + '）' : ''}`;
+              if(attachmentPreviewOpen){
+                attachmentPreviewOpen.href = finalUrl;
+                attachmentPreviewOpen.classList.toggle('disabled', !finalUrl);
+              }
+              const modal = bootstrap.Modal.getOrCreateInstance(attachmentPreviewModalEl);
+              modal.show();
+            } else {
+              window.open(finalUrl, '_blank');
             }
-            if(attachmentPreviewOpen){
-              attachmentPreviewOpen.href = targetUrl || '#';
-              attachmentPreviewOpen.classList.toggle('disabled', !targetUrl);
-            }
-            const modal = bootstrap.Modal.getOrCreateInstance(attachmentPreviewModalEl);
-            modal.show();
-          } else {
-            if(targetUrl){
-              window.open(targetUrl, '_blank');
+          },
+        });
+        actions.push({
+          label: '打开',
+          icon: '🗂️',
+          variant: 'outline-secondary',
+          disabled: !preferredUrl,
+          onClick: () => {
+            if(preferredUrl){
+              window.open(preferredUrl, '_blank');
             } else {
               alert('当前附件没有可用的访问链接');
             }
-          }
-        };
-
-        const openBtn = document.createElement('button');
-        openBtn.type = 'button';
-        openBtn.className = 'btn btn-sm btn-outline-secondary';
-        openBtn.textContent = '打开';
-        openBtn.onclick = function(){
-          if(preferredUrl){
-            window.open(preferredUrl, '_blank');
-          } else {
-            alert('当前附件没有可用的访问链接');
-          }
-        };
-
-        const copyNameBtn = document.createElement('button');
-        copyNameBtn.type = 'button';
-        copyNameBtn.className = 'btn btn-sm btn-outline-primary';
-        copyNameBtn.textContent = '复制名称';
-        copyNameBtn.onclick = function(){
-          navigator.clipboard.writeText(f.name || '').then(()=>{
-            copyNameBtn.textContent = '已复制';
-            setTimeout(()=>{ copyNameBtn.textContent = '复制名称'; }, 2000);
-          }).catch(()=>alert('复制失败，请手动复制'));
-        };
-
-        const copyLinkBtn = document.createElement('button');
-        copyLinkBtn.type = 'button';
-        copyLinkBtn.className = 'btn btn-sm btn-outline-primary';
-        copyLinkBtn.textContent = '复制链接';
-        copyLinkBtn.onclick = function(){
-          if(!preferredUrl){
-            alert('当前附件没有可用的链接');
-            return;
-          }
-          navigator.clipboard.writeText(preferredUrl).then(()=>{
-            copyLinkBtn.textContent = '已复制';
-            setTimeout(()=>{ copyLinkBtn.textContent = '复制链接'; }, 2000);
-          }).catch(()=>alert('复制失败，请手动复制链接'));
-        };
-
-        const renameBtn = document.createElement('button');
-        renameBtn.type = 'button';
-        renameBtn.className = 'btn btn-sm btn-outline-secondary';
-        renameBtn.textContent = '重命名';
-        renameBtn.onclick = function(){
-          if(!attachmentRenameModalEl || !attachmentRenameInput){
-            alert('当前界面不支持重命名');
-            return;
-          }
-          attachmentRenameTarget = f.name;
-          attachmentRenameInput.value = f.name;
-          const modal = bootstrap.Modal.getOrCreateInstance(attachmentRenameModalEl);
-          modal.show();
-        };
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.type = 'button';
-        deleteBtn.className = 'btn btn-sm btn-outline-danger';
-        deleteBtn.textContent = '删除';
-        deleteBtn.onclick = async function(){
-          if(typeof f.refCount === 'number' && f.refCount > 0){
-            const refs = Array.isArray(f.references) && f.references.length ? f.references.join('、') : '';
-            alert(refs ? `该附件仍被引用：${refs}` : '该附件仍被引用，无法删除。');
-            return;
-          }
-          if(!confirm('确认删除此附件吗？')) return;
-          try{
-            const res = await fetch('/attachments/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({path: f.path})});
-            const parsed = await parseJsonSafe(res);
-            if(res.ok && (!parsed.json || parsed.json.success !== false)){
-              await loadAttachmentsModal();
-            } else {
-              const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
-              alert('删除失败：' + message);
+          },
+        });
+        actions.push({
+          label: '复制名称',
+          icon: '📋',
+          variant: 'outline-secondary',
+          onClick: () => {
+            navigator.clipboard.writeText(f.name || '').then(()=>{
+              showStatus('附件名称已复制', 'success', 2000);
+            }).catch(()=>alert('复制失败，请手动复制'));
+          },
+        });
+        actions.push({
+          label: '复制链接',
+          icon: '🔗',
+          variant: 'outline-secondary',
+          disabled: !preferredUrl,
+          onClick: () => {
+            if(!preferredUrl){
+              alert('当前附件没有可用的链接');
+              return;
             }
-          }catch(e){ console.error(e); alert('删除失败：' + e.message); }
-        };
-
-        actions.appendChild(insertBtn);
-        actions.appendChild(insertOssBtn);
-        actions.appendChild(previewBtn);
-        actions.appendChild(openBtn);
-        actions.appendChild(copyNameBtn);
-        actions.appendChild(copyLinkBtn);
-        actions.appendChild(renameBtn);
-        actions.appendChild(deleteBtn);
-
-        wrapper.appendChild(left);
-        wrapper.appendChild(actions);
-        item.appendChild(wrapper);
-        listEl.appendChild(item);
+            navigator.clipboard.writeText(preferredUrl).then(()=>{
+              showStatus('附件链接已复制', 'success', 2000);
+            }).catch(()=>alert('复制失败，请手动复制链接'));
+          },
+        });
+        actions.push({
+          label: '重命名',
+          icon: '✏️',
+          variant: 'outline-secondary',
+          onClick: () => {
+            if(!attachmentRenameModalEl || !attachmentRenameInput){
+              alert('当前界面不支持重命名');
+              return;
+            }
+            attachmentRenameTarget = f.name;
+            attachmentRenameInput.value = f.name;
+            const modal = bootstrap.Modal.getOrCreateInstance(attachmentRenameModalEl);
+            modal.show();
+          },
+        });
+        actions.push({
+          label: '删除',
+          icon: '🗑️',
+          variant: 'outline-danger',
+          onClick: async () => {
+            if(typeof f.refCount === 'number' && f.refCount > 0){
+              const refs = Array.isArray(f.references) && f.references.length ? f.references.join('、') : '';
+              alert(refs ? `该附件仍被引用：${refs}` : '该附件仍被引用，无法删除。');
+              return;
+            }
+            if(!confirm('确认删除此附件吗？')) return;
+            try{
+              const res = await fetch('/attachments/delete', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({path: f.path})});
+              const parsed = await parseJsonSafe(res);
+              if(res.ok && (!parsed.json || parsed.json.success !== false)){
+                await loadAttachmentsModal();
+              } else {
+                const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || ('HTTP ' + res.status));
+                alert('删除失败：' + message);
+              }
+            }catch(e){ console.error(e); alert('删除失败：' + e.message); }
+          },
+        });
+        return actions;
       });
+    });
   }
 
   const attachmentFilterInput = document.getElementById('attachment-filter-input');

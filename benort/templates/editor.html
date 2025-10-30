@@ -5378,9 +5378,10 @@ function syncMarkdownEditorToPreview(container) {
     const files = Array.from(input.files || []);
     if(!files.length) return;
     showStatus(files.length > 1 ? `正在上传 ${files.length} 个附件...` : '正在上传附件...', 'info', 2200);
-    if(mobileUploadBubble){
-      mobileUploadBubble.disabled = true;
-      mobileUploadBubble.classList.add('disabled');
+    const uploadTrigger = mobileFabUpload;
+    if(uploadTrigger){
+      uploadTrigger.disabled = true;
+      uploadTrigger.classList.add('disabled');
     }
     try{
       for(const file of files){
@@ -5389,9 +5390,9 @@ function syncMarkdownEditorToPreview(container) {
       }
     }finally{
       try{ input.value = ''; }catch(_){}
-      if(mobileUploadBubble){
-        mobileUploadBubble.disabled = false;
-        mobileUploadBubble.classList.remove('disabled');
+      if(uploadTrigger){
+        uploadTrigger.disabled = false;
+        uploadTrigger.classList.remove('disabled');
       }
     }
   }

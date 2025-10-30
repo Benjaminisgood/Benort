@@ -149,6 +149,17 @@ window.MathJax = {
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
 """
 
+_DEFAULT_HIGHLIGHT_EXPORT_SNIPPET = """<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+window.addEventListener('DOMContentLoaded', function(){
+  if (window.hljs && typeof window.hljs.highlightAll === 'function') {
+    window.hljs.highlightAll();
+  }
+});
+</script>
+"""
+
 
 def _safe_join(base: str, relative: str) -> Optional[str]:
     """Safely join a relative path to a base directory."""
@@ -299,6 +310,8 @@ def _build_markdown_export_html(
     custom_head = str(template.get("customHead") or "")
     include_mathjax = "mathjax" not in custom_head.lower()
     mathjax_head = _DEFAULT_MATHJAX_EXPORT_SNIPPET if include_mathjax else ""
+    include_highlight = "highlight" not in custom_head.lower() and "hljs" not in custom_head.lower()
+    highlight_head = _DEFAULT_HIGHLIGHT_EXPORT_SNIPPET if include_highlight else ""
 
     color_mode = "light"
     if isinstance(UI_THEME, dict):
@@ -322,6 +335,7 @@ def _build_markdown_export_html(
 {css}
   </style>
   {mathjax_head if mathjax_head else ""}
+  {highlight_head if highlight_head else ""}
   {custom_head}
 </head>
 <body {body_attr}>

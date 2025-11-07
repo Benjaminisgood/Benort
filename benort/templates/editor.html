@@ -389,6 +389,50 @@
     body.theme-dark .list-group-item-action:focus {
       background-color: #1f2937;
     }
+    .surface-card {
+      background: #f8fafc;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 0.75rem;
+    }
+    body.theme-dark .surface-card {
+      background: rgba(17, 25, 40, 0.82);
+      border-color: rgba(94, 117, 168, 0.45);
+    }
+    .llm-provider-label {
+      font-size: 0.78rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #2563eb;
+    }
+    body.theme-dark .llm-provider-label {
+      color: #60a5fa;
+    }
+    .llm-provider-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      background: rgba(226, 232, 240, 0.65);
+      font-size: 0.78rem;
+      color: #334155;
+    }
+    body.theme-dark .llm-provider-chip {
+      background: rgba(59, 130, 246, 0.14);
+      border-color: rgba(59, 130, 246, 0.42);
+      color: #dbeafe;
+    }
+    .llm-modal-provider-status.badge {
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    body.theme-dark .llm-modal-provider-status.badge.bg-warning {
+      color: #111827 !important;
+    }
+    .oss-diff-scroll {
+      max-height: 220px;
+      overflow: auto;
+    }
     .resource-list .resource-item {
       display: flex;
       flex-wrap: wrap;
@@ -458,6 +502,43 @@
       background: rgba(59, 130, 246, 0.15);
       color: #e0e7ff;
     }
+    .navbar.nav-modern {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%);
+      border-bottom: 1px solid rgba(148, 163, 184, 0.32);
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+    }
+    body.theme-dark .navbar.nav-modern {
+      background: linear-gradient(180deg, rgba(17, 24, 40, 0.98) 0%, rgba(15, 23, 42, 0.94) 100%);
+      border-bottom: 1px solid rgba(59, 130, 246, 0.28);
+      box-shadow: 0 12px 32px rgba(8, 47, 73, 0.35);
+    }
+    .navbar.nav-modern .dropdown-divider {
+      height: 24px;
+      border-color: rgba(148, 163, 184, 0.32);
+      margin: 0 0.5rem;
+    }
+    body.theme-dark .navbar.nav-modern .dropdown-divider {
+      border-color: rgba(59, 130, 246, 0.25);
+    }
+    .navbar.nav-modern .js-nav-btn {
+      border-radius: 999px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      padding: 0.38rem 0.95rem;
+      transition: transform 0.16s ease, box-shadow 0.18s ease, background 0.2s ease, color 0.2s ease;
+    }
+    .navbar.nav-modern .js-nav-btn:hover {
+      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.12);
+    }
+    .navbar.nav-modern .nav-item .btn-theme[data-theme-variant="outline"] {
+      border-width: 1.5px;
+    }
+    .navbar.nav-modern .nav-item .btn-theme {
+      box-shadow: 0 3px 6px rgba(15, 23, 42, 0.08);
+    }
+    body.theme-dark .navbar.nav-modern .nav-item .btn-theme {
+      box-shadow: 0 6px 12px rgba(8, 47, 73, 0.28);
+    }
     .btn-theme {
       --btn-bg: #2563eb;
       --btn-hover: #1d4ed8;
@@ -466,23 +547,23 @@
       --btn-outline-hover: rgba(15, 23, 42, 0.06);
       border-width: 1px;
     }
-    .btn-theme[data-theme-variant="solid"] {
+    .btn-theme[data-theme-active-variant="solid"] {
       background: var(--btn-bg);
       color: var(--btn-text);
       border-color: transparent;
     }
-    .btn-theme[data-theme-variant="solid"]:hover,
-    .btn-theme[data-theme-variant="solid"]:focus {
+    .btn-theme[data-theme-active-variant="solid"]:hover,
+    .btn-theme[data-theme-active-variant="solid"]:focus {
       background: var(--btn-hover);
       color: var(--btn-text);
     }
-    .btn-theme[data-theme-variant="outline"] {
+    .btn-theme[data-theme-active-variant="outline"] {
       background: transparent;
       color: var(--btn-text);
       border-color: var(--btn-border);
     }
-    .btn-theme[data-theme-variant="outline"]:hover,
-    .btn-theme[data-theme-variant="outline"]:focus {
+    .btn-theme[data-theme-active-variant="outline"]:hover,
+    .btn-theme[data-theme-active-variant="outline"]:focus {
       background: var(--btn-outline-hover);
       color: var(--btn-border);
     }
@@ -495,15 +576,15 @@
     body.theme-dark .btn-theme {
       box-shadow: none;
     }
-    body.theme-dark .btn-theme[data-theme-variant="outline"] {
+    body.theme-dark .btn-theme[data-theme-active-variant="outline"] {
       border-color: var(--btn-border);
       color: var(--btn-border);
     }
-    body.theme-dark .btn-theme[data-theme-variant="outline"]:hover,
-    body.theme-dark .btn-theme[data-theme-variant="outline"]:focus {
+    body.theme-dark .btn-theme[data-theme-active-variant="outline"]:hover,
+    body.theme-dark .btn-theme[data-theme-active-variant="outline"]:focus {
       background: var(--btn-outline-hover);
     }
-    body.theme-dark .btn-theme[data-theme-variant="solid"] {
+    body.theme-dark .btn-theme[data-theme-active-variant="solid"] {
       box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.16);
     }
     .btn-theme:focus-visible {
@@ -1364,7 +1445,7 @@
 
         <li class="nav-item">
           <button class="btn btn-outline-primary me-2 js-nav-btn" id="llm-manage-btn" title="管理 LLM 设置">
-            LLM <span class="badge bg-secondary ms-1" id="llm-provider-badge">--</span>
+            LLM <span class="llm-provider-label ms-1" id="llm-provider-label">--</span>
           </button>
         </li>
         <li><hr class="dropdown-divider m-1"></li>
@@ -1909,13 +1990,13 @@
                 <dt class="col-sm-4">资源目录</dt><dd class="col-sm-8 text-break" id="oss-sync-resources"></dd>
                 <dt class="col-sm-4">项目 YAML</dt><dd class="col-sm-8 text-break" id="oss-sync-yaml"></dd>
               </dl>
-              <div class="border rounded p-2 bg-light text-break" id="oss-sync-status" style="min-height:3rem"></div>
+              <div class="surface-card p-2 small text-break" id="oss-sync-status" style="min-height:3rem"></div>
               <div class="d-flex flex-wrap gap-2 mt-3">
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="oss-sync-diff">检查差异</button>
                 <button type="button" class="btn btn-outline-primary btn-sm" id="oss-sync-pull">从 OSS 拉取</button>
               </div>
               <div class="small mt-2" id="oss-sync-diff-summary"></div>
-              <div class="border rounded p-2 bg-light mt-2 small" id="oss-sync-diff-details" style="max-height:220px; overflow:auto;"></div>
+              <div class="surface-card mt-2 small oss-diff-scroll" id="oss-sync-diff-details"></div>
               <div class="small text-muted mt-2" id="oss-sync-pull-summary"></div>
             </div>
             <div class="modal-footer">
@@ -1952,7 +2033,7 @@
                 </div>
                 <div class="mt-1 text-muted" id="llm-modal-endpoint"></div>
               </div>
-              <div class="border rounded p-2 bg-light small">
+              <div class="surface-card p-2 small">
                 <div class="d-flex flex-wrap align-items-center gap-2">
                   <button type="button" class="btn btn-outline-primary btn-sm" id="llm-modal-test-btn">连通性测试</button>
                   <span class="flex-grow-1 text-muted" id="llm-modal-test-result"></span>
@@ -2612,7 +2693,7 @@ function jumpToPage(targetIdx) {
   const llmDefaultState = (window.BENORT_LLM_DEFAULT && typeof window.BENORT_LLM_DEFAULT === 'object') ? {...window.BENORT_LLM_DEFAULT} : {};
   let llmSettings = (llmDefaultState && typeof llmDefaultState === 'object') ? {...llmDefaultState} : {};
   const llmManageBtn = document.getElementById('llm-manage-btn');
-  const llmProviderBadge = document.getElementById('llm-provider-badge');
+  const llmProviderLabelEl = document.getElementById('llm-provider-label');
   const llmModalEl = document.getElementById('llmModal');
   const llmModalProviderList = document.getElementById('llm-modal-provider-list');
   const llmModalModelSelect = document.getElementById('llm-modal-model-select');
@@ -2687,8 +2768,8 @@ function jumpToPage(targetIdx) {
   function updateLlmButtonLabel(){
     const meta = getLlmProviderMeta(llmSettings && llmSettings.provider);
     const providerLabel = meta ? (meta.label || meta.id) : '--';
-    if(llmProviderBadge){
-      llmProviderBadge.textContent = providerLabel || '--';
+    if(llmProviderLabelEl){
+      llmProviderLabelEl.textContent = providerLabel || '--';
     }
     if(llmManageBtn){
       const parts = [];
@@ -2739,18 +2820,18 @@ function jumpToPage(targetIdx) {
         : (Array.isArray(provider.models) && provider.models.length > 0 && typeof provider.models[0] === 'string' ? provider.models[0] : '');
       if(defaultModel){
         const modelBadge = document.createElement('span');
-        modelBadge.className = 'badge bg-light text-muted border';
+        modelBadge.className = 'llm-provider-chip';
         modelBadge.textContent = defaultModel;
         infoRow.appendChild(modelBadge);
       }
       if(provider.hasApiKey){
         const statusBadge = document.createElement('span');
-        statusBadge.className = 'badge bg-success';
+        statusBadge.className = 'badge llm-modal-provider-status bg-success';
         statusBadge.textContent = '已配置';
         infoRow.appendChild(statusBadge);
       } else if(provider.apiKeyEnv){
         const statusBadge = document.createElement('span');
-        statusBadge.className = 'badge bg-warning text-dark';
+        statusBadge.className = 'badge llm-modal-provider-status bg-warning text-dark';
         statusBadge.textContent = '未配置';
         infoRow.appendChild(statusBadge);
       }
@@ -2804,7 +2885,7 @@ function jumpToPage(targetIdx) {
       llmModalApiEnv.textContent = meta && meta.apiKeyEnv ? meta.apiKeyEnv : '未配置';
     }
     if(llmModalApiStatus){
-      const classes = ['badge'];
+      const classes = ['badge', 'llm-modal-provider-status'];
       if(meta && meta.hasApiKey){
         classes.push('bg-success');
         llmModalApiStatus.textContent = '已配置';
@@ -4722,6 +4803,11 @@ function jumpToPage(targetIdx) {
       return paletteTokens[key] || fallbackTokens;
     };
     const buttons = document.querySelectorAll('.js-nav-btn');
+    const navbar = document.querySelector('nav.navbar');
+    if (navbar) {
+      navbar.classList.toggle('nav-modern', preset === 'modern' || preset === 'neo');
+      navbar.classList.toggle('nav-neo', preset === 'neo');
+    }
     if (!buttons.length) return;
     buttons.forEach((btn, idx) => {
       const classes = Array.from(btn.classList);
@@ -4753,8 +4839,8 @@ function jumpToPage(targetIdx) {
         btn.dataset.themeActiveVariant = resolvedVariant;
         btn.dataset.themeActiveColor = normalized;
       } else {
-        btn.removeAttribute('data-theme-active-variant');
-        btn.removeAttribute('data-theme-active-color');
+        delete btn.dataset.themeActiveVariant;
+        delete btn.dataset.themeActiveColor;
         const bootstrapClass = resolvedVariant === 'solid' ? `btn-${normalized}` : `btn-outline-${normalized}`;
         btn.classList.add('btn', bootstrapClass);
       }

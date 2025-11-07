@@ -9,6 +9,7 @@ import mimetypes
 import os
 import re
 import subprocess
+import time
 import uuid
 import zipfile
 from datetime import datetime
@@ -50,8 +51,12 @@ from .project_store import (
 )
 from .oss_client import (
     delete_file as oss_delete_file,
+    diff_directory as oss_diff_directory,
+    diff_file as oss_diff_file,
     is_configured as oss_is_configured,
     list_files as oss_list_files,
+    pull_directory as oss_pull_directory,
+    pull_file as oss_pull_file,
     sync_directory as oss_sync_directory,
     upload_file as oss_upload_file,
 )
@@ -61,7 +66,6 @@ from .config import (
     COMPONENT_LIBRARY,
     LEARNING_ASSISTANT_DEFAULT_PROMPTS,
     UI_THEME,
-    OPENAI_CHAT_COMPLETIONS_MODEL,
     OPENAI_TTS_MODEL,
     OPENAI_TTS_RESPONSE_FORMAT,
     OPENAI_TTS_SPEED,
@@ -70,6 +74,12 @@ from .config import (
 from .template_store import get_default_header, get_default_template, list_templates
 from .template_store import get_default_markdown_template
 from .responses import api_error, api_success
+from .llm import (
+    build_chat_headers,
+    get_default_llm_state,
+    list_llm_providers,
+    resolve_llm_config,
+)
 
 try:  # pragma: no cover - optional dependency
     from pdf2image import convert_from_path  # type: ignore
@@ -209,6 +219,51 @@ def _resolve_local_asset_path(
     candidate = _safe_join(attachments_folder, trimmed)
     if candidate and os.path.exists(candidate):
         return candidate
+
+
+def _load_project_safe() -> Optional[dict]:
+    """加载当前项目，若失败则返回 None。"""
+
+    try:
+        return load_project()
+    except ProjectLockedError:
+        return None
+    except Exception:
+        return None
+
+
+def _resolve_llm_for_request(payload: Optional[dict] = None, project: Optional[dict] = None) -> tuple[dict, dict]:
+    """组合请求体与项目配置，解析出最终的 LLM 配置与请求头。"""
+
+    provider_override = None
+    model_override = None
+    if isinstance(payload, dict):
+        provider_override = payload.get("llmProvider") or payload.get("llm_provider")
+        model_override = payload.get("llmModel") or payload.get("llm_model")
+    config = resolve_llm_config(provider_id=provider_override, project=project, model=model_override)
+    headers = build_chat_headers(config)
+    return config, headers
+
+
+def _llm_missing_key_error(config: dict) -> str:
+    """生成缺少 API Key 时的错误提示。"""
+
+    env_name = str(config.get("api_key_env") or "LLM_API_KEY")
+    provider_label = str(config.get("label") or config.get("id") or "LLM")
+    return f"未设置{env_name}环境变量（{provider_label}）"
+
+
+def _resolve_llm_timeout(config: dict, fallback: int) -> int:
+    """根据 provider 配置与默认值确定请求超时时间。"""
+
+    timeout_value = config.get("timeout")
+    try:
+        resolved = int(timeout_value)
+    except (TypeError, ValueError):
+        resolved = fallback
+    if resolved <= 0:
+        return fallback
+    return resolved
     candidate = _safe_join(resources_folder, trimmed)
     if candidate and os.path.exists(candidate):
         return candidate
@@ -792,7 +847,13 @@ def _collect_search_matches(pages, query: str, limit: int = 50):
 def index():
     """渲染主编辑器页面，提供初始 UI。"""
 
-    return render_template("editor.html", component_library=COMPONENT_LIBRARY, ui_theme=UI_THEME)
+    return render_template(
+        "editor.html",
+        component_library=COMPONENT_LIBRARY,
+        ui_theme=UI_THEME,
+        llm_providers=list_llm_providers(),
+        llm_default_state=get_default_llm_state(),
+    )
 
 
 @bp.route("/export_audio", methods=["GET"])
@@ -1479,9 +1540,13 @@ def ai_optimize():
     latex_text = data.get("latex", "")
     markdown_text = data.get("markdown", "")
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return api_error("未设置OPENAI_API_KEY环境变量", 500)
+    project_for_llm = _load_project_safe()
+    llm_config, headers = _resolve_llm_for_request(data, project=project_for_llm)
+    if not llm_config.get("api_key"):
+        return api_error(_llm_missing_key_error(llm_config), 500)
+    model_name = llm_config.get("model")
+    if not model_name:
+        return api_error("未配置可用的聊天模型", 500)
 
     default_header = get_default_header()
 
@@ -1499,7 +1564,9 @@ def ai_optimize():
         )
         system_prompt = AI_PROMPTS["note"]["system"]
     else:
-        project = load_project()
+        project = project_for_llm
+        if project is None:
+            project = load_project()
         template = project.get("template") if isinstance(project, dict) else {}
         if isinstance(template, dict):
             header_tex = template.get("header", default_header) or default_header
@@ -1532,25 +1599,23 @@ def ai_optimize():
 
     try:
         resp = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
+            llm_config["endpoint"],
+            headers=headers,
             json={
-                "model": OPENAI_CHAT_COMPLETIONS_MODEL,
+                "model": model_name,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt},
                 ],
                 "temperature": 0.3,
             },
-            timeout=30,
+            timeout=_resolve_llm_timeout(llm_config, 30),
         )
         if resp.status_code == 200:
             result = resp.json()["choices"][0]["message"]["content"]
             return api_success({"result": result})
-        return api_error(f"OpenAI API错误: {resp.text}", 500)
+        provider_label = llm_config.get("label") or llm_config.get("id") or "LLM"
+        return api_error(f"{provider_label} API错误: {resp.text}", 500)
     except Exception as exc:  # pragma: no cover
         return api_error(str(exc), 500)
 
@@ -1564,35 +1629,37 @@ def ai_bib():
     if not ref:
         return jsonify({"success": False, "error": "参考文献输入为空"}), 400
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return jsonify({"success": False, "error": "未设置OPENAI_API_KEY环境变量"}), 500
+    project_for_llm = _load_project_safe()
+    llm_config, headers = _resolve_llm_for_request(data, project=project_for_llm)
+    if not llm_config.get("api_key"):
+        return jsonify({"success": False, "error": _llm_missing_key_error(llm_config)}), 500
+    model_name = llm_config.get("model")
+    if not model_name:
+        return jsonify({"success": False, "error": "未配置可用的聊天模型"}), 500
 
     system_prompt = AI_BIB_PROMPT["system"]
     user_prompt = AI_BIB_PROMPT["user"].format(ref=ref)
 
     try:
         resp = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
+            llm_config["endpoint"],
+            headers=headers,
             json={
-                "model": OPENAI_CHAT_COMPLETIONS_MODEL,
+                "model": model_name,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
                 "temperature": 0.1,
             },
-            timeout=60,
+            timeout=_resolve_llm_timeout(llm_config, 60),
         )
     except Exception as exc:  # pragma: no cover
         return jsonify({"success": False, "error": str(exc)}), 500
 
     if resp.status_code != 200:
-        return jsonify({"success": False, "error": f"OpenAI API错误: {resp.text}"}), 500
+        provider_label = llm_config.get("label") or llm_config.get("id") or "LLM"
+        return jsonify({"success": False, "error": f"{provider_label} API错误: {resp.text}"}), 500
 
     try:
         content = resp.json()["choices"][0]["message"]["content"]
@@ -1669,6 +1736,73 @@ def ai_bib():
     }
 
     return jsonify({"success": True, "entry": entry_payload})
+
+
+@bp.route("/llm/test", methods=["POST"])
+def llm_test():
+    """执行一次最小化的聊天请求以检测 LLM 连通性。"""
+
+    data = request.json or {}
+    project_for_llm = _load_project_safe()
+    llm_config, headers = _resolve_llm_for_request(data, project=project_for_llm)
+    if not llm_config.get("api_key"):
+        return api_error(_llm_missing_key_error(llm_config), 400)
+    model_name = llm_config.get("model")
+    if not model_name:
+        return api_error("未配置可用的聊天模型", 400)
+
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": "Respond with a single word 'pong'."},
+            {"role": "user", "content": "ping"},
+        ],
+        "max_tokens": 2,
+        "temperature": 0,
+    }
+
+    started = time.perf_counter()
+    try:
+        resp = requests.post(
+            llm_config["endpoint"],
+            headers=headers,
+            json=payload,
+            timeout=_resolve_llm_timeout(llm_config, 15),
+        )
+        latency_ms = round((time.perf_counter() - started) * 1000, 2)
+    except Exception as exc:  # pragma: no cover
+        return api_error(str(exc), 500)
+
+    provider_label = llm_config.get("label") or llm_config.get("id") or "LLM"
+    if resp.status_code != 200:
+        return api_error(f"{provider_label} API错误: {resp.text}", resp.status_code)
+
+    try:
+        response_json = resp.json()
+    except ValueError:
+        response_json = {}
+
+    usage = response_json.get("usage") if isinstance(response_json, dict) else None
+    preview = ""
+    choices = response_json.get("choices") if isinstance(response_json, dict) else None
+    if isinstance(choices, list) and choices:
+        message = choices[0].get("message") if isinstance(choices[0], dict) else None
+        content = message.get("content") if isinstance(message, dict) else None
+        if isinstance(content, str):
+            preview = content.strip()
+
+    result = {
+        "provider": llm_config.get("id"),
+        "model": model_name,
+        "latencyMs": latency_ms,
+        "status": resp.status_code,
+    }
+    if usage and isinstance(usage, dict):
+        result["usage"] = usage
+    if preview:
+        result["preview"] = preview[:160]
+
+    return api_success({"result": result})
 
 
 @bp.route("/learn/config", methods=["GET"])
@@ -1852,32 +1986,34 @@ def learn_query():
     truncated_context = _truncate_text(context, 3000) or "（无额外上下文）"
     user_prompt = _format_learning_user_message(template, truncated_content, truncated_context)
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return api_error("未设置OPENAI_API_KEY环境变量", 500)
+    project_for_llm = _load_project_safe()
+    llm_config, headers = _resolve_llm_for_request(data, project=project_for_llm)
+    if not llm_config.get("api_key"):
+        return api_error(_llm_missing_key_error(llm_config), 500)
+    model_name = llm_config.get("model")
+    if not model_name:
+        return api_error("未配置可用的聊天模型", 500)
 
     try:
         resp = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
+            llm_config["endpoint"],
+            headers=headers,
             json={
-                "model": OPENAI_CHAT_COMPLETIONS_MODEL,
+                "model": model_name,
                 "messages": [
                     {"role": "system", "content": system_text},
                     {"role": "user", "content": user_prompt},
                 ],
                 "temperature": 0.4,
             },
-            timeout=60,
+            timeout=_resolve_llm_timeout(llm_config, 60),
         )
     except Exception as exc:  # pragma: no cover
         return api_error(str(exc), 500)
 
     if resp.status_code != 200:
-        return api_error(f"OpenAI API错误: {resp.text}", 500)
+        provider_label = llm_config.get("label") or llm_config.get("id") or "LLM"
+        return api_error(f"{provider_label} API错误: {resp.text}", 500)
 
     try:
         result = resp.json()["choices"][0]["message"]["content"]
@@ -2464,6 +2600,16 @@ def _run_full_oss_sync(project_name: str, attachments_folder: str, resources_fol
     return summary
 
 
+def _oss_diff_yaml(project_name: str, yaml_path: str) -> dict[str, object]:
+    filename = os.path.basename(yaml_path) if yaml_path else "project.yaml"
+    return oss_diff_file(project_name, yaml_path, filename, category="yaml")
+
+
+def _oss_pull_yaml(project_name: str, yaml_path: str, overwrite: bool = True) -> dict[str, object]:
+    filename = os.path.basename(yaml_path) if yaml_path else "project.yaml"
+    return oss_pull_file(project_name, filename, yaml_path, category="yaml", overwrite=overwrite)
+
+
 @bp.route("/attachments/list")
 def list_attachments():
     """返回项目附件清单及访问链接。"""
@@ -2719,6 +2865,66 @@ def oss_status():
         "project": project_name,
     }
     return api_success(payload)
+
+
+@bp.route("/oss/diff", methods=["GET"])
+def oss_diff():
+    """比较本地与 OSS 之间的文件差异。"""
+
+    try:
+        load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
+    project_name = get_project_from_request()
+    attachments_folder, _, yaml_path, resources_folder, _ = get_project_paths(project_name)
+    diff_payload = {
+        "attachments": oss_diff_directory(project_name, attachments_folder),
+        "resources": oss_diff_directory(project_name, resources_folder, category="resources"),
+        "yaml": _oss_diff_yaml(project_name, yaml_path),
+    }
+    return api_success({"diff": diff_payload})
+
+
+@bp.route("/oss/pull", methods=["POST"])
+def oss_pull():
+    """从 OSS 拉取文件到本地项目目录。"""
+
+    if not oss_is_configured():
+        return api_error("OSS 未配置，无法拉取", 400)
+    try:
+        load_project()
+    except ProjectLockedError:
+        return api_error(_LOCKED_ERROR, 401)
+
+    data = request.get_json(silent=True) or {}
+    scope = str(data.get("scope") or "all").lower()
+    overwrite = bool(data.get("overwrite", True))
+    delete_extra = bool(data.get("deleteExtra", False))
+
+    project_name = get_project_from_request()
+    attachments_folder, _, yaml_path, resources_folder, _ = get_project_paths(project_name)
+
+    pulled: dict[str, object] = {}
+    if scope in {"attachments", "all"}:
+        pulled["attachments"] = oss_pull_directory(
+            project_name,
+            attachments_folder,
+            category=None,
+            overwrite=overwrite,
+            delete_local_extras=delete_extra,
+        )
+    if scope in {"resources", "all"}:
+        pulled["resources"] = oss_pull_directory(
+            project_name,
+            resources_folder,
+            category="resources",
+            overwrite=overwrite,
+            delete_local_extras=delete_extra,
+        )
+    if scope in {"yaml", "all"}:
+        pulled["yaml"] = _oss_pull_yaml(project_name, yaml_path, overwrite=overwrite)
+
+    return api_success({"pulled": pulled})
 
 
 @bp.route("/oss/sync_now", methods=["POST"])

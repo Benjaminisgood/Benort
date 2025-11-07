@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 from dataclasses import dataclass
 from typing import Dict, Optional
@@ -198,7 +199,7 @@ def delete_file(project_name: str, filename: str, category: Optional[str] = None
             pass
 
 
-def list_files(project_name: str, category: Optional[str] = None) -> Dict[str, str]:
+def list_files(project_name: str, category: Optional[str] = None, with_meta: bool = False) -> Dict[str, object]:
     """Return a map of filename to public URL for OSS objects under the project."""
 
     settings = get_settings()
@@ -206,15 +207,256 @@ def list_files(project_name: str, category: Optional[str] = None) -> Dict[str, s
         return {}
     bucket = _get_bucket(settings)
     prefix = _object_prefix(settings, project_name, category)
-    results: Dict[str, str] = {}
+    results: Dict[str, object] = {}
     for obj in oss2.ObjectIterator(bucket, prefix=prefix):
         if not obj.key or obj.key.endswith("/"):
             continue
         rel = obj.key[len(prefix) :]
         if not rel:
             continue
-        results[rel] = build_public_url(settings, obj.key)
+        if with_meta:
+            results[rel] = {
+                "url": build_public_url(settings, obj.key),
+                "etag": getattr(obj, "etag", None),
+                "size": getattr(obj, "size", None),
+                "last_modified": getattr(obj, "last_modified", None),
+            }
+        else:
+            results[rel] = build_public_url(settings, obj.key)
     return results
+
+
+def _file_md5(path: str) -> Optional[str]:
+    if not path or not os.path.isfile(path):
+        return None
+    try:
+        hasher = hashlib.md5()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(8192), b""):
+                if not chunk:
+                    break
+                hasher.update(chunk)
+        return hasher.hexdigest()
+    except Exception:
+        return None
+
+
+def pull_directory(
+    project_name: str,
+    local_dir: str,
+    *,
+    category: Optional[str] = None,
+    overwrite: bool = True,
+    delete_local_extras: bool = False,
+) -> dict:
+    """Download OSS directory content to local disk."""
+
+    settings = get_settings()
+    if not settings:
+        return {"error": "OSS 未配置"}
+    bucket = _get_bucket(settings)
+    prefix = _object_prefix(settings, project_name, category)
+    os.makedirs(local_dir, exist_ok=True)
+
+    downloaded: list[str] = []
+    skipped: list[str] = []
+    failed: list[str] = []
+    removed: list[str] = []
+    remote_keys: dict[str, str] = {}
+
+    for obj in oss2.ObjectIterator(bucket, prefix=prefix):
+        key = getattr(obj, "key", "")
+        if not key or key.endswith("/"):
+            continue
+        rel = key[len(prefix) :].lstrip("/")
+        if not rel:
+            continue
+        remote_keys[rel] = key
+        dest_path = os.path.join(local_dir, rel.replace("/", os.sep))
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        if not overwrite and os.path.exists(dest_path):
+            skipped.append(rel)
+            continue
+        try:
+            bucket.get_object_to_file(key, dest_path)
+            downloaded.append(rel)
+        except Exception:  # pragma: no cover - runtime network errors
+            failed.append(rel)
+
+    if delete_local_extras:
+        for root, _, files in os.walk(local_dir):
+            for fname in files:
+                abs_path = os.path.join(root, fname)
+                rel_path = os.path.relpath(abs_path, local_dir)
+                normalized = rel_path.replace(os.sep, "/")
+                if normalized not in remote_keys:
+                    try:
+                        os.remove(abs_path)
+                        removed.append(normalized)
+                    except Exception:
+                        failed.append(normalized)
+
+    return {
+        "downloaded": downloaded,
+        "skipped": skipped,
+        "removed": removed,
+        "failed": failed,
+    }
+
+
+def pull_file(
+    project_name: str,
+    filename: str,
+    local_path: str,
+    *,
+    category: Optional[str] = None,
+    overwrite: bool = True,
+) -> dict:
+    """Download a single file from OSS."""
+
+    settings = get_settings()
+    if not settings:
+        return {"downloaded": False, "error": "OSS 未配置"}
+    bucket = _get_bucket(settings)
+    key = _object_key(settings, project_name, filename, category)
+    os.makedirs(os.path.dirname(local_path) or ".", exist_ok=True)
+    if not overwrite and os.path.exists(local_path):
+        return {"downloaded": False, "skipped": True, "path": local_path}
+
+    try:
+        bucket.get_object_to_file(key, local_path)
+        return {"downloaded": True, "path": local_path}
+    except Exception as exc:  # pragma: no cover - network errors
+        if oss2 is not None:
+            no_such_key = getattr(getattr(oss2, "exceptions", object), "NoSuchKey", None)
+            if no_such_key and isinstance(exc, no_such_key):
+                return {"downloaded": False, "error": "OSS 上未找到文件"}
+        return {"downloaded": False, "error": str(exc)}
+
+
+def diff_directory(project_name: str, local_dir: str, category: Optional[str] = None) -> dict:
+    """Compare local directory with OSS contents and report differences."""
+
+    settings = get_settings()
+    if not settings:
+        return {"error": "OSS 未配置"}
+    os.makedirs(local_dir, exist_ok=True)
+
+    remote_meta = list_files(project_name, category, with_meta=True)
+    remote_map = {key: value for key, value in remote_meta.items() if isinstance(key, str)}
+
+    local_map: dict[str, dict[str, object]] = {}
+    for root, _, files in os.walk(local_dir):
+        for fname in files:
+            abs_path = os.path.join(root, fname)
+            rel_path = os.path.relpath(abs_path, local_dir).replace(os.sep, "/")
+            try:
+                size = os.path.getsize(abs_path)
+            except OSError:
+                size = None
+            local_map[rel_path] = {
+                "size": size,
+                "md5": _file_md5(abs_path),
+            }
+
+    only_local = sorted([path for path in local_map if path not in remote_map])
+    only_remote = sorted([path for path in remote_map if path not in local_map])
+    differing: list[dict[str, object]] = []
+
+    shared_keys = sorted(set(local_map.keys()) & set(remote_map.keys()))
+    for key in shared_keys:
+        local_info = local_map.get(key) or {}
+        remote_info = remote_map.get(key) or {}
+        local_size = local_info.get("size")
+        local_md5 = (local_info.get("md5") or "") if isinstance(local_info.get("md5"), str) else None
+        remote_size = remote_info.get("size") if isinstance(remote_info, dict) else None
+        remote_etag = remote_info.get("etag") if isinstance(remote_info, dict) else None
+        if isinstance(remote_etag, str):
+            remote_etag = remote_etag.strip('"')
+
+        size_mismatch = (
+            local_size is not None
+            and remote_size is not None
+            and int(remote_size) != int(local_size)
+        )
+        hash_mismatch = (
+            local_md5
+            and remote_etag
+            and local_md5.lower() != str(remote_etag).lower()
+        )
+        if size_mismatch or hash_mismatch:
+            differing.append(
+                {
+                    "path": key,
+                    "localSize": local_size,
+                    "remoteSize": remote_size,
+                    "localMd5": local_md5,
+                    "remoteEtag": remote_etag,
+                }
+            )
+
+    return {
+        "onlyLocal": only_local,
+        "onlyRemote": only_remote,
+        "different": differing,
+    }
+
+
+def diff_file(
+    project_name: str,
+    local_path: str,
+    filename: str,
+    *,
+    category: Optional[str] = None,
+) -> dict:
+    """Compare a single file between local storage and OSS."""
+
+    settings = get_settings()
+    if not settings:
+        return {"error": "OSS 未配置"}
+
+    remote_meta = list_files(project_name, category, with_meta=True)
+    remote_info = remote_meta.get(filename) if isinstance(remote_meta, dict) else None
+
+    local_exists = os.path.isfile(local_path)
+    remote_exists = isinstance(remote_info, dict)
+
+    result: dict[str, object] = {
+        "localExists": local_exists,
+        "remoteExists": remote_exists,
+    }
+
+    local_size = os.path.getsize(local_path) if local_exists else None
+    local_md5 = _file_md5(local_path) if local_exists else None
+    remote_size = remote_info.get("size") if isinstance(remote_info, dict) else None
+    remote_etag = remote_info.get("etag") if isinstance(remote_info, dict) else None
+    if isinstance(remote_etag, str):
+        remote_etag = remote_etag.strip('"')
+
+    result.update(
+        {
+            "localSize": local_size,
+            "remoteSize": remote_size,
+            "localMd5": local_md5,
+            "remoteEtag": remote_etag,
+        }
+    )
+
+    different = False
+    if local_exists != remote_exists:
+        different = True
+    else:
+        if (
+            local_size is not None
+            and remote_size is not None
+            and int(remote_size) != int(local_size)
+        ):
+            different = True
+        elif local_md5 and remote_etag and local_md5.lower() != str(remote_etag).lower():
+            different = True
+
+    result["different"] = different
+    return result
 
 
 def sync_directory(project_name: str, local_dir: str, delete_remote_extras: bool = True, category: Optional[str] = None) -> dict:

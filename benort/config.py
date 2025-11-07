@@ -239,6 +239,54 @@ DEFAULT_LOCAL_RESOURCES_DIRNAME = "resources_store"
 
 # OpenAI ChatCompletion 相关配置
 OPENAI_CHAT_COMPLETIONS_MODEL = "gpt-4o"
+OPENAI_API_BASE_URL = os.environ.get("OPENAI_API_BASE_URL", "https://api.openai.com/v1")
+OPENAI_CHAT_PATH = os.environ.get("OPENAI_CHAT_PATH", "/chat/completions")
+
+# ChatAnywhere ChatCompletion 相关配置
+CHATANYWHERE_API_BASE_URL = os.environ.get("CHAT_ANYWHERE_BASE_URL", "https://api.chatanywhere.tech/v1")
+CHATANYWHERE_CHAT_PATH = os.environ.get("CHAT_ANYWHERE_CHAT_PATH", "/chat/completions")
+CHATANYWHERE_DEFAULT_MODEL = os.environ.get("CHAT_ANYWHERE_MODEL", "gpt-4o")
+
+# 通用 LLM 提供方注册表，便于统一管理聊天模型调用
+LLM_PROVIDERS: dict[str, dict[str, object]] = {
+    "openai": {
+        "id": "openai",
+        "label": "OpenAI",
+        "base_url": OPENAI_API_BASE_URL,
+        "chat_path": OPENAI_CHAT_PATH,
+        "default_model": OPENAI_CHAT_COMPLETIONS_MODEL,
+        "models": [
+            "gpt-4o",
+            "gpt-4o-mini",
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "o4-mini",
+        ],
+        "api_key_env": "OPENAI_API_KEY",
+        "api_key_header": "Authorization",
+        "api_key_prefix": "Bearer ",
+        "extra_headers": {},
+        "timeout": 60,
+    },
+    "chatanywhere": {
+        "id": "chatanywhere",
+        "label": "ChatAnywhere",
+        "base_url": CHATANYWHERE_API_BASE_URL,
+        "chat_path": CHATANYWHERE_CHAT_PATH,
+        "default_model": CHATANYWHERE_DEFAULT_MODEL,
+        "models": [
+            CHATANYWHERE_DEFAULT_MODEL,
+        ],
+        "api_key_env": "CHAT_ANYWHERE_API_KEY",
+        "api_key_header": "Authorization",
+        "api_key_prefix": "Bearer ",
+        "extra_headers": {},
+        "timeout": 60,
+    },
+}
+
+_ENV_DEFAULT_PROVIDER = (os.environ.get("LLM_PROVIDER") or "").strip().lower()
+DEFAULT_LLM_PROVIDER = _ENV_DEFAULT_PROVIDER if _ENV_DEFAULT_PROVIDER in LLM_PROVIDERS else "openai"
 
 # OpenAI 语音合成参数，可按需调整音色/格式/语速
 OPENAI_TTS_MODEL = "tts-1"
@@ -765,6 +813,13 @@ __all__ = [
     "DEFAULT_LOCAL_ATTACHMENTS_DIRNAME",
     "DEFAULT_LOCAL_RESOURCES_DIRNAME",
     "OPENAI_CHAT_COMPLETIONS_MODEL",
+    "OPENAI_API_BASE_URL",
+    "OPENAI_CHAT_PATH",
+    "CHATANYWHERE_API_BASE_URL",
+    "CHATANYWHERE_CHAT_PATH",
+    "CHATANYWHERE_DEFAULT_MODEL",
+    "LLM_PROVIDERS",
+    "DEFAULT_LLM_PROVIDER",
     "OPENAI_TTS_MODEL",
     "OPENAI_TTS_VOICE",
     "OPENAI_TTS_RESPONSE_FORMAT",

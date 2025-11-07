@@ -12,6 +12,8 @@
   <script>
     window.BENORT_COMPONENT_LIBRARY = {{ (component_library or {})|tojson }};
     window.BENORT_UI_THEME = {{ (ui_theme or {})|tojson }};
+    window.BENORT_LLM_PROVIDERS = {{ (llm_providers or [])|tojson }};
+    window.BENORT_LLM_DEFAULT = {{ (llm_default_state or {})|tojson }};
   </script>
   <style>
     #editor-preview-wrapper {
@@ -1360,6 +1362,13 @@
         <li class="nav-item"><button class="btn btn-outline-success me-2 js-nav-btn" id="export-btn" title="导出">导出</button></li>
         <li><hr class="dropdown-divider m-1"></li>
 
+        <li class="nav-item">
+          <button class="btn btn-outline-primary me-2 js-nav-btn" id="llm-manage-btn" title="管理 LLM 设置">
+            LLM <span class="badge bg-secondary ms-1" id="llm-provider-badge">--</span>
+          </button>
+        </li>
+        <li><hr class="dropdown-divider m-1"></li>
+
         <li class="nav-item"><button class="btn btn-outline-danger me-2 js-nav-btn" id="ai-optimize" title="Latex优化">tex优化</button></li>
         <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-note-optimize" title="Markdown优化">md优化</button></li>
         <li class="nav-item"><button class="btn btn-outline-secondary me-2 js-nav-btn" id="ai-script-optimize" title="Speech script优化">script优化</button></li>
@@ -1901,9 +1910,59 @@
                 <dt class="col-sm-4">项目 YAML</dt><dd class="col-sm-8 text-break" id="oss-sync-yaml"></dd>
               </dl>
               <div class="border rounded p-2 bg-light text-break" id="oss-sync-status" style="min-height:3rem"></div>
+              <div class="d-flex flex-wrap gap-2 mt-3">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="oss-sync-diff">检查差异</button>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="oss-sync-pull">从 OSS 拉取</button>
+              </div>
+              <div class="small mt-2" id="oss-sync-diff-summary"></div>
+              <div class="border rounded p-2 bg-light mt-2 small" id="oss-sync-diff-details" style="max-height:220px; overflow:auto;"></div>
+              <div class="small text-muted mt-2" id="oss-sync-pull-summary"></div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-outline-secondary" id="oss-sync-run">立即同步</button>
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LLM Settings Modal -->
+      <div class="modal fade" id="llmModal" tabindex="-1" aria-labelledby="llmModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="llmModalLabel">LLM 源配置</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label class="form-label fw-semibold">选择提供方</label>
+                <div id="llm-modal-provider-list" class="d-flex flex-column gap-2"></div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold" for="llm-modal-model-select">模型</label>
+                <select class="form-select" id="llm-modal-model-select"></select>
+                <div class="form-text" id="llm-modal-model-hint">选择后将随项目保存，前端调用同一模型。</div>
+              </div>
+              <div class="mb-3 small">
+                <div>
+                  API Key 环境变量：
+                  <code id="llm-modal-api-env">--</code>
+                  <span class="badge bg-secondary ms-2" id="llm-modal-api-status">未检测</span>
+                </div>
+                <div class="mt-1 text-muted" id="llm-modal-endpoint"></div>
+              </div>
+              <div class="border rounded p-2 bg-light small">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                  <button type="button" class="btn btn-outline-primary btn-sm" id="llm-modal-test-btn">连通性测试</button>
+                  <span class="flex-grow-1 text-muted" id="llm-modal-test-result"></span>
+                </div>
+                <div class="mt-2 text-muted">
+                  测试会发送最小化请求（最多 2 个 token），用于验证当前密钥与接口是否可用。
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
             </div>
           </div>
@@ -2549,6 +2608,363 @@ function jumpToPage(targetIdx) {
     project: buildApiUrl('/project'),
     projectSave: buildApiUrl('/project'),
   };
+  const llmProviders = Array.isArray(window.BENORT_LLM_PROVIDERS) ? window.BENORT_LLM_PROVIDERS.slice() : [];
+  const llmDefaultState = (window.BENORT_LLM_DEFAULT && typeof window.BENORT_LLM_DEFAULT === 'object') ? {...window.BENORT_LLM_DEFAULT} : {};
+  let llmSettings = (llmDefaultState && typeof llmDefaultState === 'object') ? {...llmDefaultState} : {};
+  const llmManageBtn = document.getElementById('llm-manage-btn');
+  const llmProviderBadge = document.getElementById('llm-provider-badge');
+  const llmModalEl = document.getElementById('llmModal');
+  const llmModalProviderList = document.getElementById('llm-modal-provider-list');
+  const llmModalModelSelect = document.getElementById('llm-modal-model-select');
+  const llmModalApiEnv = document.getElementById('llm-modal-api-env');
+  const llmModalApiStatus = document.getElementById('llm-modal-api-status');
+  const llmModalEndpoint = document.getElementById('llm-modal-endpoint');
+  const llmModalTestBtn = document.getElementById('llm-modal-test-btn');
+  const llmModalTestResult = document.getElementById('llm-modal-test-result');
+
+  function getLlmProviderMeta(id){
+    if(!id) return null;
+    const target = String(id).trim().toLowerCase();
+    if(!target) return null;
+    for(const provider of llmProviders){
+      if(provider && typeof provider.id === 'string' && provider.id.toLowerCase() === target){
+        return provider;
+      }
+    }
+    return null;
+  }
+
+  function ensureLlmSettingsDefaults(){
+    if(!llmSettings || typeof llmSettings !== 'object'){
+      llmSettings = {};
+    }
+    let providerId = (typeof llmSettings.provider === 'string' && llmSettings.provider.trim()) ? llmSettings.provider.trim().toLowerCase() : '';
+    let meta = getLlmProviderMeta(providerId);
+    if(!meta){
+      const fallback = (typeof llmDefaultState.provider === 'string' && getLlmProviderMeta(llmDefaultState.provider)) ? llmDefaultState.provider : '';
+      if(fallback){
+        providerId = fallback;
+      } else if(llmProviders.length > 0 && typeof llmProviders[0].id === 'string'){
+        providerId = llmProviders[0].id;
+      } else {
+        providerId = '';
+      }
+      meta = getLlmProviderMeta(providerId);
+    }
+    if(providerId){
+      llmSettings.provider = providerId.toLowerCase();
+    } else if('provider' in llmSettings){
+      delete llmSettings.provider;
+    }
+    if(meta){
+      const currentModel = (typeof llmSettings.model === 'string' && llmSettings.model.trim()) ? llmSettings.model.trim() : '';
+      if(!currentModel){
+        const defaultModel = (typeof meta.defaultModel === 'string' && meta.defaultModel.trim()) ? meta.defaultModel.trim() : '';
+        if(defaultModel){
+          llmSettings.model = defaultModel;
+        } else if(Array.isArray(meta.models) && meta.models.length > 0 && typeof meta.models[0] === 'string'){
+          llmSettings.model = meta.models[0];
+        } else if('model' in llmSettings){
+          delete llmSettings.model;
+        }
+      }
+    }
+  }
+
+  function getLlmPayload(){
+    const payload = {};
+    if(llmSettings && typeof llmSettings === 'object'){
+      if(typeof llmSettings.provider === 'string' && llmSettings.provider.trim()){
+        payload.provider = llmSettings.provider.trim().toLowerCase();
+      }
+      if(typeof llmSettings.model === 'string' && llmSettings.model.trim()){
+        payload.model = llmSettings.model.trim();
+      }
+    }
+    return payload;
+  }
+
+  function updateLlmButtonLabel(){
+    const meta = getLlmProviderMeta(llmSettings && llmSettings.provider);
+    const providerLabel = meta ? (meta.label || meta.id) : '--';
+    if(llmProviderBadge){
+      llmProviderBadge.textContent = providerLabel || '--';
+    }
+    if(llmManageBtn){
+      const parts = [];
+      if(providerLabel && providerLabel !== '--') parts.push(providerLabel);
+      if(llmSettings && typeof llmSettings.model === 'string' && llmSettings.model.trim()){
+        parts.push(llmSettings.model.trim());
+      }
+      llmManageBtn.title = parts.length ? `当前 LLM：${parts.join(' · ')}` : '管理 LLM 设置';
+    }
+  }
+
+  function renderLlmModalProviders(){
+    if(!llmModalProviderList) return;
+    llmModalProviderList.innerHTML = '';
+    if(!llmProviders.length){
+      llmModalProviderList.innerHTML = '<div class="text-muted small">暂无可用提供方。</div>';
+      return;
+    }
+    const active = (typeof llmSettings.provider === 'string' && llmSettings.provider.trim()) ? llmSettings.provider.trim().toLowerCase() : '';
+    llmProviders.forEach(provider => {
+      if(!provider || typeof provider.id !== 'string') return;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'form-check';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.className = 'form-check-input';
+      input.name = 'llm-modal-provider';
+      const inputId = `llm-provider-${provider.id}`;
+      input.id = inputId;
+      input.value = provider.id;
+      input.checked = provider.id.toLowerCase() === active;
+      input.addEventListener('change', () => {
+        if(!input.checked) return;
+        handleLlmProviderSelect(provider.id);
+        renderLlmModalModels();
+        updateLlmModalMeta();
+        clearLlmTestResult();
+      });
+      const label = document.createElement('label');
+      label.className = 'form-check-label d-flex justify-content-between align-items-center';
+      label.setAttribute('for', inputId);
+      const left = document.createElement('span');
+      left.textContent = provider.label || provider.id;
+      label.appendChild(left);
+      const infoRow = document.createElement('span');
+      infoRow.className = 'small ms-3 text-muted d-flex align-items-center gap-2';
+      const defaultModel = (typeof provider.defaultModel === 'string' && provider.defaultModel.trim()) ? provider.defaultModel.trim()
+        : (Array.isArray(provider.models) && provider.models.length > 0 && typeof provider.models[0] === 'string' ? provider.models[0] : '');
+      if(defaultModel){
+        const modelBadge = document.createElement('span');
+        modelBadge.className = 'badge bg-light text-muted border';
+        modelBadge.textContent = defaultModel;
+        infoRow.appendChild(modelBadge);
+      }
+      if(provider.hasApiKey){
+        const statusBadge = document.createElement('span');
+        statusBadge.className = 'badge bg-success';
+        statusBadge.textContent = '已配置';
+        infoRow.appendChild(statusBadge);
+      } else if(provider.apiKeyEnv){
+        const statusBadge = document.createElement('span');
+        statusBadge.className = 'badge bg-warning text-dark';
+        statusBadge.textContent = '未配置';
+        infoRow.appendChild(statusBadge);
+      }
+      if(infoRow.childElementCount > 0){
+        label.appendChild(infoRow);
+      }
+      wrapper.appendChild(input);
+      wrapper.appendChild(label);
+      llmModalProviderList.appendChild(wrapper);
+    });
+  }
+
+  function renderLlmModalModels(){
+    if(!llmModalModelSelect) return;
+    const meta = getLlmProviderMeta(llmSettings && llmSettings.provider);
+    const models = Array.isArray(meta && meta.models) ? meta.models.filter(model => typeof model === 'string') : [];
+    const current = (typeof llmSettings.model === 'string' && llmSettings.model.trim()) ? llmSettings.model.trim() : '';
+    llmModalModelSelect.innerHTML = '';
+    if(!models.length){
+      const fallback = current || (meta && typeof meta?.defaultModel === 'string' && meta.defaultModel.trim() ? meta.defaultModel.trim() : '');
+      const option = document.createElement('option');
+      option.value = fallback || '';
+      option.textContent = fallback || '无可用模型';
+      llmModalModelSelect.appendChild(option);
+      llmModalModelSelect.disabled = true;
+      llmModalModelSelect.value = fallback || '';
+      return;
+    }
+    models.forEach(model => {
+      const option = document.createElement('option');
+      option.value = model;
+      option.textContent = model;
+      llmModalModelSelect.appendChild(option);
+    });
+    if(current && !models.includes(current)){
+      const customOption = document.createElement('option');
+      customOption.value = current;
+      customOption.textContent = `${current}（自定义）`;
+      llmModalModelSelect.appendChild(customOption);
+    }
+    const target = current || (meta && typeof meta.defaultModel === 'string' && meta.defaultModel.trim() ? meta.defaultModel.trim() : models[0]);
+    if(target){
+      llmModalModelSelect.value = target;
+    }
+    llmModalModelSelect.disabled = llmModalModelSelect.options.length <= 1;
+  }
+
+  function updateLlmModalMeta(){
+    const meta = getLlmProviderMeta(llmSettings && llmSettings.provider);
+    if(llmModalApiEnv){
+      llmModalApiEnv.textContent = meta && meta.apiKeyEnv ? meta.apiKeyEnv : '未配置';
+    }
+    if(llmModalApiStatus){
+      const classes = ['badge'];
+      if(meta && meta.hasApiKey){
+        classes.push('bg-success');
+        llmModalApiStatus.textContent = '已配置';
+      } else {
+        classes.push('bg-warning', 'text-dark');
+        llmModalApiStatus.textContent = '未检测到密钥';
+      }
+      llmModalApiStatus.className = classes.join(' ');
+    }
+    if(llmModalEndpoint){
+      const base = meta && meta.baseUrl ? meta.baseUrl : '';
+      const path = meta && meta.chatPath ? meta.chatPath : '';
+      const endpointText = `${base || ''}${path || ''}`.trim();
+      llmModalEndpoint.textContent = endpointText ? `接口：${endpointText}` : '';
+    }
+    if(llmModalTestBtn){
+      llmModalTestBtn.disabled = !(meta && meta.hasApiKey);
+    }
+  }
+
+  function renderLlmModal(){
+    ensureLlmSettingsDefaults();
+    renderLlmModalProviders();
+    renderLlmModalModels();
+    updateLlmModalMeta();
+  }
+
+  function clearLlmTestResult(){
+    if(!llmModalTestResult) return;
+    llmModalTestResult.className = 'flex-grow-1 text-muted small';
+    llmModalTestResult.textContent = '';
+  }
+
+  function setLlmTestResult(message, tone){
+    if(!llmModalTestResult) return;
+    const classes = ['flex-grow-1', 'small'];
+    if(tone === 'success'){
+      classes.push('text-success');
+    } else if(tone === 'danger'){
+      classes.push('text-danger');
+    } else {
+      classes.push('text-muted');
+    }
+    llmModalTestResult.className = classes.join(' ');
+    llmModalTestResult.textContent = message || '';
+  }
+
+  function handleLlmProviderSelect(providerId){
+    const meta = getLlmProviderMeta(providerId);
+    if(!meta){
+      showStatus('未找到匹配的 LLM 提供方', 'danger', 4000);
+      return;
+    }
+    if(!llmSettings || typeof llmSettings !== 'object'){
+      llmSettings = {};
+    }
+    const previousProvider = (typeof llmSettings.provider === 'string') ? llmSettings.provider.trim().toLowerCase() : '';
+    const previousModel = (typeof llmSettings.model === 'string') ? llmSettings.model.trim() : '';
+    llmSettings.provider = meta.id.trim().toLowerCase();
+    if(meta.defaultModel && typeof meta.defaultModel === 'string' && meta.defaultModel.trim()){
+      llmSettings.model = meta.defaultModel.trim();
+    } else if(Array.isArray(meta.models) && meta.models.length > 0 && typeof meta.models[0] === 'string'){
+      llmSettings.model = meta.models[0];
+    } else if('model' in llmSettings){
+      delete llmSettings.model;
+    }
+    const nextModel = (typeof llmSettings.model === 'string') ? llmSettings.model : '';
+    refreshLlmUi();
+    clearLlmTestResult();
+    if(previousProvider !== llmSettings.provider || previousModel !== nextModel){
+      saveProject();
+      showStatus(`已切换至 ${meta.label || meta.id}`, 'success', 2000);
+    }
+  }
+
+  function withLlmConfig(payload){
+    const base = (payload && typeof payload === 'object') ? {...payload} : {};
+    if(llmSettings && typeof llmSettings.provider === 'string' && llmSettings.provider.trim()){
+      base.llmProvider = llmSettings.provider.trim().toLowerCase();
+    }
+    if(llmSettings && typeof llmSettings.model === 'string' && llmSettings.model.trim()){
+      base.llmModel = llmSettings.model.trim();
+    }
+    return base;
+  }
+
+  function refreshLlmUi(){
+    ensureLlmSettingsDefaults();
+    updateLlmButtonLabel();
+    if(llmModalEl && llmModalEl.classList.contains('show')){
+      renderLlmModal();
+    }
+  }
+
+  if(llmManageBtn && llmModalEl){
+    llmManageBtn.addEventListener('click', () => {
+      renderLlmModal();
+      clearLlmTestResult();
+      const modal = bootstrap.Modal.getOrCreateInstance(llmModalEl);
+      modal.show();
+    });
+  }
+
+  if(llmModalEl){
+    llmModalEl.addEventListener('hidden.bs.modal', () => {
+      clearLlmTestResult();
+    });
+    llmModalEl.addEventListener('shown.bs.modal', () => {
+      renderLlmModal();
+    });
+  }
+
+  if(llmModalModelSelect && !llmModalModelSelect.dataset.bound){
+    llmModalModelSelect.dataset.bound = 'true';
+    llmModalModelSelect.addEventListener('change', () => {
+      const value = (llmModalModelSelect.value || '').trim();
+      if(value && llmSettings){
+        const previous = (typeof llmSettings.model === 'string') ? llmSettings.model.trim() : '';
+        if(previous !== value){
+          llmSettings.model = value;
+          saveProject();
+          refreshLlmUi();
+        }
+      }
+      clearLlmTestResult();
+    });
+  }
+
+  if(llmModalTestBtn && !llmModalTestBtn.dataset.bound){
+    llmModalTestBtn.dataset.bound = 'true';
+    llmModalTestBtn.addEventListener('click', async function(){
+      if(this.disabled) return;
+      clearLlmTestResult();
+      setLlmTestResult('测试中...', 'muted');
+      this.disabled = true;
+      try{
+        const res = await fetch('/llm/test', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(withLlmConfig({})),
+        });
+        const parsed = await parseJsonSafe(res);
+        if(res.ok && parsed.json && parsed.json.success !== false){
+          const result = parsed.json.result || {};
+          const latency = typeof result.latencyMs === 'number' ? `${result.latencyMs.toFixed(1)} ms` : '未知延迟';
+          const preview = typeof result.preview === 'string' && result.preview ? ` 返回示例：${result.preview}` : '';
+          setLlmTestResult(`连通正常（${latency}）。${preview}`.trim(), 'success');
+        } else {
+          const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || `HTTP ${res.status}`);
+          setLlmTestResult(`测试失败：${message}`, 'danger');
+        }
+      }catch(e){
+        const msg = e && e.message ? e.message : String(e || '未知错误');
+        setLlmTestResult(`测试失败：${msg}`, 'danger');
+      }
+      this.disabled = false;
+    });
+  }
+
+  refreshLlmUi();
   const resourceRenameModalEl = document.getElementById('resourceRenameModal');
   const resourceRenameInput = document.getElementById('resource-rename-input');
   const resourceRenamePreview = document.getElementById('resource-rename-preview');
@@ -2606,6 +3022,11 @@ function jumpToPage(targetIdx) {
   const ossSyncYaml = document.getElementById('oss-sync-yaml');
   const ossSyncStatusBox = document.getElementById('oss-sync-status');
   const ossSyncRunBtn = document.getElementById('oss-sync-run');
+  const ossSyncDiffBtn = document.getElementById('oss-sync-diff');
+  const ossSyncPullBtn = document.getElementById('oss-sync-pull');
+  const ossSyncDiffSummary = document.getElementById('oss-sync-diff-summary');
+  const ossSyncDiffDetails = document.getElementById('oss-sync-diff-details');
+  const ossSyncPullSummary = document.getElementById('oss-sync-pull-summary');
   const searchInputEl = document.getElementById('search-modal-input');
   const searchSubmitBtn = document.getElementById('search-modal-submit');
   const mobileFloatingActions = document.getElementById('mobile-floating-actions');
@@ -3109,6 +3530,98 @@ function jumpToPage(targetIdx) {
     return JSON.stringify(entry);
   }
 
+  function renderPullEntry(entry){
+    if(!entry) return '无数据';
+    if(entry.error) return `失败：${entry.error}`;
+    if(Object.prototype.hasOwnProperty.call(entry, 'path')){
+      if(entry.downloaded) return entry.path ? `已下载：${entry.path}` : '已下载';
+      if(entry.skipped) return entry.path ? `已存在，跳过：${entry.path}` : '已存在，跳过';
+      return '无变更';
+    }
+    const downloaded = Array.isArray(entry.downloaded) ? entry.downloaded.length : (entry.downloaded ? 1 : 0);
+    const skipped = Array.isArray(entry.skipped) ? entry.skipped.length : (entry.skipped ? 1 : 0);
+    const removed = Array.isArray(entry.removed) ? entry.removed.length : (entry.removed ? 1 : 0);
+    const failed = Array.isArray(entry.failed) ? entry.failed.length : (entry.failed ? 1 : 0);
+    return `下载 ${downloaded}，跳过 ${skipped}，清理 ${removed}，失败 ${failed}`;
+  }
+
+  function summarizeDiffScope(title, diff){
+    if(!diff) return `${title}：无数据`;
+    if(diff.error) return `${title}：失败 - ${diff.error}`;
+    if(Object.prototype.hasOwnProperty.call(diff, 'localExists')){
+      const local = diff.localExists ? '本地存在' : '本地缺失';
+      const remote = diff.remoteExists ? '远端存在' : '远端缺失';
+      const status = diff.different ? '存在差异' : '内容一致';
+      return `${title}：${status}（${local}，${remote}）`;
+    }
+    const onlyLocal = Array.isArray(diff.onlyLocal) ? diff.onlyLocal.length : 0;
+    const onlyRemote = Array.isArray(diff.onlyRemote) ? diff.onlyRemote.length : 0;
+    const different = Array.isArray(diff.different) ? diff.different.length : 0;
+    return `${title}：仅本地 ${onlyLocal}，仅远端 ${onlyRemote}，差异 ${different}`;
+  }
+
+  function renderDiffDetailSection(title, diff){
+    if(!diff) return `<div class="mb-2"><strong>${escapeHtml(title)}</strong><div class="text-muted">无数据</div></div>`;
+    if(diff.error) return `<div class="mb-2"><strong>${escapeHtml(title)}</strong><div class="text-danger">${escapeHtml(diff.error)}</div></div>`;
+    if(Object.prototype.hasOwnProperty.call(diff, 'localExists')){
+      const rows = [];
+      rows.push(`<div>${diff.localExists ? '本地存在' : '本地缺失'}；${diff.remoteExists ? '远端存在' : '远端缺失'}</div>`);
+      const sizeInfo = [];
+      if(typeof diff.localSize === 'number') sizeInfo.push(`本地大小 ${diff.localSize}`);
+      if(typeof diff.remoteSize === 'number') sizeInfo.push(`远端大小 ${diff.remoteSize}`);
+      if(sizeInfo.length) rows.push(`<div>${sizeInfo.join('；')}</div>`);
+      if(diff.localMd5) rows.push(`<div>本地 MD5：${escapeHtml(diff.localMd5)}</div>`);
+      if(diff.remoteEtag) rows.push(`<div>远端 ETag：${escapeHtml(diff.remoteEtag)}</div>`);
+      if(diff.different) rows.push('<div class="text-danger">状态：存在差异</div>');
+      return `<div class="mb-2"><strong>${escapeHtml(title)}</strong><div class="ps-2">${rows.join('')}</div></div>`;
+    }
+    const sections = [];
+    const onlyLocal = Array.isArray(diff.onlyLocal) ? diff.onlyLocal : [];
+    const onlyRemote = Array.isArray(diff.onlyRemote) ? diff.onlyRemote : [];
+    const different = Array.isArray(diff.different) ? diff.different : [];
+
+    const renderList = (items) => items.map(item => `<div>${escapeHtml(typeof item === 'string' ? item : (item.path || JSON.stringify(item)))}</div>`).join('');
+
+    sections.push(`<div><strong>仅本地</strong><div class="ps-2">${onlyLocal.length ? renderList(onlyLocal) : '<span class="text-muted">无</span>'}</div></div>`);
+    sections.push(`<div class="mt-2"><strong>仅远端</strong><div class="ps-2">${onlyRemote.length ? renderList(onlyRemote) : '<span class="text-muted">无</span>'}</div></div>`);
+    sections.push(
+      `<div class="mt-2"><strong>存在差异</strong><div class="ps-2">${
+        different.length
+          ? different
+              .map(item => {
+                if(item && typeof item === 'object'){
+                  const parts = [];
+                  if(item.path) parts.push(escapeHtml(item.path));
+                  if(item.localSize !== undefined) parts.push(`本地: ${item.localSize}`);
+                  if(item.remoteSize !== undefined) parts.push(`远端: ${item.remoteSize}`);
+                  if(item.localMd5) parts.push(`MD5: ${escapeHtml(item.localMd5)}`);
+                  if(item.remoteEtag) parts.push(`ETag: ${escapeHtml(item.remoteEtag)}`);
+                  return `<div>${parts.join('；')}</div>`;
+                }
+                return `<div>${escapeHtml(String(item))}</div>`;
+              })
+              .join('')
+          : '<span class="text-muted">无</span>'
+      }</div></div>`
+    );
+    return `<div class="mb-3"><strong>${escapeHtml(title)}</strong><div class="mt-1">${sections.join('')}</div></div>`;
+  }
+
+  function renderDiffDetails(diff){
+    if(!diff) return '';
+    const sections = [];
+    if(Object.prototype.hasOwnProperty.call(diff, 'attachments')){
+      sections.push(renderDiffDetailSection('附件', diff.attachments));
+    }
+    if(Object.prototype.hasOwnProperty.call(diff, 'resources')){
+      sections.push(renderDiffDetailSection('资源', diff.resources));
+    }
+    if(Object.prototype.hasOwnProperty.call(diff, 'yaml')){
+      sections.push(renderDiffDetailSection('项目 YAML', diff.yaml));
+    }
+    return sections.join('') || '<div class="text-muted">暂无差异。</div>';
+  }
+
   function getProjectMeta(name){
     if(!name) return {};
     return projectMetadata && Object.prototype.hasOwnProperty.call(projectMetadata, name) ? (projectMetadata[name] || {}) : {};
@@ -3596,6 +4109,9 @@ function jumpToPage(targetIdx) {
   async function refreshOssSyncModal(){
     if(!ossSyncModalEl) return;
     if(ossSyncStatusBox) ossSyncStatusBox.textContent = '加载中...';
+    if(ossSyncDiffSummary) ossSyncDiffSummary.textContent = '';
+    if(ossSyncDiffDetails) ossSyncDiffDetails.innerHTML = '';
+    if(ossSyncPullSummary) ossSyncPullSummary.textContent = '';
     try{
       const res = await fetch('/oss/status');
       const parsed = await parseJsonSafe(res);
@@ -3612,6 +4128,8 @@ function jumpToPage(targetIdx) {
           ossSyncWarningMain.textContent = '无法读取 OSS 状态';
         }
         if(ossSyncRunBtn) ossSyncRunBtn.disabled = true;
+        if(ossSyncDiffBtn) ossSyncDiffBtn.disabled = true;
+        if(ossSyncPullBtn) ossSyncPullBtn.disabled = true;
         return;
       }
 
@@ -3625,6 +4143,12 @@ function jumpToPage(targetIdx) {
       }
       if(ossSyncRunBtn){
         ossSyncRunBtn.disabled = !configured;
+      }
+      if(ossSyncDiffBtn){
+        ossSyncDiffBtn.disabled = !configured;
+      }
+      if(ossSyncPullBtn){
+        ossSyncPullBtn.disabled = !configured;
       }
 
       if(ossSyncWarningMain){
@@ -3648,6 +4172,15 @@ function jumpToPage(targetIdx) {
         if(payload.message) statusParts.push(payload.message);
         ossSyncStatusBox.textContent = statusParts.join('；') || '状态未知';
       }
+      if(ossSyncDiffSummary){
+        ossSyncDiffSummary.textContent = configured ? '点击“检查差异”查看最新情况' : 'OSS 未配置';
+      }
+      if(ossSyncDiffDetails){
+        ossSyncDiffDetails.innerHTML = '';
+      }
+      if(ossSyncPullSummary){
+        ossSyncPullSummary.textContent = '';
+      }
     }catch(e){
       if(ossSyncStatusBox) ossSyncStatusBox.textContent = `获取状态失败：${e.message}`;
       if(ossSyncToggleMain){
@@ -3655,11 +4188,101 @@ function jumpToPage(targetIdx) {
         ossSyncToggleMain.checked = false;
       }
       if(ossSyncRunBtn) ossSyncRunBtn.disabled = true;
+      if(ossSyncDiffBtn) ossSyncDiffBtn.disabled = true;
+      if(ossSyncPullBtn) ossSyncPullBtn.disabled = true;
       if(ossSyncWarningMain){
         ossSyncWarningMain.classList.remove('d-none');
         ossSyncWarningMain.textContent = '无法连接服务器获取同步状态';
       }
     }
+  }
+
+  async function runOssDiff(){
+    if(ossSyncDiffSummary) ossSyncDiffSummary.textContent = '正在检查差异...';
+    if(ossSyncDiffDetails) ossSyncDiffDetails.innerHTML = '<div class="text-muted">检查中...</div>';
+    try{
+      const res = await fetch('/oss/diff');
+      const parsed = await parseJsonSafe(res);
+      if(res.ok && parsed.json && parsed.json.success !== false){
+        const diff = parsed.json.diff || {};
+        if(ossSyncDiffSummary){
+          const summaryLines = [
+            summarizeDiffScope('附件', diff.attachments),
+            summarizeDiffScope('资源', diff.resources),
+            summarizeDiffScope('项目 YAML', diff.yaml),
+          ];
+          ossSyncDiffSummary.textContent = summaryLines.join('；');
+        }
+        if(ossSyncDiffDetails){
+          ossSyncDiffDetails.innerHTML = renderDiffDetails(diff);
+        }
+      } else {
+        const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || `HTTP ${res.status}`);
+        if(ossSyncDiffSummary) ossSyncDiffSummary.textContent = `检查差异失败：${message}`;
+        if(ossSyncDiffDetails) ossSyncDiffDetails.innerHTML = '';
+      }
+    }catch(e){
+      const msg = e && e.message ? e.message : String(e || '未知错误');
+      if(ossSyncDiffSummary) ossSyncDiffSummary.textContent = `检查差异失败：${msg}`;
+      if(ossSyncDiffDetails) ossSyncDiffDetails.innerHTML = '';
+    }
+  }
+
+  async function runOssPull(){
+    if(ossSyncPullSummary) ossSyncPullSummary.textContent = '正在从 OSS 拉取...';
+    try{
+      const res = await fetch('/oss/pull', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({scope: 'all'}),
+      });
+      const parsed = await parseJsonSafe(res);
+      if(res.ok && parsed.json && parsed.json.success !== false){
+        const pulled = parsed.json.pulled || {};
+        const lines = [];
+        if(pulled.attachments) lines.push(`附件：${renderPullEntry(pulled.attachments)}`);
+        if(pulled.resources) lines.push(`资源：${renderPullEntry(pulled.resources)}`);
+        if(pulled.yaml) lines.push(`项目 YAML：${renderPullEntry(pulled.yaml)}`);
+        await loadAttachmentsModal();
+        await loadResourcesModal();
+        await loadProject();
+        await refreshOssSyncModal();
+        if(ossSyncPullSummary) ossSyncPullSummary.textContent = lines.join('；');
+        await runOssDiff();
+      } else {
+        const message = (parsed.json && parsed.json.error) ? parsed.json.error : (parsed.text || `HTTP ${res.status}`);
+        if(ossSyncPullSummary) ossSyncPullSummary.textContent = `拉取失败：${message}`;
+      }
+    }catch(e){
+      const msg = e && e.message ? e.message : String(e || '未知错误');
+      if(ossSyncPullSummary) ossSyncPullSummary.textContent = `拉取失败：${msg}`;
+    }
+  }
+
+  if(ossSyncDiffBtn && !ossSyncDiffBtn.dataset.bound){
+    ossSyncDiffBtn.dataset.bound = 'true';
+    ossSyncDiffBtn.addEventListener('click', async function(){
+      if(this.disabled) return;
+      const original = this.textContent;
+      this.disabled = true;
+      this.textContent = '检查中...';
+      await runOssDiff();
+      this.textContent = original || '检查差异';
+      this.disabled = false;
+    });
+  }
+
+  if(ossSyncPullBtn && !ossSyncPullBtn.dataset.bound){
+    ossSyncPullBtn.dataset.bound = 'true';
+    ossSyncPullBtn.addEventListener('click', async function(){
+      if(this.disabled) return;
+      const original = this.textContent;
+      this.disabled = true;
+      this.textContent = '拉取中...';
+      await runOssPull();
+      this.textContent = original || '从 OSS 拉取';
+      this.disabled = false;
+    });
   }
 
 
@@ -6220,6 +6843,7 @@ function syncMarkdownEditorToPreview(container) {
       markdownTemplate: {...markdownTemplate},
       pages: pagesData,
       resources: globalResources,
+      llm: getLlmPayload(),
     };
     saveRequestQueue = saveRequestQueue
       .catch(() => {})
@@ -6298,6 +6922,12 @@ function syncMarkdownEditorToPreview(container) {
       })
       .then(data => {
         if (!data) return;
+        if(data.llm && typeof data.llm === 'object'){
+          llmSettings = {...data.llm};
+        } else {
+          llmSettings = {};
+        }
+        refreshLlmUi();
         latexTemplate = typeof data.template === 'string' ? {
           header: data.template,
           beforePages: '\\begin{document}',
@@ -7044,7 +7674,7 @@ loadProjects().then(()=>{
     fetch('/ai_optimize', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({latex: content, markdown: note, type: 'latex'})
+      body: JSON.stringify(withLlmConfig({latex: content, markdown: note, type: 'latex'}))
     }).then(res => res.json()).then(data => {
       if(data.success && data.result) {
         document.getElementById('ai-result').value = data.result;
@@ -7081,7 +7711,7 @@ loadProjects().then(()=>{
     fetch('/ai_optimize', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({script: content, latex: page_tex, markdown: note, type: 'script'})
+      body: JSON.stringify(withLlmConfig({script: content, latex: page_tex, markdown: note, type: 'script'}))
     }).then(res => res.json()).then(data => {
       if(data.success && data.result) {
         document.getElementById('ai-script-result').value = data.result;
@@ -7116,8 +7746,8 @@ loadProjects().then(()=>{
     fetch('/ai_optimize', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({markdown: note, latex: page_tex, type: 'note'})
-  }).then(res => res.json()).then(data => {
+      body: JSON.stringify(withLlmConfig({markdown: note, latex: page_tex, type: 'note'}))
+    }).then(res => res.json()).then(data => {
       if(data.success && data.result) {
         document.getElementById('ai-note-result').value = data.result;
         var modal = new bootstrap.Modal(document.getElementById('aiNoteModal'));
@@ -7478,12 +8108,12 @@ loadProjects().then(()=>{
       const res = await fetch('/learn/query', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
+        body: JSON.stringify(withLlmConfig({
           content: baseContent,
           context: baseContext,
           promptId,
           promptName,
-        }),
+        })),
       });
       if (!res.ok) {
         const text = (await res.text()) || `HTTP ${res.status}`;
@@ -8320,7 +8950,7 @@ loadProjects().then(()=>{
     fetch('/ai_bib', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ref: val})
+      body: JSON.stringify(withLlmConfig({ref: val}))
     }).then(res=>res.json()).then(data=>{
       if(data.success && (data.entry || data.bib)) {
         const payload = data.entry ? {...data.entry} : {entry: data.bib};

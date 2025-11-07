@@ -19,6 +19,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from .config import DEFAULT_PROJECT_NAME
+from .llm import resolve_llm_config
 from .latex import normalize_latex_content
 from .template_store import (
     get_default_header,
@@ -688,6 +689,27 @@ def _canonicalize_project_structure(data):
         data['ossSyncEnabled'] = bool(data['ossSyncEnabled'])
     else:
         data['ossSyncEnabled'] = False
+
+    llm_raw = data.get('llm')
+    if not isinstance(llm_raw, dict):
+        llm_raw = {}
+    provider_candidate = llm_raw.get('provider')
+    if isinstance(provider_candidate, str) and provider_candidate.strip():
+        provider_candidate = provider_candidate.strip().lower()
+    else:
+        provider_candidate = None
+    resolved_llm = resolve_llm_config(provider_id=provider_candidate)
+    sanitized_llm = {
+        'provider': resolved_llm.get('id'),
+    }
+    explicit_model = llm_raw.get('model')
+    if isinstance(explicit_model, str) and explicit_model.strip():
+        sanitized_llm['model'] = explicit_model.strip()
+    else:
+        default_model = resolved_llm.get('model')
+        if default_model:
+            sanitized_llm['model'] = default_model
+    data['llm'] = sanitized_llm
 
     return data
 

@@ -106,7 +106,7 @@
       justify-content: flex-end;
       gap: clamp(12px, 4vw, 20px);
       padding: 0 clamp(16px, 5vw, 26px) env(safe-area-inset-bottom, 0px);
-      z-index: 1350;
+      z-index: 1030;
       pointer-events: none;
       --mobile-actions-handle-base: calc(clamp(16px, 4vw, 26px) + env(safe-area-inset-bottom, 0px));
       --mobile-actions-sheet-height: 0px;
@@ -3456,21 +3456,6 @@ function jumpToPage(targetIdx) {
     mobileActionsHandle.addEventListener('pointercancel', handleMobileActionsPointerCancel);
   }
 
-  document.addEventListener('click', event => {
-    if (!mobileActionsPanel || !mobileActionsPanel.classList.contains('open')) return;
-    if (!document.body.classList.contains('mobile-compact')) {
-      closeMobileActionsPanel();
-      return;
-    }
-    if (mobileActionsPanel.contains(event.target)) return;
-    closeMobileActionsPanel();
-  }, true);
-
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') {
-      closeMobileActionsPanel();
-    }
-  });
   window.addEventListener('resize', () => {
     if(mobileActionsPanel && mobileActionsPanel.classList.contains('open')){
       updateMobileActionsHandleOffset();
@@ -3523,7 +3508,6 @@ function jumpToPage(targetIdx) {
     if(!button) return;
     button.addEventListener('click', () => {
       if(button.disabled) return;
-      closeMobileActionsPanel();
       handleMobileQuickAction(action);
     });
   });

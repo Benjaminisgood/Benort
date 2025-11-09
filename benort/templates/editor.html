@@ -93,67 +93,125 @@
       color: #38bdf8;
       text-shadow: 0 0 8px rgba(56, 189, 248, 0.48);
     }
-    .mobile-actions-picker {
+    body.mobile-actions-open {
+      overflow: hidden;
+      overscroll-behavior: contain;
+    }
+    .mobile-actions-panel {
       position: fixed;
-      bottom: clamp(18px, 6vw, 32px);
-      right: clamp(18px, 6vw, 32px);
+      inset: 0;
       display: none;
-      z-index: 1300;
-    }
-    body.mobile-compact .mobile-actions-picker {
-      display: block;
-    }
-    .mobile-actions-toggle {
-      display: inline-flex;
+      flex-direction: column;
       align-items: center;
-      gap: 0.5rem;
-      border-radius: 999px;
-      padding: 0.55rem 1.3rem;
+      justify-content: flex-end;
+      gap: clamp(12px, 4vw, 20px);
+      padding: 0 clamp(16px, 5vw, 26px) env(safe-area-inset-bottom, 0px);
+      z-index: 1350;
+      pointer-events: none;
+      --mobile-actions-handle-base: calc(clamp(16px, 4vw, 26px) + env(safe-area-inset-bottom, 0px));
+      --mobile-actions-sheet-height: 0px;
+    }
+    body.mobile-compact .mobile-actions-panel {
+      display: flex;
+    }
+    .mobile-actions-panel.open {
+      pointer-events: auto;
+    }
+    .mobile-actions-panel::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.32);
+      backdrop-filter: blur(2px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .mobile-actions-panel.open::before {
+      opacity: 1;
+    }
+    .mobile-actions-handle {
+      pointer-events: auto;
+      border: none;
+      position: fixed;
+      left: 50%;
+      bottom: calc(var(--mobile-actions-handle-base, 24px) + var(--mobile-actions-sheet-height, 0px));
+      transform: translateX(-50%);
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.6rem;
+      border-radius: 24px;
+      min-width: clamp(200px, 65vw, 360px);
+      background: linear-gradient(135deg, rgba(241, 245, 249, 0.97), rgba(226, 232, 240, 0.92));
+      color: #0f172a;
       font-weight: 600;
       letter-spacing: 0.04em;
+      padding: clamp(16px, 4.8vw, 22px) clamp(32px, 9vw, 50px);
+      box-shadow: 0 26px 60px rgba(15, 23, 42, 0.32);
+      touch-action: pan-y;
     }
-    .mobile-actions-toggle .mobile-actions-page {
-      font-size: 0.85rem;
-      opacity: 0.8;
-      white-space: nowrap;
+    .mobile-actions-handle:focus-visible,
+    .mobile-actions-handle:hover {
+      transform: translateX(-50%) translateY(-3px);
+      box-shadow: 0 32px 68px rgba(15, 23, 42, 0.4);
     }
-    .mobile-actions-menu {
-      min-width: clamp(220px, 80vw, 320px);
-      border-radius: 1rem;
-      padding: 0.35rem;
-      box-shadow: 0 18px 48px rgba(15, 23, 42, 0.28);
+    .mobile-actions-panel.open .mobile-actions-handle {
+      min-width: clamp(160px, 45vw, 280px);
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(14, 165, 233, 0.9));
+      color: #f8fafc;
     }
-    .mobile-actions-menu .dropdown-item {
-      border-radius: 0.75rem;
+    .mobile-actions-grip {
+      width: clamp(52px, 16vw, 70px);
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.35);
+    }
+    .mobile-actions-panel.open .mobile-actions-grip {
+      background: rgba(248, 250, 252, 0.8);
+    }
+    .mobile-actions-handle-label {
+      font-size: clamp(13px, 3.8vw, 16px);
+    }
+    .mobile-actions-sheet {
+      width: 100%;
+      pointer-events: none;
+      background: rgba(248, 250, 252, 0.97);
+      color: #0f172a;
+      border-radius: clamp(26px, 7vw, 36px) clamp(26px, 7vw, 36px) 0 0;
+      padding: clamp(26px, 7vw, 34px) clamp(22px, 6vw, 38px) calc(36px + env(safe-area-inset-bottom, 0px));
+      transform: translateY(calc(100% + env(safe-area-inset-bottom, 0px) + clamp(16px, 5vw, 30px)));
+      transition: transform 0.32s cubic-bezier(0.33, 1, 0.68, 1);
+      box-shadow: 0 -32px 70px rgba(15, 23, 42, 0.35);
+    }
+    .mobile-actions-panel.open .mobile-actions-sheet {
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+    body.theme-dark .mobile-actions-sheet {
+      background: rgba(15, 23, 42, 0.95);
+      color: #f8fafc;
+      box-shadow: 0 -32px 70px rgba(3, 6, 23, 0.65);
+    }
+    .mobile-actions-list {
       display: flex;
       flex-direction: column;
-      align-items: flex-start;
-      gap: 0.15rem;
-      font-weight: 600;
-      padding: 0.75rem 0.9rem;
+      gap: clamp(12px, 3.8vw, 18px);
     }
-    .mobile-actions-menu .dropdown-item small {
-      font-weight: 400;
-      color: #64748b;
+    .mobile-action-entry {
+      width: 100%;
+      text-align: left;
     }
-    body.theme-dark .mobile-actions-menu {
-      background: rgba(15, 23, 42, 0.96);
-      color: #e2e8f0;
-      box-shadow: 0 22px 52px rgba(2, 6, 23, 0.65);
+    .mobile-action-entry .mobile-project-item__title {
+      font-size: clamp(17px, 4.6vw, 22px);
     }
-    body.theme-dark .mobile-actions-menu .dropdown-item small {
-      color: rgba(203, 213, 225, 0.86);
+    .mobile-action-entry .mobile-project-item__meta {
+      font-size: clamp(13px, 3.4vw, 16px);
     }
-    .mobile-actions-menu .dropdown-item.disabled,
-    .mobile-actions-menu .dropdown-item:disabled {
+    .mobile-action-entry.disabled,
+    .mobile-action-entry:disabled {
       opacity: 0.55;
-    }
-    @media (max-width: 480px) {
-      .mobile-actions-picker {
-        left: 50%;
-        right: auto;
-        transform: translateX(-50%);
-      }
+      cursor: not-allowed;
     }
     .actionable-card {
       position: relative;
@@ -2210,43 +2268,35 @@
 </div>
 
 <input type="file" id="mobile-attachment-input" class="d-none" accept="image/*,application/pdf" capture="environment" />
-<div class="dropdown mobile-actions-picker" id="mobile-actions-dropdown">
-  <button class="btn btn-outline-primary dropdown-toggle mobile-actions-toggle" id="mobile-actions-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-    <span>快速操作</span>
-    <span class="mobile-actions-page" id="mobile-actions-trigger-page">第 1 / 1 页</span>
+<div id="mobile-actions-panel" class="mobile-actions-panel" data-open="false" aria-hidden="true">
+  <button class="mobile-actions-handle" id="mobile-actions-handle" type="button" aria-controls="mobile-actions-sheet" aria-expanded="false">
+    <span class="mobile-actions-grip" aria-hidden="true"></span>
+    <span class="mobile-actions-handle-label" id="mobile-actions-handle-label">第 1 / 1 页</span>
   </button>
-  <ul class="dropdown-menu dropdown-menu-end mobile-actions-menu" id="mobile-actions-menu" aria-labelledby="mobile-actions-toggle">
-    <li>
-      <button type="button" class="dropdown-item mobile-action-option" data-mobile-action="project">
-        <span>切换项目</span>
-        <small id="mobile-action-project-meta">加载中...</small>
+  <div class="mobile-actions-sheet" id="mobile-actions-sheet" role="group" aria-hidden="true">
+    <div class="mobile-actions-list">
+      <button type="button" class="mobile-project-item mobile-action-entry" data-mobile-action="project">
+        <div class="mobile-project-item__title">切换项目</div>
+        <div class="mobile-project-item__meta" id="mobile-action-project-meta">加载中...</div>
       </button>
-    </li>
-    <li>
-      <button type="button" class="dropdown-item mobile-action-option" data-mobile-action="prev">
-        <span>上一页</span>
-        <small id="mobile-action-prev-meta">已经是第一页</small>
+      <button type="button" class="mobile-project-item mobile-action-entry" data-mobile-action="prev">
+        <div class="mobile-project-item__title">上一页</div>
+        <div class="mobile-project-item__meta" id="mobile-action-prev-meta">已经是第一页</div>
       </button>
-    </li>
-    <li>
-      <button type="button" class="dropdown-item mobile-action-option" data-mobile-action="next">
-        <span>下一页</span>
-        <small id="mobile-action-next-meta">前往下一页</small>
+      <button type="button" class="mobile-project-item mobile-action-entry" data-mobile-action="next">
+        <div class="mobile-project-item__title">下一页</div>
+        <div class="mobile-project-item__meta" id="mobile-action-next-meta">前往下一页</div>
       </button>
-    </li>
-    <li>
-      <button type="button" class="dropdown-item mobile-action-option" data-mobile-action="preview">
-        <span>切换预览</span>
-        <small id="mobile-action-preview-meta">仅 Markdown 模式可用</small>
+      <button type="button" class="mobile-project-item mobile-action-entry" data-mobile-action="preview">
+        <div class="mobile-project-item__title">切换预览</div>
+        <div class="mobile-project-item__meta" id="mobile-action-preview-meta">仅 Markdown 模式可用</div>
       </button>
-    </li>
-    <li>
-      <button type="button" class="dropdown-item mobile-action-option" data-mobile-action="upload">
-        <span>上传附件</span>
-        <small id="mobile-action-upload-meta">拍照或选择文件</small>
+      <button type="button" class="mobile-project-item mobile-action-entry" data-mobile-action="upload">
+        <div class="mobile-project-item__title">上传附件</div>
+        <div class="mobile-project-item__meta" id="mobile-action-upload-meta">拍照或选择文件</div>
       </button>
-    </li>
-  </ul>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
@@ -2359,12 +2409,8 @@ function jumpToPage(targetIdx) {
     const totalPages = Math.max(Array.isArray(pagesData) ? pagesData.length : 0, 1);
     const currentPageNumber = Math.min(currentPageIdx + 1, totalPages);
     const pageLabel = `第 ${currentPageNumber} / ${totalPages} 页`;
-    if(mobileActionsTriggerPage){
-      mobileActionsTriggerPage.textContent = pageLabel;
-    }
-    if(mobileActionsToggle){
-      mobileActionsToggle.title = `快速操作 · ${pageLabel}`;
-      mobileActionsToggle.setAttribute('aria-label', `${pageLabel} 的快速操作菜单`);
+    if(mobileActionsHandleLabel){
+      mobileActionsHandleLabel.textContent = pageLabel;
     }
     const meta = (typeof getProjectMeta === 'function') ? getProjectMeta(currentProject) : {};
     const suffix = meta && meta.locked ? (meta.unlocked ? ' · 已解锁' : ' · 已加密') : '';
@@ -2403,8 +2449,11 @@ function jumpToPage(targetIdx) {
     if(mobileActionUploadMeta){
       mobileActionUploadMeta.textContent = '拍照或选择文件';
     }
+    if(mobileActionsPanel && mobileActionsPanel.classList.contains('open')){
+      updateMobileActionsHandleOffset();
+    }
     if(!document.body.classList.contains('mobile-compact')){
-      closeMobileActionsDropdown();
+      closeMobileActionsPanel();
     }
   }
 
@@ -3029,21 +3078,21 @@ function jumpToPage(targetIdx) {
   const ossSyncPullSummary = document.getElementById('oss-sync-pull-summary');
   const searchInputEl = document.getElementById('search-modal-input');
   const searchSubmitBtn = document.getElementById('search-modal-submit');
-  const mobileActionsDropdown = document.getElementById('mobile-actions-dropdown');
-  const mobileActionsToggle = document.getElementById('mobile-actions-toggle');
-  const mobileActionsMenu = document.getElementById('mobile-actions-menu');
-  const mobileActionsTriggerPage = document.getElementById('mobile-actions-trigger-page');
+  const mobileActionsPanel = document.getElementById('mobile-actions-panel');
+  const mobileActionsHandle = document.getElementById('mobile-actions-handle');
+  const mobileActionsHandleLabel = document.getElementById('mobile-actions-handle-label');
+  const mobileActionsSheet = document.getElementById('mobile-actions-sheet');
   const mobileActionProjectMeta = document.getElementById('mobile-action-project-meta');
   const mobileActionPrevMeta = document.getElementById('mobile-action-prev-meta');
   const mobileActionNextMeta = document.getElementById('mobile-action-next-meta');
   const mobileActionPreviewMeta = document.getElementById('mobile-action-preview-meta');
   const mobileActionUploadMeta = document.getElementById('mobile-action-upload-meta');
   const mobileActionButtons = {
-    project: document.querySelector('[data-mobile-action="project"]'),
-    prev: document.querySelector('[data-mobile-action="prev"]'),
-    next: document.querySelector('[data-mobile-action="next"]'),
-    preview: document.querySelector('[data-mobile-action="preview"]'),
-    upload: document.querySelector('[data-mobile-action="upload"]')
+    project: document.querySelector('#mobile-actions-panel [data-mobile-action="project"]'),
+    prev: document.querySelector('#mobile-actions-panel [data-mobile-action="prev"]'),
+    next: document.querySelector('#mobile-actions-panel [data-mobile-action="next"]'),
+    preview: document.querySelector('#mobile-actions-panel [data-mobile-action="preview"]'),
+    upload: document.querySelector('#mobile-actions-panel [data-mobile-action="upload"]')
   };
   const mobileAttachmentInput = document.getElementById('mobile-attachment-input');
   const mobileProjectModalEl = document.getElementById('mobileProjectModal');
@@ -3236,22 +3285,202 @@ function jumpToPage(targetIdx) {
     element.setAttribute('aria-disabled', isDisabled ? 'true' : 'false');
   }
 
-  let mobileActionsDropdownInstance = null;
-
-  function ensureMobileActionsDropdown() {
-    if (!mobileActionsToggle || typeof bootstrap === 'undefined' || !bootstrap.Dropdown) {
-      return null;
+  function setMobileActionsOpen(opened) {
+    if(!mobileActionsPanel || !mobileActionsHandle) return;
+    const shouldOpen = !!opened;
+    const isCompact = document.body.classList.contains('mobile-compact');
+    if (!isCompact && shouldOpen) {
+      mobileActionsPanel.classList.remove('open');
+      mobileActionsPanel.dataset.open = 'false';
+      mobileActionsPanel.setAttribute('aria-hidden', 'true');
+      mobileActionsHandle.setAttribute('aria-expanded', 'false');
+      if (mobileActionsSheet) {
+        mobileActionsSheet.setAttribute('aria-hidden', 'true');
+      }
+      document.body.classList.remove('mobile-actions-open');
+      return;
     }
-    if (!mobileActionsDropdownInstance) {
-      mobileActionsDropdownInstance = bootstrap.Dropdown.getOrCreateInstance(mobileActionsToggle, {autoClose: 'outside'});
+    mobileActionsPanel.classList.toggle('open', shouldOpen);
+    mobileActionsPanel.dataset.open = shouldOpen ? 'true' : 'false';
+    mobileActionsPanel.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+    mobileActionsHandle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    if (mobileActionsSheet) {
+      mobileActionsSheet.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+      if (!shouldOpen) {
+        mobileActionsSheet.scrollTop = 0;
+      }
     }
-    return mobileActionsDropdownInstance;
+    document.body.classList.toggle('mobile-actions-open', shouldOpen);
+    if (shouldOpen) {
+      requestAnimationFrame(() => updateMobileActionsHandleOffset());
+    } else if (mobileActionsPanel) {
+      mobileActionsPanel.style.setProperty('--mobile-actions-sheet-height', '0px');
+    }
   }
 
-  function closeMobileActionsDropdown() {
-    const instance = ensureMobileActionsDropdown();
-    if (instance) instance.hide();
+  function toggleMobileActionsPanel(forceState) {
+    if(!mobileActionsPanel || !mobileActionsHandle) return;
+    if(!document.body.classList.contains('mobile-compact')){
+      setMobileActionsOpen(false);
+      return;
+    }
+    const currentlyOpen = mobileActionsPanel.classList.contains('open');
+    const targetState = typeof forceState === 'boolean' ? forceState : !currentlyOpen;
+    setMobileActionsOpen(targetState);
   }
+
+  function updateMobileActionsHandleOffset() {
+    if (!mobileActionsPanel) return;
+    const isOpen = mobileActionsPanel.classList.contains('open');
+    if (!isOpen) {
+      mobileActionsPanel.style.setProperty('--mobile-actions-sheet-height', '0px');
+      return;
+    }
+    let sheetHeight = 0;
+    if (mobileActionsSheet) {
+      const rect = mobileActionsSheet.getBoundingClientRect();
+      sheetHeight = Math.min(rect.height || 0, window.innerHeight || rect.height || 0);
+    }
+    mobileActionsPanel.style.setProperty('--mobile-actions-sheet-height', `${sheetHeight}px`);
+  }
+
+  const mobileActionsGesture = {
+    active: false,
+    pointerId: null,
+    startY: 0,
+    lastY: 0,
+    handled: false,
+    moved: false
+  };
+
+  function resetMobileActionsGesture() {
+    mobileActionsGesture.active = false;
+    mobileActionsGesture.pointerId = null;
+    mobileActionsGesture.startY = 0;
+    mobileActionsGesture.lastY = 0;
+    mobileActionsGesture.moved = false;
+  }
+
+  function handleMobileActionsPointerDown(event) {
+    if(!mobileActionsHandle) return;
+    if(event.pointerType === 'mouse') return;
+    mobileActionsGesture.active = true;
+    mobileActionsGesture.pointerId = event.pointerId;
+    mobileActionsGesture.startY = event.clientY;
+    mobileActionsGesture.lastY = event.clientY;
+    mobileActionsGesture.handled = false;
+    mobileActionsGesture.moved = false;
+    if(typeof mobileActionsHandle.setPointerCapture === 'function'){
+      try {
+        mobileActionsHandle.setPointerCapture(event.pointerId);
+      } catch (err) {}
+    }
+  }
+
+  function handleMobileActionsPointerMove(event) {
+    if(!mobileActionsGesture.active) return;
+    if(mobileActionsGesture.pointerId !== null && event.pointerId !== mobileActionsGesture.pointerId) return;
+    mobileActionsGesture.lastY = event.clientY;
+    if(!mobileActionsGesture.moved && Math.abs(event.clientY - mobileActionsGesture.startY) > 6){
+      mobileActionsGesture.moved = true;
+    }
+    const deltaY = mobileActionsGesture.startY - event.clientY;
+    if(event.cancelable && Math.abs(deltaY) > 8){
+      event.preventDefault();
+    }
+  }
+
+  function handleMobileActionsPointerEnd(event) {
+    if(!mobileActionsGesture.active) return;
+    if(mobileActionsGesture.pointerId !== null && event.pointerId !== mobileActionsGesture.pointerId) return;
+    if(mobileActionsHandle && typeof mobileActionsHandle.releasePointerCapture === 'function' && mobileActionsGesture.pointerId !== null){
+      try {
+        mobileActionsHandle.releasePointerCapture(mobileActionsGesture.pointerId);
+      } catch (err) {}
+    }
+    if(!mobileActionsGesture.moved){
+      if(!mobileActionsGesture.handled){
+        toggleMobileActionsPanel();
+      }
+      resetMobileActionsGesture();
+      return;
+    }
+    const deltaY = mobileActionsGesture.startY - mobileActionsGesture.lastY;
+    const threshold = 42;
+    if(Math.abs(deltaY) >= threshold){
+      if(deltaY > 0){
+        toggleMobileActionsPanel(true);
+      } else {
+        toggleMobileActionsPanel(false);
+      }
+      mobileActionsGesture.handled = true;
+      event.preventDefault();
+    }
+    resetMobileActionsGesture();
+  }
+
+  function handleMobileActionsPointerCancel(event) {
+    if(mobileActionsHandle && typeof mobileActionsHandle.releasePointerCapture === 'function' && mobileActionsGesture.pointerId !== null){
+      try {
+        mobileActionsHandle.releasePointerCapture(mobileActionsGesture.pointerId);
+      } catch (err) {}
+    }
+    resetMobileActionsGesture();
+  }
+
+  function closeMobileActionsPanel() {
+    if(!mobileActionsPanel) return;
+    if(!mobileActionsPanel.classList.contains('open')) return;
+    setMobileActionsOpen(false);
+  }
+
+  if(mobileActionsHandle){
+    mobileActionsHandle.addEventListener('click', event => {
+      if(mobileActionsGesture.handled){
+        mobileActionsGesture.handled = false;
+        return;
+      }
+      toggleMobileActionsPanel();
+    });
+    mobileActionsHandle.addEventListener('keydown', event => {
+      if(event.key === 'Enter' || event.key === ' '){
+        event.preventDefault();
+        toggleMobileActionsPanel();
+      } else if(event.key === 'Escape'){
+        closeMobileActionsPanel();
+      }
+    });
+    mobileActionsHandle.addEventListener('pointerdown', handleMobileActionsPointerDown);
+    mobileActionsHandle.addEventListener('pointermove', handleMobileActionsPointerMove);
+    mobileActionsHandle.addEventListener('pointerup', handleMobileActionsPointerEnd);
+    mobileActionsHandle.addEventListener('pointercancel', handleMobileActionsPointerCancel);
+  }
+
+  document.addEventListener('click', event => {
+    if (!mobileActionsPanel || !mobileActionsPanel.classList.contains('open')) return;
+    if (!document.body.classList.contains('mobile-compact')) {
+      closeMobileActionsPanel();
+      return;
+    }
+    if (mobileActionsPanel.contains(event.target)) return;
+    closeMobileActionsPanel();
+  }, true);
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      closeMobileActionsPanel();
+    }
+  });
+  window.addEventListener('resize', () => {
+    if(mobileActionsPanel && mobileActionsPanel.classList.contains('open')){
+      updateMobileActionsHandleOffset();
+    }
+  });
+  window.addEventListener('orientationchange', () => {
+    if(mobileActionsPanel && mobileActionsPanel.classList.contains('open')){
+      updateMobileActionsHandleOffset();
+    }
+  });
 
   function handleMobileQuickAction(action) {
     switch(action){

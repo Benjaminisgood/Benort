@@ -2210,82 +2210,43 @@
 </div>
 
 <input type="file" id="mobile-attachment-input" class="d-none" accept="image/*,application/pdf" capture="environment" />
-<button type="button" class="btn btn-outline-primary mobile-actions-trigger" id="mobile-actions-trigger" aria-haspopup="dialog" aria-controls="mobileActionModal" aria-expanded="false">
-  <span class="mobile-actions-trigger__label">快速操作</span>
-  <span class="mobile-actions-trigger__page" id="mobile-actions-trigger-page">第 1 / 1 页</span>
-  <span class="mobile-actions-trigger__caret" aria-hidden="true">▾</span>
-</button>
-<div class="modal fade" id="mobileActionModal" tabindex="-1" aria-labelledby="mobileActionModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="mobileActionModalLabel">快速操作</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mobile-action-list" id="mobile-action-list">
-          <button type="button" class="list-group-item list-group-item-action mobile-action-item" data-mobile-action="project">
-            <div class="mobile-action-item__text">
-              <div class="mobile-action-item__title">切换项目</div>
-              <div class="mobile-action-item__meta" id="mobile-action-project-meta">加载中...</div>
-            </div>
-            <span class="mobile-action-item__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" focusable="false">
-                <path d="M3.75 6.5h5.4l1.6 2.4h9.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-                <rect x="3.5" y="6.5" width="17" height="11" rx="2.3" stroke="currentColor" stroke-width="1.8" fill="none"></rect>
-                <path d="M7.5 12h8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-              </svg>
-            </span>
-          </button>
-          <button type="button" class="list-group-item list-group-item-action mobile-action-item" data-mobile-action="prev">
-            <div class="mobile-action-item__text">
-              <div class="mobile-action-item__title">上一页</div>
-              <div class="mobile-action-item__meta" id="mobile-action-prev-meta">已经是第一页</div>
-            </div>
-            <span class="mobile-action-item__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" focusable="false">
-                <path d="M16 5l-8 7 8 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-              </svg>
-            </span>
-          </button>
-          <button type="button" class="list-group-item list-group-item-action mobile-action-item" data-mobile-action="next">
-            <div class="mobile-action-item__text">
-              <div class="mobile-action-item__title">下一页</div>
-              <div class="mobile-action-item__meta" id="mobile-action-next-meta">前往下一页</div>
-            </div>
-            <span class="mobile-action-item__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" focusable="false">
-                <path d="M8 5l8 7-8 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-              </svg>
-            </span>
-          </button>
-          <button type="button" class="list-group-item list-group-item-action mobile-action-item" data-mobile-action="preview">
-            <div class="mobile-action-item__text">
-              <div class="mobile-action-item__title">切换预览</div>
-              <div class="mobile-action-item__meta" id="mobile-action-preview-meta">仅 Markdown 模式可用</div>
-            </div>
-            <span class="mobile-action-item__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" focusable="false">
-                <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-                <circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"></circle>
-              </svg>
-            </span>
-          </button>
-          <button type="button" class="list-group-item list-group-item-action mobile-action-item" data-mobile-action="upload">
-            <div class="mobile-action-item__text">
-              <div class="mobile-action-item__title">上传附件</div>
-              <div class="mobile-action-item__meta" id="mobile-action-upload-meta">拍照或选择文件</div>
-            </div>
-            <span class="mobile-action-item__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" focusable="false">
-                <path d="M6.5 17.5h11a3 3 0 0 0 0-6h-.4a5 5 0 0 0-9.8-1.4M10 14l2-2 2 2m-2-2v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-              </svg>
-            </span>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+<div class="dropdown mobile-actions-picker" id="mobile-actions-dropdown">
+  <button class="btn btn-outline-primary dropdown-toggle mobile-actions-toggle" id="mobile-actions-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+    <span>快速操作</span>
+    <span class="mobile-actions-page" id="mobile-actions-trigger-page">第 1 / 1 页</span>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end mobile-actions-menu" id="mobile-actions-menu" aria-labelledby="mobile-actions-toggle">
+    <li>
+      <button type="button" class="dropdown-item mobile-action-option" data-mobile-action="project">
+        <span>切换项目</span>
+        <small id="mobile-action-project-meta">加载中...</small>
+      </button>
+    </li>
+    <li>
+      <button type="button" class="dropdown-item mobile-action-option" data-mobile-action="prev">
+        <span>上一页</span>
+        <small id="mobile-action-prev-meta">已经是第一页</small>
+      </button>
+    </li>
+    <li>
+      <button type="button" class="dropdown-item mobile-action-option" data-mobile-action="next">
+        <span>下一页</span>
+        <small id="mobile-action-next-meta">前往下一页</small>
+      </button>
+    </li>
+    <li>
+      <button type="button" class="dropdown-item mobile-action-option" data-mobile-action="preview">
+        <span>切换预览</span>
+        <small id="mobile-action-preview-meta">仅 Markdown 模式可用</small>
+      </button>
+    </li>
+    <li>
+      <button type="button" class="dropdown-item mobile-action-option" data-mobile-action="upload">
+        <span>上传附件</span>
+        <small id="mobile-action-upload-meta">拍照或选择文件</small>
+      </button>
+    </li>
+  </ul>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
@@ -2401,9 +2362,9 @@ function jumpToPage(targetIdx) {
     if(mobileActionsTriggerPage){
       mobileActionsTriggerPage.textContent = pageLabel;
     }
-    if(mobileActionsTrigger){
-      mobileActionsTrigger.title = `快速操作 · ${pageLabel}`;
-      mobileActionsTrigger.setAttribute('aria-label', `${pageLabel} 的快速操作菜单`);
+    if(mobileActionsToggle){
+      mobileActionsToggle.title = `快速操作 · ${pageLabel}`;
+      mobileActionsToggle.setAttribute('aria-label', `${pageLabel} 的快速操作菜单`);
     }
     const meta = (typeof getProjectMeta === 'function') ? getProjectMeta(currentProject) : {};
     const suffix = meta && meta.locked ? (meta.unlocked ? ' · 已解锁' : ' · 已加密') : '';
@@ -2443,7 +2404,7 @@ function jumpToPage(targetIdx) {
       mobileActionUploadMeta.textContent = '拍照或选择文件';
     }
     if(!document.body.classList.contains('mobile-compact')){
-      hideMobileActionModal();
+      closeMobileActionsDropdown();
     }
   }
 
@@ -3068,9 +3029,10 @@ function jumpToPage(targetIdx) {
   const ossSyncPullSummary = document.getElementById('oss-sync-pull-summary');
   const searchInputEl = document.getElementById('search-modal-input');
   const searchSubmitBtn = document.getElementById('search-modal-submit');
-  const mobileActionsTrigger = document.getElementById('mobile-actions-trigger');
+  const mobileActionsDropdown = document.getElementById('mobile-actions-dropdown');
+  const mobileActionsToggle = document.getElementById('mobile-actions-toggle');
+  const mobileActionsMenu = document.getElementById('mobile-actions-menu');
   const mobileActionsTriggerPage = document.getElementById('mobile-actions-trigger-page');
-  const mobileActionModalEl = document.getElementById('mobileActionModal');
   const mobileActionProjectMeta = document.getElementById('mobile-action-project-meta');
   const mobileActionPrevMeta = document.getElementById('mobile-action-prev-meta');
   const mobileActionNextMeta = document.getElementById('mobile-action-next-meta');
@@ -3274,31 +3236,21 @@ function jumpToPage(targetIdx) {
     element.setAttribute('aria-disabled', isDisabled ? 'true' : 'false');
   }
 
-  let mobileActionModalInstance = null;
+  let mobileActionsDropdownInstance = null;
 
-  function ensureMobileActionModal() {
-    if (!mobileActionModalEl || typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+  function ensureMobileActionsDropdown() {
+    if (!mobileActionsToggle || typeof bootstrap === 'undefined' || !bootstrap.Dropdown) {
       return null;
     }
-    if (!mobileActionModalInstance) {
-      mobileActionModalInstance = bootstrap.Modal.getOrCreateInstance(mobileActionModalEl);
+    if (!mobileActionsDropdownInstance) {
+      mobileActionsDropdownInstance = bootstrap.Dropdown.getOrCreateInstance(mobileActionsToggle, {autoClose: 'outside'});
     }
-    return mobileActionModalInstance;
+    return mobileActionsDropdownInstance;
   }
 
-  function showMobileActionModal() {
-    if (!document.body.classList.contains('mobile-compact')) return;
-    const modal = ensureMobileActionModal();
-    if (modal) modal.show();
-  }
-
-  function hideMobileActionModal() {
-    if (!mobileActionModalInstance) {
-      mobileActionModalInstance = ensureMobileActionModal();
-    }
-    if (mobileActionModalInstance) {
-      mobileActionModalInstance.hide();
-    }
+  function closeMobileActionsDropdown() {
+    const instance = ensureMobileActionsDropdown();
+    if (instance) instance.hide();
   }
 
   function handleMobileQuickAction(action) {
@@ -3338,33 +3290,11 @@ function jumpToPage(targetIdx) {
     }
   }
 
-  if(mobileActionsTrigger){
-    mobileActionsTrigger.addEventListener('click', event => {
-      event.preventDefault();
-      showMobileActionModal();
-    });
-  }
-
-  if(mobileActionModalEl){
-    mobileActionModalEl.addEventListener('shown.bs.modal', () => {
-      if(mobileActionsTrigger){
-        mobileActionsTrigger.classList.add('is-active');
-        mobileActionsTrigger.setAttribute('aria-expanded', 'true');
-      }
-    });
-    mobileActionModalEl.addEventListener('hidden.bs.modal', () => {
-      if(mobileActionsTrigger){
-        mobileActionsTrigger.classList.remove('is-active');
-        mobileActionsTrigger.setAttribute('aria-expanded', 'false');
-      }
-    });
-  }
-
   Object.entries(mobileActionButtons).forEach(([action, button]) => {
     if(!button) return;
     button.addEventListener('click', () => {
       if(button.disabled) return;
-      hideMobileActionModal();
+      closeMobileActionsDropdown();
       handleMobileQuickAction(action);
     });
   });
@@ -6181,7 +6111,7 @@ function syncMarkdownEditorToPreview(container) {
         mobilePreviewActive = false;
         applyMobilePreviewState();
       }
-      hideMobileActionModal();
+      closeMobileActionsDropdown();
     }
     updateMobileControlStates();
     updateMobileUiState();

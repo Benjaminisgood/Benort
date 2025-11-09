@@ -3523,7 +3523,7 @@ function jumpToPage(targetIdx) {
     if(!button) return;
     button.addEventListener('click', () => {
       if(button.disabled) return;
-      closeMobileActionsDropdown();
+      closeMobileActionsPanel();
       handleMobileQuickAction(action);
     });
   });
@@ -6340,7 +6340,7 @@ function syncMarkdownEditorToPreview(container) {
         mobilePreviewActive = false;
         applyMobilePreviewState();
       }
-      closeMobileActionsDropdown();
+      closeMobileActionsPanel();
     }
     updateMobileControlStates();
     updateMobileUiState();

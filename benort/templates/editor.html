@@ -93,115 +93,67 @@
       color: #38bdf8;
       text-shadow: 0 0 8px rgba(56, 189, 248, 0.48);
     }
-    .mobile-floating-actions {
+    .mobile-actions-picker {
       position: fixed;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: calc(clamp(22px, 6.4vw, 32px) + env(safe-area-inset-bottom, 0px));
+      bottom: clamp(18px, 6vw, 32px);
+      right: clamp(18px, 6vw, 32px);
       display: none;
-      flex-direction: column;
-      align-items: center;
-      gap: clamp(12px, 3.6vw, 20px);
-      z-index: 1200;
-      pointer-events: auto;
-      width: clamp(96px, 24vw, 128px);
+      z-index: 1300;
     }
-    .mobile-floating-actions::after {
-      content: '';
-      position: absolute;
-      inset: auto clamp(8px, 2.2vw, 12px) calc(-1 * env(safe-area-inset-bottom, 0px)) clamp(8px, 2.2vw, 12px);
-      height: clamp(12px, 3vw, 20px);
-      border-radius: 999px;
-      background: linear-gradient(180deg, rgba(15, 23, 42, 0.22), rgba(15, 23, 42, 0));
-      filter: blur(20px);
-      opacity: 0.62;
-      pointer-events: none;
+    body.mobile-compact .mobile-actions-picker {
+      display: block;
     }
-    .mobile-floating-actions .mobile-fab-main {
-      pointer-events: auto;
-      width: clamp(78px, 19vw, 100px);
-      height: clamp(78px, 19vw, 100px);
-      border-radius: 999px;
-      border: none;
-      background: radial-gradient(circle at 28% 28%, rgba(236, 254, 255, 0.7), rgba(59, 130, 246, 0.98));
-      color: #0f172a;
-      font-weight: 700;
-      font-size: clamp(18px, 5vw, 24px);
-      letter-spacing: 0.08em;
-      box-shadow: 0 28px 60px rgba(15, 23, 42, 0.48);
+    .mobile-actions-toggle {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-    }
-    .mobile-floating-actions .mobile-fab-main:focus-visible,
-    .mobile-floating-actions .mobile-fab-main:hover {
-      transform: scale(1.08);
-      box-shadow: 0 36px 80px rgba(15, 23, 42, 0.58);
-    }
-    .mobile-floating-actions .mobile-fab-main[aria-expanded="true"] {
-      background: radial-gradient(circle at 32% 32%, rgba(59, 130, 246, 0.65), rgba(14, 165, 233, 0.98));
-    }
-    .mobile-floating-actions .mobile-fab-menu {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      gap: clamp(14px, 4vw, 20px);
-      pointer-events: none;
-    }
-    .mobile-floating-actions .mobile-fab-btn {
-      pointer-events: none;
-      width: clamp(58px, 16.5vw, 78px);
-      height: clamp(58px, 16.5vw, 78px);
+      gap: 0.5rem;
       border-radius: 999px;
-      border: none;
-      background: rgba(15, 23, 42, 0.94);
-      color: #f8fafc;
+      padding: 0.55rem 1.3rem;
       font-weight: 600;
-      font-size: clamp(14px, 3.6vw, 18px);
-      box-shadow: 0 24px 52px rgba(15, 23, 42, 0.45);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.35em;
-      cursor: pointer;
-      opacity: 0;
-      transform: scale(0.85);
-      transition: transform 0.22s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+      letter-spacing: 0.04em;
     }
-    .mobile-floating-actions .mobile-fab-btn[data-variant="accent"] {
-      background: linear-gradient(135deg, rgba(234, 179, 8, 0.94), rgba(249, 115, 22, 0.92));
-      color: #fffdf5;
+    .mobile-actions-toggle .mobile-actions-page {
+      font-size: 0.85rem;
+      opacity: 0.8;
+      white-space: nowrap;
     }
-    .mobile-floating-actions .mobile-fab-btn[data-variant="secondary"] {
-      background: linear-gradient(135deg, rgba(15, 118, 110, 0.92), rgba(56, 189, 248, 0.92));
+    .mobile-actions-menu {
+      min-width: clamp(220px, 80vw, 320px);
+      border-radius: 1rem;
+      padding: 0.35rem;
+      box-shadow: 0 18px 48px rgba(15, 23, 42, 0.28);
     }
-    .mobile-floating-actions .mobile-fab-btn[data-variant="neutral"] {
-      background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 64, 175, 0.9));
-    }
-    .mobile-floating-actions .mobile-fab-btn:focus-visible,
-    .mobile-floating-actions .mobile-fab-btn:hover {
-      transform: scale(1.08);
-      box-shadow: 0 30px 68px rgba(15, 23, 42, 0.52);
-    }
-    .mobile-floating-actions .mobile-fab-btn:disabled {
-      cursor: not-allowed;
-    }
-    .mobile-floating-actions.open .mobile-fab-btn {
-      opacity: 1;
-      pointer-events: auto;
-      transform: scale(1);
-    }
-    .mobile-floating-actions.open .mobile-fab-btn.is-active {
-      box-shadow: 0 32px 70px rgba(14, 165, 233, 0.55);
-    }
-    .mobile-floating-actions.open .mobile-fab-btn.is-disabled {
-      opacity: 0.45;
-      filter: grayscale(0.38);
-    }
-    .mobile-floating-actions.open .mobile-fab-menu {
+    .mobile-actions-menu .dropdown-item {
+      border-radius: 0.75rem;
       display: flex;
-      pointer-events: auto;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.15rem;
+      font-weight: 600;
+      padding: 0.75rem 0.9rem;
+    }
+    .mobile-actions-menu .dropdown-item small {
+      font-weight: 400;
+      color: #64748b;
+    }
+    body.theme-dark .mobile-actions-menu {
+      background: rgba(15, 23, 42, 0.96);
+      color: #e2e8f0;
+      box-shadow: 0 22px 52px rgba(2, 6, 23, 0.65);
+    }
+    body.theme-dark .mobile-actions-menu .dropdown-item small {
+      color: rgba(203, 213, 225, 0.86);
+    }
+    .mobile-actions-menu .dropdown-item.disabled,
+    .mobile-actions-menu .dropdown-item:disabled {
+      opacity: 0.55;
+    }
+    @media (max-width: 480px) {
+      .mobile-actions-picker {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+      }
     }
     .actionable-card {
       position: relative;
@@ -317,18 +269,6 @@
     body.theme-dark .learning-prompt-card__description,
     body.theme-dark .learning-prompt-card__meta {
       color: #cbd5f5;
-    }
-    .mobile-floating-actions .fab-icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: clamp(26px, 7vw, 32px);
-      height: clamp(26px, 7vw, 32px);
-    }
-    .mobile-floating-actions .fab-icon svg {
-      width: 100%;
-      height: 100%;
-      display: block;
     }
     #editor-container,
     #pdf-container,
@@ -1374,35 +1314,14 @@
         padding: clamp(24px, 6vw, 32px);
         font-size: clamp(15px, 4vw, 18px);
       }
-    @media (max-width: 600px) {
-      body.mobile-compact .mobile-floating-actions {
-        gap: clamp(18px, 5.8vw, 28px);
-        width: clamp(108px, 28vw, 140px);
-      }
-      body.mobile-compact .mobile-floating-actions .mobile-fab-menu {
-        gap: clamp(18px, 6vw, 26px);
-      }
-      body.mobile-compact .mobile-floating-actions .mobile-fab-main {
-        width: clamp(96px, 26vw, 120px);
-        height: clamp(96px, 26vw, 120px);
-        font-size: clamp(20px, 6vw, 26px);
-      }
-      body.mobile-compact .mobile-floating-actions .mobile-fab-btn {
-        width: clamp(68px, 20vw, 88px);
-        height: clamp(68px, 20vw, 88px);
-      }
-      body.mobile-compact .mobile-floating-actions .fab-icon {
-        width: clamp(30px, 8vw, 38px);
-        height: clamp(30px, 8vw, 38px);
+    @media (max-width: 768px) {
+      .mobile-action-item {
+        padding: clamp(14px, 4.5vw, 18px) clamp(16px, 5vw, 20px);
       }
     }
-      body.mobile-compact #tabs-actions,
-      body.mobile-compact #tabs-actions-hint {
-        display: none !important;
-      }
-      body.mobile-compact .mobile-floating-actions {
-        display: flex;
-      }
+    body.mobile-compact #tabs-actions,
+    body.mobile-compact #tabs-actions-hint {
+      display: none !important;
     }
   </style>
 </head>
@@ -2291,48 +2210,82 @@
 </div>
 
 <input type="file" id="mobile-attachment-input" class="d-none" accept="image/*,application/pdf" capture="environment" />
-<div id="mobile-floating-actions" class="mobile-floating-actions" data-open="false">
-  <div class="mobile-fab-menu" id="mobile-fab-menu">
-    <button type="button" class="mobile-fab-btn" id="mobile-fab-project" title="切换项目" aria-label="切换项目">
-      <span class="fab-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false">
-          <path d="M3.75 6.5h5.4l1.6 2.4h9.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-          <rect x="3.5" y="6.5" width="17" height="11" rx="2.3" stroke="currentColor" stroke-width="1.8" fill="none"></rect>
-          <path d="M7.5 12h8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-        </svg>
-      </span>
-    </button>
-    <button type="button" class="mobile-fab-btn" data-variant="secondary" id="mobile-fab-next" title="下一页" aria-label="下一页">
-      <span class="fab-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false">
-          <path d="M8 5l8 7-8 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-        </svg>
-      </span>
-    </button>
-    <button type="button" class="mobile-fab-btn" data-variant="accent" id="mobile-fab-prev" title="上一页" aria-label="上一页">
-      <span class="fab-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false">
-          <path d="M16 5l-8 7 8 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-        </svg>
-      </span>
-    </button>
-    <button type="button" class="mobile-fab-btn" data-variant="neutral" id="mobile-fab-toggle-preview" title="切换编辑/预览" aria-label="切换编辑/预览">
-      <span class="fab-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false">
-          <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-          <circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"></circle>
-        </svg>
-      </span>
-    </button>
-    <button type="button" class="mobile-fab-btn" data-variant="neutral" id="mobile-fab-upload" title="拍照或上传附件" aria-label="拍照或上传附件">
-      <span class="fab-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" focusable="false">
-          <path d="M6.5 17.5h11a3 3 0 0 0 0-6h-.4a5 5 0 0 0-9.8-1.4M10 14l2-2 2 2m-2-2v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-        </svg>
-      </span>
-    </button>
+<button type="button" class="btn btn-outline-primary mobile-actions-trigger" id="mobile-actions-trigger" aria-haspopup="dialog" aria-controls="mobileActionModal" aria-expanded="false">
+  <span class="mobile-actions-trigger__label">快速操作</span>
+  <span class="mobile-actions-trigger__page" id="mobile-actions-trigger-page">第 1 / 1 页</span>
+  <span class="mobile-actions-trigger__caret" aria-hidden="true">▾</span>
+</button>
+<div class="modal fade" id="mobileActionModal" tabindex="-1" aria-labelledby="mobileActionModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="mobileActionModalLabel">快速操作</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mobile-action-list" id="mobile-action-list">
+          <button type="button" class="list-group-item list-group-item-action mobile-action-item" data-mobile-action="project">
+            <div class="mobile-action-item__text">
+              <div class="mobile-action-item__title">切换项目</div>
+              <div class="mobile-action-item__meta" id="mobile-action-project-meta">加载中...</div>
+            </div>
+            <span class="mobile-action-item__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M3.75 6.5h5.4l1.6 2.4h9.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+                <rect x="3.5" y="6.5" width="17" height="11" rx="2.3" stroke="currentColor" stroke-width="1.8" fill="none"></rect>
+                <path d="M7.5 12h8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+              </svg>
+            </span>
+          </button>
+          <button type="button" class="list-group-item list-group-item-action mobile-action-item" data-mobile-action="prev">
+            <div class="mobile-action-item__text">
+              <div class="mobile-action-item__title">上一页</div>
+              <div class="mobile-action-item__meta" id="mobile-action-prev-meta">已经是第一页</div>
+            </div>
+            <span class="mobile-action-item__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M16 5l-8 7 8 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </span>
+          </button>
+          <button type="button" class="list-group-item list-group-item-action mobile-action-item" data-mobile-action="next">
+            <div class="mobile-action-item__text">
+              <div class="mobile-action-item__title">下一页</div>
+              <div class="mobile-action-item__meta" id="mobile-action-next-meta">前往下一页</div>
+            </div>
+            <span class="mobile-action-item__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M8 5l8 7-8 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </span>
+          </button>
+          <button type="button" class="list-group-item list-group-item-action mobile-action-item" data-mobile-action="preview">
+            <div class="mobile-action-item__text">
+              <div class="mobile-action-item__title">切换预览</div>
+              <div class="mobile-action-item__meta" id="mobile-action-preview-meta">仅 Markdown 模式可用</div>
+            </div>
+            <span class="mobile-action-item__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+                <circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"></circle>
+              </svg>
+            </span>
+          </button>
+          <button type="button" class="list-group-item list-group-item-action mobile-action-item" data-mobile-action="upload">
+            <div class="mobile-action-item__text">
+              <div class="mobile-action-item__title">上传附件</div>
+              <div class="mobile-action-item__meta" id="mobile-action-upload-meta">拍照或选择文件</div>
+            </div>
+            <span class="mobile-action-item__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M6.5 17.5h11a3 3 0 0 0 0-6h-.4a5 5 0 0 0-9.8-1.4M10 14l2-2 2 2m-2-2v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
-  <button type="button" class="mobile-fab-main" id="mobile-main-fab" aria-expanded="false" title="当前页">1 / 1</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
@@ -2444,48 +2397,53 @@ function jumpToPage(targetIdx) {
   function updateMobileUiState() {
     const totalPages = Math.max(Array.isArray(pagesData) ? pagesData.length : 0, 1);
     const currentPageNumber = Math.min(currentPageIdx + 1, totalPages);
-    if(mobileMainFab){
-      mobileMainFab.textContent = `${currentPageNumber} / ${totalPages}`;
-      mobileMainFab.title = `当前：第 ${currentPageNumber} / ${totalPages} 页，点击展开快捷操作`;
-      mobileMainFab.setAttribute('aria-label', `当前第 ${currentPageNumber} 页，共 ${totalPages} 页，点击展开快捷操作`);
+    const pageLabel = `第 ${currentPageNumber} / ${totalPages} 页`;
+    if(mobileActionsTriggerPage){
+      mobileActionsTriggerPage.textContent = pageLabel;
     }
-    if(mobileFabPrev){
-      const isDisabled = currentPageNumber <= 1;
-      mobileFabPrev.disabled = isDisabled;
-      mobileFabPrev.title = isDisabled ? '已经是第一页' : '上一页';
-      mobileFabPrev.setAttribute('aria-label', '上一页');
-      mobileFabPrev.setAttribute('aria-disabled', isDisabled ? 'true' : 'false');
-      mobileFabPrev.classList.toggle('is-disabled', isDisabled);
+    if(mobileActionsTrigger){
+      mobileActionsTrigger.title = `快速操作 · ${pageLabel}`;
+      mobileActionsTrigger.setAttribute('aria-label', `${pageLabel} 的快速操作菜单`);
     }
-    if(mobileFabNext){
-      const isDisabled = currentPageNumber >= totalPages;
-      mobileFabNext.disabled = isDisabled;
-      mobileFabNext.title = isDisabled ? '已经是最后一页' : '下一页';
-      mobileFabNext.setAttribute('aria-label', '下一页');
-      mobileFabNext.setAttribute('aria-disabled', isDisabled ? 'true' : 'false');
-      mobileFabNext.classList.toggle('is-disabled', isDisabled);
+    const meta = (typeof getProjectMeta === 'function') ? getProjectMeta(currentProject) : {};
+    const suffix = meta && meta.locked ? (meta.unlocked ? ' · 已解锁' : ' · 已加密') : '';
+    if(mobileActionProjectMeta){
+      mobileActionProjectMeta.textContent = currentProject ? `${currentProject}${suffix}` : '尚未选择项目';
     }
-    if(mobileFabProject){
-      const meta = (typeof getProjectMeta === 'function') ? getProjectMeta(currentProject) : {};
-      const suffix = meta && meta.locked ? (meta.unlocked ? '（已解锁）' : '（已加密）') : '';
-      const fullLabel = currentProject ? `当前项目：${currentProject}${suffix}，点击切换` : '切换项目';
-      mobileFabProject.title = fullLabel;
-      mobileFabProject.setAttribute('aria-label', fullLabel);
+    if(mobileActionButtons.project){
+      mobileActionButtons.project.setAttribute('aria-label', currentProject ? `当前项目：${currentProject}${suffix}，点击切换` : '切换项目');
     }
-    if(mobileFabTogglePreview){
-      const canToggle = currentEditMode === 'markdown';
-      mobileFabTogglePreview.disabled = !canToggle;
-      mobileFabTogglePreview.title = canToggle ? (mobilePreviewActive ? '返回编辑视图' : '切换到预览视图') : 'LaTeX 模式不支持预览切换';
-      mobileFabTogglePreview.setAttribute('aria-label', mobileFabTogglePreview.title);
-      mobileFabTogglePreview.setAttribute('aria-disabled', (!canToggle).toString());
-      mobileFabTogglePreview.classList.toggle('is-active', canToggle && mobilePreviewActive);
+    const prevDisabled = currentPageNumber <= 1;
+    if(mobileActionPrevMeta){
+      mobileActionPrevMeta.textContent = prevDisabled ? '已经是第一页' : `跳转到第 ${Math.max(currentPageNumber - 1, 1)} 页`;
     }
-    if(mobileFabUpload){
-      mobileFabUpload.title = '拍照或上传附件';
-      mobileFabUpload.setAttribute('aria-label', '拍照或上传附件');
+    setMobileActionDisabled(mobileActionButtons.prev, prevDisabled);
+    if(mobileActionButtons.prev){
+      mobileActionButtons.prev.title = prevDisabled ? '已经是第一页' : '上一页';
     }
-    if(mobileFloatingActions && !document.body.classList.contains('mobile-compact')){
-      setMobileFabOpen(false);
+    const nextDisabled = currentPageNumber >= totalPages;
+    if(mobileActionNextMeta){
+      mobileActionNextMeta.textContent = nextDisabled ? '已经是最后一页' : `前往第 ${Math.min(currentPageNumber + 1, totalPages)} 页`;
+    }
+    setMobileActionDisabled(mobileActionButtons.next, nextDisabled);
+    if(mobileActionButtons.next){
+      mobileActionButtons.next.title = nextDisabled ? '已经是最后一页' : '下一页';
+    }
+    const canTogglePreview = currentEditMode === 'markdown';
+    if(mobileActionPreviewMeta){
+      mobileActionPreviewMeta.textContent = canTogglePreview
+        ? (mobilePreviewActive ? '当前：预览视图' : '当前：编辑视图')
+        : 'LaTeX 模式暂不支持预览切换';
+    }
+    setMobileActionDisabled(mobileActionButtons.preview, !canTogglePreview);
+    if(mobileActionButtons.preview){
+      mobileActionButtons.preview.title = canTogglePreview ? '切换编辑/预览' : '当前模式不支持';
+    }
+    if(mobileActionUploadMeta){
+      mobileActionUploadMeta.textContent = '拍照或选择文件';
+    }
+    if(!document.body.classList.contains('mobile-compact')){
+      hideMobileActionModal();
     }
   }
 
@@ -3110,13 +3068,21 @@ function jumpToPage(targetIdx) {
   const ossSyncPullSummary = document.getElementById('oss-sync-pull-summary');
   const searchInputEl = document.getElementById('search-modal-input');
   const searchSubmitBtn = document.getElementById('search-modal-submit');
-  const mobileFloatingActions = document.getElementById('mobile-floating-actions');
-  const mobileMainFab = document.getElementById('mobile-main-fab');
-  const mobileFabProject = document.getElementById('mobile-fab-project');
-  const mobileFabNext = document.getElementById('mobile-fab-next');
-  const mobileFabPrev = document.getElementById('mobile-fab-prev');
-  const mobileFabTogglePreview = document.getElementById('mobile-fab-toggle-preview');
-  const mobileFabUpload = document.getElementById('mobile-fab-upload');
+  const mobileActionsTrigger = document.getElementById('mobile-actions-trigger');
+  const mobileActionsTriggerPage = document.getElementById('mobile-actions-trigger-page');
+  const mobileActionModalEl = document.getElementById('mobileActionModal');
+  const mobileActionProjectMeta = document.getElementById('mobile-action-project-meta');
+  const mobileActionPrevMeta = document.getElementById('mobile-action-prev-meta');
+  const mobileActionNextMeta = document.getElementById('mobile-action-next-meta');
+  const mobileActionPreviewMeta = document.getElementById('mobile-action-preview-meta');
+  const mobileActionUploadMeta = document.getElementById('mobile-action-upload-meta');
+  const mobileActionButtons = {
+    project: document.querySelector('[data-mobile-action="project"]'),
+    prev: document.querySelector('[data-mobile-action="prev"]'),
+    next: document.querySelector('[data-mobile-action="next"]'),
+    preview: document.querySelector('[data-mobile-action="preview"]'),
+    upload: document.querySelector('[data-mobile-action="upload"]')
+  };
   const mobileAttachmentInput = document.getElementById('mobile-attachment-input');
   const mobileProjectModalEl = document.getElementById('mobileProjectModal');
   const mobileProjectList = document.getElementById('mobile-project-list');
@@ -3300,109 +3266,112 @@ function jumpToPage(targetIdx) {
       }
     });
   }
-  function setMobileFabOpen(opened) {
-    if(!mobileFloatingActions || !mobileMainFab) return;
-    const isOpen = !!opened;
-    if (!document.body.classList.contains('mobile-compact') && isOpen) {
-      mobileFloatingActions.classList.remove('open');
-      mobileFloatingActions.dataset.open = 'false';
-      mobileMainFab.setAttribute('aria-expanded', 'false');
-      return;
+  function setMobileActionDisabled(element, disabled) {
+    if(!element) return;
+    const isDisabled = !!disabled;
+    element.disabled = isDisabled;
+    element.classList.toggle('disabled', isDisabled);
+    element.setAttribute('aria-disabled', isDisabled ? 'true' : 'false');
+  }
+
+  let mobileActionModalInstance = null;
+
+  function ensureMobileActionModal() {
+    if (!mobileActionModalEl || typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+      return null;
     }
-    mobileFloatingActions.classList.toggle('open', isOpen);
-    mobileFloatingActions.dataset.open = isOpen ? 'true' : 'false';
-    mobileMainFab.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  }
-
-  function toggleMobileFabMenu() {
-    if(!mobileFloatingActions) return;
-    if(!document.body.classList.contains('mobile-compact')){
-      setMobileFabOpen(false);
-      return;
+    if (!mobileActionModalInstance) {
+      mobileActionModalInstance = bootstrap.Modal.getOrCreateInstance(mobileActionModalEl);
     }
-    const currentlyOpen = mobileFloatingActions.classList.contains('open');
-    setMobileFabOpen(!currentlyOpen);
+    return mobileActionModalInstance;
   }
 
-  function closeMobileFabMenu() {
-    if(!mobileFloatingActions) return;
-    if(!mobileFloatingActions.classList.contains('open')) return;
-    setMobileFabOpen(false);
+  function showMobileActionModal() {
+    if (!document.body.classList.contains('mobile-compact')) return;
+    const modal = ensureMobileActionModal();
+    if (modal) modal.show();
   }
 
-  if(mobileMainFab){
-    mobileMainFab.addEventListener('click', () => {
-      toggleMobileFabMenu();
+  function hideMobileActionModal() {
+    if (!mobileActionModalInstance) {
+      mobileActionModalInstance = ensureMobileActionModal();
+    }
+    if (mobileActionModalInstance) {
+      mobileActionModalInstance.hide();
+    }
+  }
+
+  function handleMobileQuickAction(action) {
+    switch(action){
+      case 'project':
+        renderMobileProjectList();
+        if(mobileProjectModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal){
+          bootstrap.Modal.getOrCreateInstance(mobileProjectModalEl).show();
+        } else {
+          showStatus('当前界面不支持切换项目', 'danger', 5000);
+        }
+        break;
+      case 'prev':
+        if(typeof goToPrevPage === 'function'){
+          goToPrevPage();
+        } else {
+          goToPrevPageMobile();
+        }
+        break;
+      case 'next':
+        if(typeof goToNextPage === 'function'){
+          goToNextPage();
+        } else {
+          goToNextPageMobile();
+        }
+        break;
+      case 'preview':
+        setMobilePreviewActive(!mobilePreviewActive);
+        break;
+      case 'upload':
+        if(mobileAttachmentInput){
+          mobileAttachmentInput.click();
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  if(mobileActionsTrigger){
+    mobileActionsTrigger.addEventListener('click', event => {
+      event.preventDefault();
+      showMobileActionModal();
     });
   }
 
-  if(mobileFabProject){
-    mobileFabProject.addEventListener('click', () => {
-      closeMobileFabMenu();
-      renderMobileProjectList();
-      if(mobileProjectModalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal){
-        const modal = bootstrap.Modal.getOrCreateInstance(mobileProjectModalEl);
-        modal.show();
-      } else {
-        showStatus('当前界面不支持切换项目', 'danger', 5000);
+  if(mobileActionModalEl){
+    mobileActionModalEl.addEventListener('shown.bs.modal', () => {
+      if(mobileActionsTrigger){
+        mobileActionsTrigger.classList.add('is-active');
+        mobileActionsTrigger.setAttribute('aria-expanded', 'true');
+      }
+    });
+    mobileActionModalEl.addEventListener('hidden.bs.modal', () => {
+      if(mobileActionsTrigger){
+        mobileActionsTrigger.classList.remove('is-active');
+        mobileActionsTrigger.setAttribute('aria-expanded', 'false');
       }
     });
   }
 
-  if(mobileFabPrev){
-    mobileFabPrev.addEventListener('click', () => {
-      closeMobileFabMenu();
-      if(typeof goToPrevPage === 'function'){
-        goToPrevPage();
-      } else {
-        goToPrevPageMobile();
-      }
+  Object.entries(mobileActionButtons).forEach(([action, button]) => {
+    if(!button) return;
+    button.addEventListener('click', () => {
+      if(button.disabled) return;
+      hideMobileActionModal();
+      handleMobileQuickAction(action);
     });
-  }
-
-  if(mobileFabNext){
-    mobileFabNext.addEventListener('click', () => {
-      closeMobileFabMenu();
-      if(typeof goToNextPage === 'function'){
-        goToNextPage();
-      } else {
-        goToNextPageMobile();
-      }
-    });
-  }
-
-  if(mobileFabTogglePreview){
-    mobileFabTogglePreview.addEventListener('click', () => {
-      closeMobileFabMenu();
-      setMobilePreviewActive(!mobilePreviewActive);
-    });
-  }
-
-  if(mobileFabUpload && mobileAttachmentInput){
-    mobileFabUpload.addEventListener('click', () => {
-      closeMobileFabMenu();
-      mobileAttachmentInput.click();
-    });
-  }
+  });
 
   if(mobileAttachmentInput){
     mobileAttachmentInput.addEventListener('change', handleMobileAttachmentSelection);
   }
-  document.addEventListener('click', event => {
-    if (!mobileFloatingActions || !mobileFloatingActions.classList.contains('open')) return;
-    if (!document.body.classList.contains('mobile-compact')) {
-      setMobileFabOpen(false);
-      return;
-    }
-    if (mobileFloatingActions.contains(event.target)) return;
-    setMobileFabOpen(false);
-  }, true);
-
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') {
-      closeMobileFabMenu();
-    }
-  });
   function goToPrevPageMobile(){
     if(currentPageIdx > 0){
       currentPageIdx -= 1;
@@ -3443,9 +3412,6 @@ function jumpToPage(targetIdx) {
     });
   }
 
-  if(mobileAttachmentInput){
-    mobileAttachmentInput.addEventListener('change', handleMobileAttachmentSelection);
-  }
   let projectMetadata = {};
   let projectListCache = [];
   let projectRenameTarget = '';
@@ -6215,7 +6181,7 @@ function syncMarkdownEditorToPreview(container) {
         mobilePreviewActive = false;
         applyMobilePreviewState();
       }
-      setMobileFabOpen(false);
+      hideMobileActionModal();
     }
     updateMobileControlStates();
     updateMobileUiState();
@@ -6382,7 +6348,7 @@ function syncMarkdownEditorToPreview(container) {
     const files = Array.from(input.files || []);
     if(!files.length) return;
     showStatus(files.length > 1 ? `正在上传 ${files.length} 个附件...` : '正在上传附件...', 'info', 2200);
-    const uploadTrigger = mobileFabUpload;
+    const uploadTrigger = mobileActionButtons ? mobileActionButtons.upload : null;
     if(uploadTrigger){
       uploadTrigger.disabled = true;
       uploadTrigger.classList.add('disabled');

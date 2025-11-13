@@ -6122,6 +6122,13 @@ function syncMarkdownEditorToPreview(container) {
   }
 
   function queueCompile(delay = 600) {
+    if (currentEditMode !== 'latex') {
+      if (compileTimer) {
+        clearTimeout(compileTimer);
+        compileTimer = null;
+      }
+      return;
+    }
     if (compileTimer) clearTimeout(compileTimer);
     compileTimer = setTimeout(runCompile, delay);
   }
